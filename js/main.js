@@ -1,0 +1,75 @@
+// Point d'entrée : initialisation, écrans, hors connexion (service worker), installation.
+import { app, mount, go, render, updateSyncChips } from './app.js';
+import { createStore } from './data/db.js';
+import { Repo } from './data/repo.js';
+import { h, toast } from './ui/dom.js';
+import './ui/home.js';
+import './ui/evalView.js';
+import './ui/settings.js';
+import './ui/modelEditor.js';
+import './ui/classEditor.js';
+import './ui/importWizard.js';
+import { SyncController } from './sync/controller.js';
+
+window.__APP_VERSION = '1.0.0';
+const rootEl = document.getElementById('app');
+mount(rootEl);
+
+async function boot() {
+  const repo = new Repo(createStore('eps-eval'));
+  try {
+    await repo.init();
+  } catch (e) {
+    rootEl.replaceChildren(h('div', { class: 'fatal' }, h('h2', null, 'Stockage local indisponible'),
+      h('p', null, 'L\'application ne peut pas enregistrer les données dans ce navigateur (mode privé ou stockage bloqué ?).'), h('pre', null, String(e))));
+    return;
+  }
+  app.repo = repo;
+  app.sync = new SyncController(repo);
+  window.__app = app; // utile pour le dépannage et les tests
+
+  navigator.storage?.persist?.().catch(() => {});
+
+  // Reprise de l'évaluation en cours après un rechargement
+  let first = { name: 'home' };
+  try {
+    const last = JSON.parse(localStorage.getItem('eps-last-route') || 'null');
+    if (last?.name === 'eval' && repo.get('evaluations', last.id) && !repo.get('evaluations', last.id).deleted) first = last;
+  } catch { /* ignore */ }
+  go(first.name, first);
+
+  window.addEventListener('online', updateSyncChips);
+  window.addEventListener('offline', updateSyncChips);
+  window.addEventListener('pagehide', () => repo.flush());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') repo.flush(); });
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installPrompt = e; });
+  window.addEventListener('appinstalled', () => { window.__installPrompt = null; });
+
+  registerServiceWorker();
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !/^https:|^http:\/\/localhost|^http:\/\/127\./.test(location.href)) return;
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    const offer = (worker) => toast('Une nouvelle version est disponible.', {
+      action: 'Mettre à jour', ms: 60000,
+      onAction: () => worker.postMessage('SKIP_WAITING'),
+    });
+    if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const w = reg.installing;
+      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
+    });
+  }).catch((e) => console.warn('Service worker non enregistré :', e));
+  // Rechargement uniquement lors d'une MISE À JOUR acceptée par l'utilisateur, jamais à la 1re installation
+  // (où le service worker prend simplement le contrôle de la page sans rien changer).
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    location.reload();
+  });
+}
+
+boot();
