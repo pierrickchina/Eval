@@ -1,7 +1,7 @@
 // Service worker : l'application fonctionne entièrement hors connexion après le 1er chargement.
 // Les données (IndexedDB) ne sont jamais touchées par une mise à jour.
 // À CHAQUE nouvelle version de l'application : incrémenter VERSION.
-const VERSION = 'eps-eval-v1.2.0';
+const VERSION = 'eps-eval-v1.3.0';
 
 const ASSETS = [
   './',

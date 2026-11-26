@@ -93,14 +93,24 @@ function studentScreen(ev) {
       btn('Liste', { icon: 'back', onClick: () => { S.sid = null; render(); } }),
       h('div', { class: 'grow' }, h('h1', null, studentLabel(s)), h('div', { class: 'muted' }, 'Choisis, pour chaque compétence, ce qui te ressemble le plus.'))),
     h('div', { class: 'selfbody' }, cards),
-    h('div', { class: 'selffoot' },
-      h('div', { class: 'grow' }, t.complete ? `Ma note : ${fmt(t.final)}/20` : `${t.filled}/${t.total} compétences choisies`),
-      btn('Valider mon auto-évaluation', { icon: 'check', cls: 'primary', disabled: !t.complete, onClick: async () => {
-        if (!(await confirmDialog('Une fois validée, tu ne pourras plus la modifier. Tu valides ?', 'Je valide', { danger: false }))) return;
-        validateSelf(ev, s.id);
-        await save(ev);
-        S.sid = null; render();
-        toast(`Merci ${s.first} ! Passe la tablette à un camarade ou à ton professeur.`, { ms: 4500 });
-      } }))
+    t.complete ? doneBar(ev, s, t) : h('div', { class: 'selffoot' },
+      h('div', { class: 'grow muted' }, `${t.filled}/${t.total} compétences choisies — il t'en reste ${t.total - t.filled}. Quand tu as tout choisi, le bouton « Valider » apparaît ici.`)),
   ];
+}
+
+/** Barre du bas, visible dès que TOUTES les compétences sont choisies : estimation de la note + gros bouton « Valider ». */
+function doneBar(ev, s, t) {
+  const rows = ev.model.competences.map((c) => h('span', { class: `recapchip ${selfCell(ev, s.id, c.id).level}` },
+    `${c.name} : ${fmt(selfCell(ev, s.id, c.id).score)}/${fmt(c.max)}`));
+  return h('div', { class: 'selfdone' },
+    h('div', { class: 'grow' },
+      h('div', { class: 'recaptitle' }, `Tu as tout choisi ! Note estimée : ${fmt(t.final)}/20`),
+      h('div', { class: 'recap' }, rows)),
+    btn('Valider mon auto-évaluation', { icon: 'check', cls: 'primary bigvalid', onClick: async () => {
+      if (!(await confirmDialog(`Ta note estimée est de ${fmt(t.final)}/20. Une fois validée, tu ne pourras plus modifier. Tu valides ?`, 'Je valide', { danger: false }))) return;
+      validateSelf(ev, s.id);
+      await save(ev);
+      S.sid = null; render();
+      toast(`Merci ${s.first} ! Passe la tablette à un camarade ou à ton professeur.`, { ms: 4500 });
+    } }));
 }

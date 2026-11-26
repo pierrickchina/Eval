@@ -53,7 +53,7 @@ export async function shareBackup() {
     try {
       const file = new File([json], c.name, { type: c.type });
       if (!navigator.canShare?.({ files: [file] })) continue;
-      await navigator.share({ files: [file], title: 'Sauvegarde Évaluation EPS' });
+      await navigator.share({ files: [file], title: 'Sauvegarde EPS' });
       await app.repo.setMeta('lastBackup', Date.now());
       toast('Sauvegarde partagée.');
       return true;

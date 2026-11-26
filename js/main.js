@@ -15,7 +15,7 @@ import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 
-window.__APP_VERSION = '1.2.0';
+window.__APP_VERSION = '1.3.0';
 const rootEl = document.getElementById('app');
 mount(rootEl);
 

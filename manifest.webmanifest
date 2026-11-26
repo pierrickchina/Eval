@@ -1,7 +1,7 @@
 {
-  "name": "Évaluation EPS",
-  "short_name": "Éval EPS",
-  "description": "Évaluer les élèves en EPS depuis une tablette, hors connexion.",
+  "name": "EPS",
+  "short_name": "EPS",
+  "description": "Outils d'EPS sur tablette, hors connexion : évaluations et bientôt d'autres.",
   "lang": "fr",
   "start_url": "./index.html",
   "scope": "./",

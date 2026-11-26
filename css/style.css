@@ -307,3 +307,14 @@ td.cell .self { position: absolute; left: 4px; top: 1px; font-size: 10px; font-s
   #print-root td.ac { background: #bde5c3 !important; } #print-root td.de { background: #b9d7f7 !important; }
   #print-root { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* ---------- v1.3 : barre de validation de l'auto-évaluation ---------- */
+.selfdone { display: flex; align-items: center; gap: 16px; padding: 12px 16px; background: #e4f4e8; border-top: 3px solid #5cc27a; flex: none; animation: rise .35s ease-out; }
+.recaptitle { font-size: 20px; font-weight: 750; color: #1f5a2c; margin-bottom: 6px; }
+.recap { display: flex; flex-wrap: wrap; gap: 6px; }
+.recapchip { border-radius: 99px; padding: 3px 11px; font-size: 13px; font-weight: 600; border: 1px solid rgba(0, 0, 0, .12); }
+.recapchip.na { background: var(--na); color: var(--na-ink); } .recapchip.ec { background: var(--ec); color: var(--ec-ink); }
+.recapchip.ac { background: var(--ac); color: var(--ac-ink); } .recapchip.de { background: var(--de); color: var(--de-ink); }
+.bigvalid { min-height: 68px; font-size: 20px; padding: 0 28px; border-radius: 16px; flex: none; animation: glow 1.4s ease-in-out infinite; }
+@keyframes rise { from { transform: translateY(40px); opacity: 0; } }
+@keyframes glow { 50% { box-shadow: 0 0 0 8px rgba(107, 122, 227, .28); } }

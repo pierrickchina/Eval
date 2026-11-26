@@ -350,13 +350,13 @@ function studentMode() {
     iconBtn('back', 'Élève précédent', () => go2(idx - 1), 'boxed', { disabled: idx <= 0 }),
     h('h2', { class: 'grow' }, studentLabel(s)),
     iconBtn('next', 'Élève suivant', () => go2(idx + 1), 'boxed', { disabled: idx >= list.length - 1 }),
-    h('div', { class: 'seg', role: 'group', 'aria-label': 'Statut' }, STATUSES.map((st) =>
-      h('button', { class: t.status === st.key ? 'on' : '', onClick: () => act('Statut', (e) => setStatus(e, s.id, st.key)) }, st.label))),
     (() => {
       const more = iconBtn('more', 'Plus d\'options', () => popMenu(more, [
         { label: 'Résumé de l\'année', onClick: () => studentSummaryDialog(s.id, ev) },
         { label: 'Historique de l\'élève', onClick: () => studentHistoryDialog(s.id, ev) },
-        { label: 'Remarque…', onClick: () => noteDialog(s) },
+        { label: getNote(ev, s.id) ? 'Remarque ✎…' : 'Remarque…', onClick: () => noteDialog(s) },
+        '-',
+        ...STATUSES.map((st) => ({ label: `Statut : ${st.label}`, active: st.key === t.status, onClick: () => act('Statut', (e) => setStatus(e, s.id, st.key)) })),
         ...(selfDone(ev, s.id) ? ['-', { label: 'Rouvrir son auto-évaluation', onClick: () => { reopenSelf(ev, s.id); app.repo.save('evaluations', ev); render(); toast('Auto-évaluation rouverte : l\'élève pourra la modifier.'); } }] : []),
       ]), 'boxed');
       return more;
@@ -371,16 +371,12 @@ function studentMode() {
       : [h('span', null, `${fmt(t.points)}/${fmt(t.maxFilled)} pts`), h('span', { class: 'muted' }, t.remaining ? `${t.remaining} compétence${t.remaining > 1 ? 's' : ''} restante${t.remaining > 1 ? 's' : ''} — note finale quand tout est renseigné` : ''),
         opts().showProvisional && t.provisional != null ? h('span', { class: 'statepill draft' }, `estimation ≈ ${fmt(t.provisional, 1)}/20 (provisoire)`) : null]);
 
-  const note = h('label', { class: 'notebox' }, h('span', { class: 'muted small' }, 'Remarque sur l\'élève (écriture au stylet possible)'),
-    h('textarea', { rows: 2, 'data-fid': 'note-' + s.id, placeholder: 'Remarque libre…', 'aria-label': 'Remarque sur l\'élève',
-      onChange: (e) => act('Remarque', (x) => setNote(x, s.id, e.target.value)) }, getNote(ev, s.id)));
-
   const st2 = selfTotals(ev, s.id);
   if (st2.filled) total.append(h('span', { class: 'selfline', style: { marginLeft: 'auto' } },
     `Auto-évaluation : ${st2.complete ? `${fmt(st2.final)}/20` : `${st2.filled}/${st2.total} compétences`}${st2.done ? ' (validée)' : ''}`));
 
   return h('div', { class: 'split' }, side,
-    h('div', { class: 'detail' }, head, warn, h('div', { class: 'comps c2', 'data-keep': 'comps' }, comps.map((c) => compCard(s, c))), note, total));
+    h('div', { class: 'detail' }, head, warn, h('div', { class: 'comps c2', 'data-keep': 'comps' }, comps.map((c) => compCard(s, c))), total));
 }
 
 function compCard(s, c) {

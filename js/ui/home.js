@@ -32,7 +32,7 @@ registerView('home', () => {
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      h('h1', { class: 'grow' }, 'Évaluations EPS'),
+      h('div', { class: 'grow evtitle' }, h('h1', null, 'EPS'), h('div', { class: 'sub' }, 'Évaluations')),
       syncChip(),
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') }),
       btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })),
