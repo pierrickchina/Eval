@@ -16,7 +16,7 @@ registerView('import', () => {
   const steps = ['Fichier', 'Colonnes', 'Aperçu et validation'];
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => { IW = null; go('settings', { tab: 'models' }); }),
+      iconBtn('back', 'Retour', () => { IW = null; go('settings', { tab: 'models' }); }, '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, 'Importer un tableau de compétences'),
       h('div', { class: 'seg' }, steps.map((s, i) => h('button', { class: IW.step === i + 1 ? 'on' : '', disabled: i + 1 > IW.step, style: { cursor: 'default' } }, `${i + 1}. ${s}`)))),
     h('div', { class: 'settings scroll', 'data-keep': 'import' }, IW.step === 1 ? step1() : IW.step === 2 ? step2() : step3()));

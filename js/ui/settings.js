@@ -3,7 +3,8 @@ import { app, registerView, go, render, syncChip, updateSyncChips } from '../app
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
-import { shareBackup, downloadBackup, backupText, changesSinceBackup } from './backup.js';
+import { shareBackup, downloadBackup, backupText, changesSinceBackup, makeSafetyCopy, safetyInfo, restoreSafetyCopy } from './backup.js';
+import { DEFAULT_CODE } from './selfEval.js';
 import { validateModel } from '../logic/model.js';
 
 const TABS = [['models', 'Modèles d\'évaluation'], ['classes', 'Classes'], ['data', 'Données et synchronisation']];
@@ -12,7 +13,7 @@ registerView('settings', ({ tab = 'models' }) => {
   const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : dataTab();
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => go('home')),
+      iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, 'Réglages'),
       syncChip()),
     h('div', { class: 'toolbar' }, h('div', { class: 'seg' }, TABS.map(([k, l]) =>
@@ -106,7 +107,7 @@ function dataTab() {
   const counts = `${repo.list('classes').length} classes · ${repo.list('models').length} modèles · ${repo.list('evaluations').length} évaluations`;
   const ctl = app.sync;
 
-  const fileInput = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onChange: async (e) => {
+  const fileInput = h('input', { type: 'file', accept: '.json,.txt,application/json,text/plain', hidden: true, onChange: async (e) => {
     const f = e.target.files[0]; e.target.value = '';
     if (!f) return;
     let obj;
@@ -123,7 +124,13 @@ function dataTab() {
       h('div', { class: 'row wrap' },
         btn('Partager la sauvegarde (Drive…)', { icon: 'cloud', cls: 'primary', onClick: async () => { await shareBackup(); render(); } }),
         btn('Télécharger la sauvegarde', { icon: 'download', onClick: async () => { await downloadBackup(); render(); } }),
-        btn('Importer une sauvegarde…', { icon: 'upload', onClick: () => fileInput.click() }), fileInput)),
+        btn('Importer une sauvegarde…', { icon: 'upload', onClick: () => fileInput.click() }), fileInput),
+      safetyInfo() ? h('div', { class: 'row wrap', style: { marginTop: '10px' } },
+        h('span', { class: 'muted small grow' }, `Copie de sécurité interne : ${new Date(safetyInfo().at).toLocaleString('fr-FR')} (${safetyInfo().reason}).`),
+        btn('Restaurer cette copie', { cls: 'small', onClick: async () => {
+          if (!(await confirmDialog('Les données actuelles seront remplacées par la copie de sécurité. Continuer ?', 'Restaurer'))) return;
+          try { await restoreSafetyCopy(); toast('Copie de sécurité restaurée.'); updateSyncChips(); render(); } catch (e) { toast(e.message); }
+        } })) : null),
 
     h('div', { class: 'panel' }, h('h3', null, 'Google Drive'),
       h('p', { class: 'muted', style: { margin: '0 0 10px' } }, 'Les données sont sauvegardées dans un dossier privé de l\'application sur votre Drive (invisible dans « Mon Drive »). Fonctionne hors connexion : tout est envoyé au retour du réseau. Une sauvegarde plus ancienne n\'écrase jamais des données plus récentes.'),
@@ -146,6 +153,11 @@ function dataTab() {
         onChange: (e) => { setSetting('showProvisional', e.target.checked); } }),
       h('span', null, 'Afficher une estimation provisoire sur 20 quand toutes les compétences ne sont pas encore renseignées', h('div', { class: 'muted small' }, 'Désactivé par défaut : la note finale n\'est affichée que lorsque tout est renseigné.')))),
 
+    h('div', { class: 'panel' }, h('h3', null, 'Auto-évaluation des élèves'),
+      h('label', { class: 'field', style: { maxWidth: '260px' } }, 'Code pour quitter le mode élève',
+        h('input', { type: 'text', inputmode: 'numeric', maxlength: 8, value: settings.selfCode || DEFAULT_CODE, onChange: (e) => { const v = e.target.value.trim(); setSetting('selfCode', v || DEFAULT_CODE); toast('Code enregistré.'); } })),
+      h('p', { class: 'muted small', style: { margin: '8px 0 0' } }, 'Le mode se lance depuis le menu ⋮ d\'une évaluation. Le code protège la tablette devant les élèves, il n\'est pas un secret absolu.')),
+
     h('div', { class: 'panel' }, h('h3', null, 'Application'),
       h('div', { class: 'row wrap' },
         inst ? btn('Installer sur cet appareil', { icon: 'download', cls: 'primary', onClick: async () => { inst.prompt(); await inst.userChoice; window.__installPrompt = null; render(); } }) : null,
@@ -155,7 +167,7 @@ function dataTab() {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.1.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.2.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];
@@ -184,7 +196,7 @@ function importDialog(obj, fname) {
       h('p', { class: 'dlg-msg' }, h('b', null, 'Fusionner'), ' (recommandé) : ajoute ce qui manque et ne remplace une donnée de cette tablette que si la sauvegarde est plus récente.'),
       h('p', { class: 'dlg-msg' }, h('b', null, 'Remplacer tout'), ' : efface les données de cette tablette puis restaure la sauvegarde.')],
     actions: [{ label: 'Annuler' },
-      { label: 'Remplacer tout', danger: true, onClick: async () => { if (await confirmDialog('Toutes les données actuelles de cette tablette seront remplacées par la sauvegarde. Continuer ?', 'Remplacer')) await run('replace')(); else return false; } },
+      { label: 'Remplacer tout', danger: true, onClick: async () => { if (await confirmDialog('Toutes les données actuelles de cette tablette seront remplacées par la sauvegarde (une copie de sécurité est gardée). Continuer ?', 'Remplacer')) { await makeSafetyCopy('avant « Remplacer tout »'); await run('replace')(); } else return false; } },
       { label: 'Fusionner', primary: true, onClick: run('merge') }],
   });
 }

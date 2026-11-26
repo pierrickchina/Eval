@@ -47,7 +47,7 @@ registerView('modelEdit', ({ id }) => {
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', leave),
+      iconBtn('back', 'Retour', leave, '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, app.repo.get('models', ME.model.id) ? 'Modifier le modèle' : 'Nouveau modèle'),
       btn('Annuler', { onClick: leave }), save),
     h('div', { class: 'settings scroll', 'data-keep': 'modeledit' },

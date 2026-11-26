@@ -57,10 +57,12 @@ export function duplicateEvaluation(src, { date, cls = null, keepGroups = true, 
     copy.status = {};
     copy.statusU = {};
     copy.notes = {};
+    copy.selfEval = {};
   } else {
     for (const k of Object.keys(copy.results)) if (!ids.has(k)) delete copy.results[k];
     for (const k of Object.keys(copy.status)) if (!ids.has(k)) delete copy.status[k];
     for (const k of Object.keys(copy.notes || {})) if (!ids.has(k)) delete copy.notes[k];
+    for (const k of Object.keys(copy.selfEval || {})) if (!ids.has(k)) delete copy.selfEval[k];
   }
   return copy;
 }
@@ -103,6 +105,7 @@ export function removeStudentFromEvaluation(ev, sid) {
   delete ev.status[sid];
   delete ev.membership[sid];
   if (ev.notes) delete ev.notes[sid];
+  if (ev.selfEval) delete ev.selfEval[sid];
 }
 
 // ---- Tri / filtre du tableau ----

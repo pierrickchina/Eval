@@ -1,7 +1,7 @@
 // Écran d'une évaluation : tableau général, saisie rapide, fiche élève, groupes, statuts.
 import { app, registerView, go, render, syncChip } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog } from './dom.js';
-import { fmt, parseNum } from '../util.js';
+import { fmt, fmtDate, parseNum, todayISO } from '../util.js';
 import { LEVELS, STATUSES, levelInfo, studentLabel, newStudent } from '../data/schema.js';
 import {
   setLevel, setScore, validateCell, clearCell, setStatus, studentTotals, classStats, getCell, cellState,
@@ -15,6 +15,8 @@ import { studentHistoryDialog } from './historyView.js';
 import { duplicateDialog } from './home.js';
 import { studentSummaryDialog } from './summaryView.js';
 import { printEvaluation } from './printView.js';
+import { startSelfEval } from './selfEval.js';
+import { selfCell, selfTotals, selfDone, reopenSelf } from '../logic/selfeval.js';
 
 let V = null; // état de l'évaluation ouverte
 
@@ -62,19 +64,30 @@ registerView('eval', ({ id }) => {
 
 function topbar() {
   const ev = V.ev;
-  return h('div', { class: 'topbar', style: { flexWrap: 'wrap' } },
-    iconBtn('back', 'Retour aux évaluations', () => { V.sel = null; go('home'); }),
-    h('div', { class: 'grow' },
+  // Options rarement utilisées : regroupées derrière un seul bouton « ⋮ » pour garder la page lisible
+  const more = iconBtn('more', 'Options de l\'évaluation', () => popMenu(more, [
+    { label: `Date : ${fmtDate(ev.date)}…`, onClick: dateDialog },
+    { label: 'Équipes et groupes de niveau…', onClick: groupsDialog },
+    { label: 'Ajouter un élève…', onClick: addStudentDialog },
+    { label: 'Dupliquer…', onClick: () => duplicateDialog(ev) },
+    { label: 'Imprimer / exporter en PDF', onClick: () => printEvaluation(ev) },
+    '-',
+    { label: 'Auto-évaluation des élèves…', onClick: () => startSelfEval(ev) },
+  ]), 'boxed');
+  return h('div', { class: 'topbar' },
+    iconBtn('back', 'Retour aux évaluations', () => { V.sel = null; go('home'); }, '', { 'data-back': '1' }),
+    h('div', { class: 'grow evtitle' },
       h('h1', null, `${ev.classInfo.name} · ${ev.model.activity}`),
-      h('div', { class: 'sub' }, `${ev.model.name} — ${ev.students.length} élèves`)),
-    h('input', { type: 'date', value: ev.date, 'aria-label': 'Date de l\'évaluation', onChange: (e) => e.target.value && act('Date', (x) => { x.date = e.target.value; }) }),
+      h('div', { class: 'sub' }, `${ev.model.name} — ${ev.students.length} élèves — ${fmtDate(ev.date)}`)),
     iconBtn('undo', V.sess.canUndo ? `Annuler : ${V.sess.undoLabel}` : 'Annuler', undo, 'boxed', { disabled: !V.sess.canUndo }),
     iconBtn('redo', V.sess.canRedo ? `Rétablir : ${V.sess.redoLabel}` : 'Rétablir', redo, 'boxed', { disabled: !V.sess.canRedo }),
-    btn('Groupes', { icon: 'users', onClick: groupsDialog }),
-    btn('Élève', { icon: 'plus', onClick: addStudentDialog }),
-    iconBtn('copy', 'Dupliquer cette évaluation', () => duplicateDialog(ev)),
-    iconBtn('file', 'Imprimer / exporter en PDF', () => printEvaluation(ev)),
-    syncChip());
+    more);
+}
+
+function dateDialog() {
+  let d = V.ev.date;
+  openDialog({ title: 'Date de l\'évaluation', body: h('input', { type: 'date', value: d, 'aria-label': 'Date', onChange: (e) => { d = e.target.value || todayISO(); } }),
+    actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: () => { act('Date', (x) => { x.date = d; }); } }] });
 }
 
 // ---------- Tableau général ----------
@@ -146,7 +159,8 @@ function studentRow(s, comps) {
         'aria-label': `${label}, ${c.name}`, onClick: () => { V.sel = { sid: s.id, cid: c.id }; render(); } },
       state === 'empty' ? '' : fmt(cell.score),
       state !== 'empty' && cell.level ? h('span', { class: 'sym' }, levelInfo(cell.level).symbol) : null,
-      obs.length ? h('span', { class: 'obs', title: 'Observations brouillon' }, obs.map((k) => levelInfo(k).symbol).join('')) : null);
+      obs.length ? h('span', { class: 'obs', title: 'Observations brouillon' }, obs.map((k) => levelInfo(k).symbol).join('')) : null,
+      selfCell(ev, s.id, c.id) ? h('span', { class: 'self', title: `Auto-évaluation de l'élève : ${levelInfo(selfCell(ev, s.id, c.id).level).label}` }, levelInfo(selfCell(ev, s.id, c.id).level).symbol) : null);
     }),
     totalCell(t));
   return tr;
@@ -212,6 +226,14 @@ function obsRow(sid, cid, cell) {
     h('span', { class: 'muted small' }, `= ${summary}`));
 }
 
+/** Rappel de l'auto-évaluation de l'élève (grisé, italique) : jamais comptée dans la note. */
+function selfLine(sid, cid) {
+  const sc = selfCell(V.ev, sid, cid);
+  if (!sc) return null;
+  const l = levelInfo(sc.level), c = V.ev.model.competences.find((x) => x.id === cid);
+  return h('div', { class: 'selfline' }, `Auto-évaluation de l'élève : ${l.symbol} ${l.label} (${fmt(sc.score)}/${fmt(c.max)})${selfDone(V.ev, sid) ? '' : ' — non validée'}`);
+}
+
 function noteDialog(s) {
   let text = getNote(V.ev, s.id);
   const ta = h('textarea', { rows: 7, placeholder: 'Écrivez ou dessinez au stylet (la saisie manuscrite est convertie en texte)…', autofocus: true, onInput: (e) => { text = e.target.value; } });
@@ -258,6 +280,7 @@ function sheet() {
       iconBtn('close', 'Fermer la saisie', () => { V.sel = null; render(); }, 'sm')),
     lvButtons,
     obsRow(sid, cid, cell),
+    selfLine(sid, cid),
     h('div', { class: 'row wrap' },
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Moins', onClick: () => setSc(Math.max(0, (cell?.score ?? 0) - step)) }, '−'),
@@ -323,14 +346,21 @@ function studentMode() {
   }));
 
   const head = h('div', { class: 'head' },
-    btn('Tableau', { icon: 'back', onClick: () => { V.mode = 'table'; render(); } }),
+    btn('Tableau', { icon: 'back', 'data-back': '1', onClick: () => { V.mode = 'table'; render(); } }),
     iconBtn('back', 'Élève précédent', () => go2(idx - 1), 'boxed', { disabled: idx <= 0 }),
     h('h2', { class: 'grow' }, studentLabel(s)),
     iconBtn('next', 'Élève suivant', () => go2(idx + 1), 'boxed', { disabled: idx >= list.length - 1 }),
     h('div', { class: 'seg', role: 'group', 'aria-label': 'Statut' }, STATUSES.map((st) =>
       h('button', { class: t.status === st.key ? 'on' : '', onClick: () => act('Statut', (e) => setStatus(e, s.id, st.key)) }, st.label))),
-    btn('Historique', { icon: 'chart', onClick: () => studentHistoryDialog(s.id, ev) }),
-    btn('Résumé', { icon: 'file', onClick: () => studentSummaryDialog(s.id, ev) }));
+    (() => {
+      const more = iconBtn('more', 'Plus d\'options', () => popMenu(more, [
+        { label: 'Résumé de l\'année', onClick: () => studentSummaryDialog(s.id, ev) },
+        { label: 'Historique de l\'élève', onClick: () => studentHistoryDialog(s.id, ev) },
+        { label: 'Remarque…', onClick: () => noteDialog(s) },
+        ...(selfDone(ev, s.id) ? ['-', { label: 'Rouvrir son auto-évaluation', onClick: () => { reopenSelf(ev, s.id); app.repo.save('evaluations', ev); render(); toast('Auto-évaluation rouverte : l\'élève pourra la modifier.'); } }] : []),
+      ]), 'boxed');
+      return more;
+    })());
 
   const warn = !t.usable ? h('div', { class: 'totalbar', style: { background: '#fff7e0' } },
     `Élève « ${statusInfo(t.status).label} » : ses notes ne sont pas comptées dans les moyennes.`,
@@ -344,6 +374,10 @@ function studentMode() {
   const note = h('label', { class: 'notebox' }, h('span', { class: 'muted small' }, 'Remarque sur l\'élève (écriture au stylet possible)'),
     h('textarea', { rows: 2, 'data-fid': 'note-' + s.id, placeholder: 'Remarque libre…', 'aria-label': 'Remarque sur l\'élève',
       onChange: (e) => act('Remarque', (x) => setNote(x, s.id, e.target.value)) }, getNote(ev, s.id)));
+
+  const st2 = selfTotals(ev, s.id);
+  if (st2.filled) total.append(h('span', { class: 'selfline', style: { marginLeft: 'auto' } },
+    `Auto-évaluation : ${st2.complete ? `${fmt(st2.final)}/20` : `${st2.filled}/${st2.total} compétences`}${st2.done ? ' (validée)' : ''}`));
 
   return h('div', { class: 'split' }, side,
     h('div', { class: 'detail' }, head, warn, h('div', { class: 'comps c2', 'data-keep': 'comps' }, comps.map((c) => compCard(s, c))), note, total));
@@ -368,14 +402,16 @@ function compCard(s, c) {
     LEVELS.map((l) => {
       const d = c.levels.find((x) => x.key === l.key);
       const n = (cell?.obs || []).filter((k) => k === l.key).length;
+      const mine = selfCell(ev, s.id, c.id)?.level === l.key;
       return h('div', { class: 'lvwrap' },
         h('button', { type: 'button', class: `lvrow ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, onClick: () => act('Niveau', (e) => setLevel(e, s.id, c.id, l.key)) },
-          h('span', { class: 'lab' }, `${l.symbol} ${l.short === 'A' ? 'Acquis' : l.short === 'NA' ? 'Non acquis' : l.short === 'EC' ? 'En cours' : 'Dépassé'}`,
-            h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`)),
-          // texte COMPLET (retours à la ligne conservés), plus de coupure
+          // titre en gras en haut, puis le texte COMPLET sur toute la largeur de la case
+          h('span', { class: 'lvh' }, `${l.symbol} ${l.label}`, h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`),
+            mine ? h('i', { class: 'selfmark' }, 'auto-éval. de l\'élève') : null),
           h('span', { class: 'crit' }, d.text || h('span', { class: 'muted' }, 'Critère non renseigné'))),
+        // petit bouton brouillon, discret (usage principal : vue tableau)
         h('button', { type: 'button', class: `lvdraft side ${l.key}`, 'aria-label': `Noter une observation « ${l.label} » (brouillon)`, title: 'Observation brouillon (ne place pas l\'élève)',
-          onClick: () => act('Observation', (e) => addObs(e, s.id, c.id, l.key)) }, `+ ${l.symbol}`, n ? h('b', { class: 'cnt' }, n) : null));
+          onClick: () => act('Observation', (e) => addObs(e, s.id, c.id, l.key)) }, `+${l.symbol}`, n ? h('b', { class: 'cnt' }, n) : null));
     }),
     obsRow(s.id, c.id, cell),
     h('div', { class: 'foot' },

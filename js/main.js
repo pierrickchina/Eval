@@ -1,5 +1,5 @@
 // Point d'entrée : initialisation, écrans, hors connexion (service worker), installation.
-import { app, mount, go, render, updateSyncChips } from './app.js';
+import { app, mount, go, render, updateSyncChips, initBack } from './app.js';
 import { createStore } from './data/db.js';
 import { Repo } from './data/repo.js';
 import { h, toast } from './ui/dom.js';
@@ -9,10 +9,13 @@ import './ui/settings.js';
 import './ui/modelEditor.js';
 import './ui/classEditor.js';
 import './ui/importWizard.js';
+import './ui/selfEval.js';
+import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
+import { makeSafetyCopy } from './ui/backup.js';
 
-window.__APP_VERSION = '1.1.0';
+window.__APP_VERSION = '1.2.0';
 const rootEl = document.getElementById('app');
 mount(rootEl);
 
@@ -47,12 +50,22 @@ async function boot() {
     }
   } catch (e) { console.warn('Migration des niveaux impossible :', e); }
 
+  // Copie de sécurité interne au premier lancement d'une nouvelle version (les données sont intactes à ce stade)
+  try {
+    if (repo.getMeta('appVersion') !== window.__APP_VERSION) {
+      if (repo.list('evaluations').length || repo.list('classes').length || repo.list('models').length) await makeSafetyCopy(`avant la version ${window.__APP_VERSION}`);
+      await repo.setMeta('appVersion', window.__APP_VERSION);
+    }
+  } catch (e) { console.warn('Copie de sécurité impossible :', e); }
+
   // Reprise de l'évaluation en cours après un rechargement
   let first = { name: 'home' };
   try {
     const last = JSON.parse(localStorage.getItem('eps-last-route') || 'null');
     if (last?.name === 'eval' && repo.get('evaluations', last.id) && !repo.get('evaluations', last.id).deleted) first = last;
   } catch { /* ignore */ }
+  initBack();
+  first = resumeRoute() || first; // mode élève actif : on y reste, même après un rechargement
   go(first.name, first);
 
   window.addEventListener('online', updateSyncChips);

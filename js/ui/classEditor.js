@@ -79,7 +79,7 @@ registerView('classEdit', ({ id }) => {
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => { CE = null; go('settings', { tab: 'classes' }); }),
+      iconBtn('back', 'Retour', () => { CE = null; go('settings', { tab: 'classes' }); }, '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, exists ? c.name || 'Classe' : 'Nouvelle classe'),
       h('span', { class: 'muted small' }, exists ? 'Enregistré automatiquement' : ''),
       btn('Terminer', { icon: 'check', cls: 'primary', onClick: () => { CE = null; go('settings', { tab: 'classes' }); } })),

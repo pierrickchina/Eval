@@ -103,7 +103,7 @@ export const getNote = (ev, sid) => ev.notes?.[sid]?.text || '';
 export function setNote(ev, sid, text, stamp = now()) {
   ev.notes ??= {};
   const t = String(text || '').trim() ? String(text) : '';
-  if (!t && !ev.notes[sid]) return;
+  if ((ev.notes[sid]?.text || '') === t) return; // identique : rien à enregistrer (pas de faux « modifié »)
   if (!t) { ev.notes[sid] = { text: '', u: stamp }; return; }
   ev.notes[sid] = { text: t, u: stamp };
 }

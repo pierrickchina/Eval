@@ -1,5 +1,5 @@
 // État global de l'application, routeur minimal et rendu.
-import { h } from './ui/dom.js';
+import { h, hasDialog, closeTopDialog, toast } from './ui/dom.js';
 
 export const app = {
   repo: null,
@@ -22,9 +22,38 @@ export function mount(el) {
   el.addEventListener('change', (e) => { const d = e.target.dataset; if (d?.fid && !('draft' in d)) delete d.dirty; }, true);
 }
 
+// ---------- Bouton « Précédent » (tablette Samsung) ----------
+// Précédent remonte d'un niveau (fiche élève → tableau → accueil ; réglages → accueil) au lieu de fermer l'application.
+// Au niveau de l'accueil, un 1er appui prévient, un 2e appui quitte.
+
+/** Remonte d'un niveau. Renvoie false si on est déjà à l'accueil (rien à faire). */
+export function goBack() {
+  if (app.route.name === 'selfEval') { app.selfEvalBack?.(); return true; } // mode élève : jamais de sortie par Précédent
+  if (hasDialog()) { closeTopDialog(); return true; }
+  const b = [...(root?.querySelectorAll('[data-back]') || [])].at(-1); // le plus « profond » dans la page
+  if (b && !b.disabled) { b.click(); return true; }
+  return false;
+}
+
+export function initBack() {
+  try {
+    history.replaceState({ base: 1 }, '');
+    history.pushState({ guard: 1 }, '');
+  } catch { return; }
+  window.addEventListener('popstate', (e) => {
+    if (!e.state?.base) return;
+    if (goBack()) { try { if (history.state?.base) history.pushState({ guard: 1 }, ''); } catch { /* ignore */ } }
+    else toast('Appuyez encore une fois sur Précédent pour quitter.', { ms: 2500 });
+  });
+}
+
 export function go(name, params = {}) {
   app.route = { name, ...params };
-  try { history.replaceState({ name, ...params }, '', '#' + name); } catch { /* ignore */ }
+  try {
+    // Bouton « Précédent » de la tablette : on garde toujours une entrée « garde » devant l'entrée de base
+    if (history.state?.base) history.pushState({ guard: 1 }, '', '#' + name);
+    else history.replaceState(history.state ?? { guard: 1 }, '', '#' + name);
+  } catch { /* ignore */ }
   try {
     // mémorise l'évaluation ouverte pour y revenir après un rechargement accidentel
     if (name === 'eval') localStorage.setItem('eps-last-route', JSON.stringify({ name, id: params.id }));

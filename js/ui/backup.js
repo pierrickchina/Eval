@@ -36,34 +36,56 @@ export function backupNeedsAttention() {
   return days >= 7 && changesSinceBackup() > 0;
 }
 
-const fileName = () => `eval-eps-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+const stamp = () => new Date().toISOString().slice(0, 10);
 
-/** Ouvre le menu de partage de la tablette avec le fichier de sauvegarde (Drive, Mes fichiers, mail…). */
+/**
+ * Ouvre le menu de partage de la tablette (Drive, Mes fichiers, mail…).
+ * Chrome n'autorise le partage que de certains types de fichiers (les fichiers « texte » en font partie) :
+ * on essaie donc le fichier .txt (même contenu que le .json), puis le .json, puis le téléchargement.
+ */
 export async function shareBackup() {
   const json = JSON.stringify(app.repo.exportAll(), null, 1);
-  const name = fileName();
-  try {
-    const file = new File([json], name, { type: 'application/json' });
-    if (navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'Sauvegarde Évaluation EPS', text: 'Sauvegarde de mes évaluations EPS' });
+  const candidates = [
+    { name: `eval-eps-sauvegarde-${stamp()}.txt`, type: 'text/plain' },
+    { name: `eval-eps-sauvegarde-${stamp()}.json`, type: 'application/json' },
+  ];
+  for (const c of candidates) {
+    try {
+      const file = new File([json], c.name, { type: c.type });
+      if (!navigator.canShare?.({ files: [file] })) continue;
+      await navigator.share({ files: [file], title: 'Sauvegarde Évaluation EPS' });
       await app.repo.setMeta('lastBackup', Date.now());
       toast('Sauvegarde partagée.');
       return true;
+    } catch (e) {
+      if (e?.name === 'AbortError') return false; // fenêtre de partage fermée : rien n'est enregistré
+      console.warn('Partage impossible avec', c.type, e);
     }
-  } catch (e) {
-    if (e?.name === 'AbortError') return false; // fenêtre de partage fermée : rien n'est enregistré
-    console.warn('Partage impossible, téléchargement à la place :', e);
   }
-  // Repli (navigateur sans partage de fichiers) : téléchargement classique
-  download(name, json);
+  // Plan B : téléchargement, puis envoi vers Drive depuis l'application Drive (+ › Importer)
+  download(`eval-eps-sauvegarde-${stamp()}.txt`, json, 'text/plain');
   await app.repo.setMeta('lastBackup', Date.now());
-  toast('Partage indisponible ici : la sauvegarde a été téléchargée dans le dossier Téléchargements.', { ms: 7000 });
+  toast('Partage indisponible : fichier téléchargé (dossier Téléchargements). Dans Drive : « + » puis « Importer ».', {
+    ms: 12000, action: 'Ouvrir Drive', onAction: () => window.open('https://drive.google.com/drive/my-drive', '_blank', 'noopener'),
+  });
   return true;
 }
 
 /** Téléchargement simple (dossier Téléchargements de la tablette). */
 export async function downloadBackup() {
-  download(fileName(), JSON.stringify(app.repo.exportAll(), null, 1));
+  download(`eval-eps-sauvegarde-${stamp()}.json`, JSON.stringify(app.repo.exportAll(), null, 1));
   await app.repo.setMeta('lastBackup', Date.now());
   toast('Sauvegarde téléchargée.');
+}
+
+// ---------- Copie de sécurité interne (avant une mise à jour ou un « Remplacer tout ») ----------
+
+export async function makeSafetyCopy(reason) {
+  await app.repo.setMeta('safetyBackup', { at: Date.now(), reason, data: app.repo.exportAll() });
+}
+export const safetyInfo = () => { const b = app.repo.getMeta('safetyBackup'); return b ? { at: b.at, reason: b.reason } : null; };
+export async function restoreSafetyCopy() {
+  const b = app.repo.getMeta('safetyBackup');
+  if (!b?.data) throw new Error('Aucune copie de sécurité.');
+  return app.repo.importAll(b.data, { mode: 'replace' });
 }
