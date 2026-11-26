@@ -3,6 +3,7 @@ import { app, registerView, go, render, syncChip, updateSyncChips } from '../app
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
+import { shareBackup, downloadBackup, backupText, changesSinceBackup } from './backup.js';
 import { validateModel } from '../logic/model.js';
 
 const TABS = [['models', 'Modèles d\'évaluation'], ['classes', 'Classes'], ['data', 'Données et synchronisation']];
@@ -115,13 +116,13 @@ function dataTab() {
 
   const inst = window.__installPrompt;
   return [
-    h('div', { class: 'panel' }, h('h3', null, 'Sauvegarde sur cet appareil'),
-      h('p', { class: 'muted', style: { margin: '0 0 10px' } }, `Contenu actuel : ${counts}. Les données sont enregistrées automatiquement dans la tablette.`),
+    h('div', { class: 'panel' }, h('h3', null, 'Sauvegarde'),
+      h('p', { class: 'muted', style: { margin: '0 0 10px' } }, `Contenu actuel : ${counts}. Les données sont enregistrées automatiquement dans la tablette. « Partager » ouvre le menu de la tablette : choisissez Google Drive (dossier de votre choix), Mes fichiers ou un mail.`),
+      h('p', { class: 'small', style: { margin: '0 0 10px' } }, h('b', null, backupText()),
+        changesSinceBackup() ? h('span', { class: 'muted' }, ` · ${changesSinceBackup()} élément(s) modifié(s) depuis`) : null),
       h('div', { class: 'row wrap' },
-        btn('Exporter une sauvegarde (JSON)', { icon: 'download', cls: 'primary', onClick: () => {
-          const d = new Date().toISOString().slice(0, 10);
-          download(`eval-eps-sauvegarde-${d}.json`, JSON.stringify(repo.exportAll(), null, 1));
-        } }),
+        btn('Partager la sauvegarde (Drive…)', { icon: 'cloud', cls: 'primary', onClick: async () => { await shareBackup(); render(); } }),
+        btn('Télécharger la sauvegarde', { icon: 'download', onClick: async () => { await downloadBackup(); render(); } }),
         btn('Importer une sauvegarde…', { icon: 'upload', onClick: () => fileInput.click() }), fileInput)),
 
     h('div', { class: 'panel' }, h('h3', null, 'Google Drive'),
@@ -154,7 +155,7 @@ function dataTab() {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.0.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.1.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

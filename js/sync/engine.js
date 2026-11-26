@@ -58,6 +58,12 @@ export function mergeEvaluations(a, b, deviceId = a.deviceId) {
     if (from.status?.[sid]) out.status[sid] = from.status[sid];
     out.statusU[sid] = Math.max(ua, ub);
   }
+  // remarques par élève : la plus récente gagne
+  out.notes = {};
+  for (const sid of new Set([...Object.keys(a.notes || {}), ...Object.keys(b.notes || {})])) {
+    const na = a.notes?.[sid], nb = b.notes?.[sid];
+    out.notes[sid] = clone(!na ? nb : !nb ? na : (na.u || 0) >= (nb.u || 0) ? na : nb);
+  }
   // strictement plus récent que les deux versions fusionnées (même à la même milliseconde)
   out.updatedAt = Math.max(now(), a.updatedAt || 0, b.updatedAt || 0) + 1;
   out.deviceId = deviceId;

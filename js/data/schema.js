@@ -29,20 +29,26 @@ export const CLASS_COLORS = [
 
 /**
  * Niveaux de réussite par défaut pour un barème donné (en points, sur la grille du pas).
- * Plages sans chevauchement ; « Dépassé » = barème maximal.
+ * Règle (v1.1) :
+ *   Non acquis    de 0 à < 30 %      note proposée 0
+ *   En cours      de 30 % à 50 %     note proposée = EXACTEMENT la moitié du barème (= note maximale du niveau)
+ *   Acquis        de 55 % à < 90 %   note proposée 80 %
+ *   Dépassé       de 90 % à 100 %    note proposée 100 % (barème)
+ * Les plages ne se chevauchent pas ; la note proposée est toujours dans sa plage.
  */
 export function defaultLevels(max, step = DEFAULT_STEP) {
   const r = (f) => roundTo(Math.min(max, Math.max(0, f * max)), step);
-  const naMax = Math.max(0, r(0.4) - step);
-  const ecMin = Math.min(r(0.4), max);
-  const ecMax = Math.max(ecMin, r(0.7) - step);
-  const acMin = Math.min(Math.max(r(0.7), ecMax), max);
-  const acMax = Math.max(acMin, Math.min(r(0.9), max));
+  const half = roundTo(Math.min(max, max / 2), step);
+  const ecMin = Math.min(r(0.3), half);
+  const naMax = Math.max(0, ecMin - step);
+  const acMin = Math.min(Math.max(r(0.55), half + step), max);
+  const acMax = Math.max(acMin, Math.min(r(0.9) - step, max));
+  const deMin = Math.min(Math.max(r(0.9), acMax + step), max);
   return [
-    { key: 'na', text: '', min: 0, max: naMax, value: Math.min(r(0.2), naMax) },
-    { key: 'ec', text: '', min: ecMin, max: ecMax, value: Math.min(Math.max(r(0.55), ecMin), ecMax) },
+    { key: 'na', text: '', min: 0, max: naMax, value: 0 },
+    { key: 'ec', text: '', min: ecMin, max: half, value: half },
     { key: 'ac', text: '', min: acMin, max: acMax, value: Math.min(Math.max(r(0.8), acMin), acMax) },
-    { key: 'de', text: '', min: max, max: max, value: max },
+    { key: 'de', text: '', min: deMin, max, value: max },
   ];
 }
 

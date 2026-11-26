@@ -153,7 +153,9 @@ function move(arr, i, d) {
 }
 
 function levelsEditor(c) {
+  // « En cours » : note maximale et note proposée = toujours la moitié du barème (non modifiables)
   const num = (l, key) => h('input', { type: 'text', class: 'num', inputmode: 'decimal', 'data-fid': `l-${c.id}-${l.key}-${key}`, value: String(l[key]).replace('.', ','), 'aria-label': `${key} ${l.key}`,
+    readOnly: l.key === 'ec' && key !== 'min', title: l.key === 'ec' && key !== 'min' ? 'Fixé à la moitié du barème' : '',
     onChange: (e) => { const v = parseNum(e.target.value); if (!Number.isNaN(v)) { l[key] = Math.min(c.max, Math.max(0, Math.round(v / ME.step) * ME.step)); ME.dirty = true; } render(); } });
   return h('div', { class: 'lvedit' },
     h('div'), h('div', { class: 'h' }, 'Critères observés / attendus'), h('div', { class: 'h' }, 'Note min'), h('div', { class: 'h' }, 'Note max'), h('div', { class: 'h' }, 'Note proposée'),
@@ -165,5 +167,5 @@ function levelsEditor(c) {
         num(l, 'min'), num(l, 'max'), num(l, 'value'),
       ];
     }),
-    h('div', { style: { gridColumn: '1 / -1' }, class: 'muted small' }, 'La note proposée est celle appliquée quand on choisit ce niveau (modifiable ensuite à la main). « Dépassé » = barème maximal.'));
+    h('div', { style: { gridColumn: '1 / -1' }, class: 'muted small' }, 'La note proposée est celle appliquée quand on choisit ce niveau (modifiable ensuite à la main). « En cours » est toujours calé sur la moitié du barème ; « Dépassé » = barème maximal.'));
 }

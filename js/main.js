@@ -10,8 +10,9 @@ import './ui/modelEditor.js';
 import './ui/classEditor.js';
 import './ui/importWizard.js';
 import { SyncController } from './sync/controller.js';
+import { applyLevelRule } from './logic/model.js';
 
-window.__APP_VERSION = '1.0.0';
+window.__APP_VERSION = '1.1.0';
 const rootEl = document.getElementById('app');
 mount(rootEl);
 
@@ -29,6 +30,22 @@ async function boot() {
   window.__app = app; // utile pour le dépannage et les tests
 
   navigator.storage?.persist?.().catch(() => {});
+
+  // v1.1 : nouvelle règle des niveaux (en cours = moitié du barème, 30–50 / 55–90 / 90–100 %).
+  // Appliquée une seule fois aux MODÈLES existants (les évaluations déjà créées ne changent pas : copie figée).
+  try {
+    if (repo.getMeta('levelRule', 1) < 2) {
+      const step = (repo.getMeta('settings', {}) || {}).step || 0.5;
+      let n = 0;
+      for (const m of repo.list('models')) {
+        for (const lv of Object.values(m.levels || {})) for (const c of lv.competences) applyLevelRule(c, step);
+        await repo.save('models', m);
+        n++;
+      }
+      await repo.setMeta('levelRule', 2);
+      if (n) toast('Mise à jour 1.1 : les plages de niveaux de vos modèles suivent la nouvelle règle (« en cours » = moitié du barème).', { ms: 9000 });
+    }
+  } catch (e) { console.warn('Migration des niveaux impossible :', e); }
 
   // Reprise de l'évaluation en cours après un rechargement
   let first = { name: 'home' };

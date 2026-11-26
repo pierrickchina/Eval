@@ -5,6 +5,7 @@ import { fmt, parseNum } from '../util.js';
 import { LEVELS, STATUSES, levelInfo, studentLabel, newStudent } from '../data/schema.js';
 import {
   setLevel, setScore, validateCell, clearCell, setStatus, studentTotals, classStats, getCell, cellState,
+  addObs, removeObs, obsCounts, toPlaceCount, getNote, setNote,
 } from '../logic/scoring.js';
 import {
   orderedStudents, addGroup, removeGroup, assignGroup, groupOf, addStudentToEvaluation, removeStudentFromEvaluation,
@@ -12,6 +13,8 @@ import {
 import { EvalSession } from '../logic/history.js';
 import { studentHistoryDialog } from './historyView.js';
 import { duplicateDialog } from './home.js';
+import { studentSummaryDialog } from './summaryView.js';
+import { printEvaluation } from './printView.js';
 
 let V = null; // état de l'évaluation ouverte
 
@@ -21,7 +24,7 @@ function open(id) {
   if (!V || V.id !== id || V.ev !== ev) {
     V = {
       id, ev, mode: 'table', sid: null, sel: null,
-      sort: 'list', dir: 'desc', key: 'total', filter: null,
+      sort: 'list', dir: 'desc', key: 'total', filter: null, toPlace: false,
       sess: new EvalSession(ev, { onChange: (e) => app.repo.save('evaluations', e) }),
     };
   }
@@ -70,6 +73,7 @@ function topbar() {
     btn('Groupes', { icon: 'users', onClick: groupsDialog }),
     btn('Élève', { icon: 'plus', onClick: addStudentDialog }),
     iconBtn('copy', 'Dupliquer cette évaluation', () => duplicateDialog(ev)),
+    iconBtn('file', 'Imprimer / exporter en PDF', () => printEvaluation(ev)),
     syncChip());
 }
 
@@ -78,7 +82,10 @@ function topbar() {
 function tableMode() {
   const ev = V.ev;
   const comps = ev.model.competences;
-  const list = orderedStudents(ev, { sort: V.sort, dir: V.dir, filter: V.filter, key: V.key });
+  const all = orderedStudents(ev, { sort: V.sort, dir: V.dir, filter: V.filter, key: V.key });
+  const toPlaceN = all.filter((x) => toPlaceCount(ev, x.id) > 0).length;
+  if (V.toPlace && !toPlaceN) V.toPlace = false;
+  const list = V.toPlace ? all.filter((x) => toPlaceCount(ev, x.id) > 0) : all;
   const stats = classStats(ev);
 
   const sorts = [['list', 'Liste'], ['alpha', 'A → Z'], ['teams', 'Équipes'], ['levels', 'Niveaux'], ['results', 'Résultats']];
@@ -94,7 +101,9 @@ function tableMode() {
     h('option', { value: '' }, 'Tous les élèves'),
     ['team', 'level'].map((type) => ev.groups.some((g) => g.type === type) ? h('optgroup', { label: type === 'team' ? 'Équipes' : 'Groupes de niveau' },
       ev.groups.filter((g) => g.type === type).map((g) => h('option', { value: `${type}:${g.id}` }, g.name))) : null)) : null,
-    h('span', { class: 'muted small' }, V.filter ? `${list.length} / ${ev.students.length} élèves` : ''));
+    toPlaceN || V.toPlace ? h('button', { type: 'button', class: `toplace ${V.toPlace ? 'on' : ''}`, title: 'Élèves ayant des observations brouillon mais sans degré',
+      onClick: () => { V.toPlace = !V.toPlace; render(); } }, `✎ À placer (${toPlaceN})`) : null,
+    h('span', { class: 'muted small' }, V.filter || V.toPlace ? `${list.length} / ${ev.students.length} élèves` : ''));
 
   const head = h('tr', null,
     h('th', { class: 'sticky' }, h('div', { style: { padding: '0 12px' } }, 'Élève')),
@@ -124,17 +133,20 @@ function studentRow(s, comps) {
   const tr = h('tr', { class: t.usable ? '' : 'inactive' },
     h('th', { class: 'sticky', scope: 'row' }, h('div', { class: 'namecell' },
       h('button', { type: 'button', class: 'nm', onClick: () => openStudent(s.id), title: 'Ouvrir la fiche' }, label,
-        team ? h('span', { class: 'tag team' }, team.name) : null, lvl ? h('span', { class: 'tag level' }, lvl.name) : null),
+        team ? h('span', { class: 'tag team' }, team.name) : null, lvl ? h('span', { class: 'tag level' }, lvl.name) : null,
+        getNote(ev, s.id) ? h('span', { class: 'notemark', title: getNote(ev, s.id) }, '✎') : null),
       more)),
     comps.map((c) => {
       const cell = getCell(ev, s.id, c.id);
       const state = cellState(cell);
       const selected = V.sel?.sid === s.id && V.sel?.cid === c.id;
       if (!t.usable) return h('td', { class: 'cell', onClick: () => toast(`${s.first} est « ${statusInfo(t.status).label} » : changez son statut pour saisir des notes.`, { ms: 3000 }) });
-      return h('td', { class: `cell ${state} ${state !== 'empty' && cell.level ? 'lv-' + cell.level : ''} ${selected ? 'sel' : ''}`,
+      const obs = cell?.obs || [];
+      return h('td', { class: `cell ${state} ${state !== 'empty' && cell.level ? 'lv-' + cell.level : ''} ${selected ? 'sel' : ''} ${obs.length ? 'hasobs' : ''}`,
         'aria-label': `${label}, ${c.name}`, onClick: () => { V.sel = { sid: s.id, cid: c.id }; render(); } },
       state === 'empty' ? '' : fmt(cell.score),
-      state !== 'empty' && cell.level ? h('span', { class: 'sym' }, levelInfo(cell.level).symbol) : null);
+      state !== 'empty' && cell.level ? h('span', { class: 'sym' }, levelInfo(cell.level).symbol) : null,
+      obs.length ? h('span', { class: 'obs', title: 'Observations brouillon' }, obs.map((k) => levelInfo(k).symbol).join('')) : null);
     }),
     totalCell(t));
   return tr;
@@ -173,7 +185,39 @@ function nextStudentId(sid) {
   const list = orderedStudents(V.ev, { sort: V.sort, dir: V.dir, filter: V.filter, key: V.key })
     .filter((s) => studentTotals(V.ev, s.id).usable);
   const i = list.findIndex((s) => s.id === sid);
-  return list[i + 1]?.id ?? null;
+  const after = list.slice(i + 1);
+  return (V.toPlace ? after.find((s) => toPlaceCount(V.ev, s.id) > 0) : after[0])?.id ?? null;
+}
+
+// ---------- Observations brouillon (communes à la saisie rapide et à la fiche) ----------
+
+/** Petit bouton « brouillon » : même couleur que le degré, mais discret ; il ne place PAS l'élève. */
+function draftBtn(sid, cid, l, cell) {
+  const n = (cell?.obs || []).filter((k) => k === l.key).length;
+  return h('button', { type: 'button', class: `lvdraft ${l.key}`, 'aria-label': `Noter une observation « ${l.label} » (brouillon)`, title: `Observation « ${l.label} » (brouillon, sans placer l'élève)`,
+    onClick: (e) => { e.stopPropagation(); act('Observation', (x) => addObs(x, sid, cid, l.key)); } },
+  `+ ${l.symbol}`, n ? h('b', { class: 'cnt' }, n) : null);
+}
+
+/** Ligne des observations déjà notées : toucher un symbole le retire. */
+function obsRow(sid, cid, cell) {
+  const obs = cell?.obs || [];
+  if (!obs.length) return null;
+  const c = obsCounts(obs);
+  const summary = LEVELS.filter((l) => c[l.key]).map((l) => `${c[l.key]} ${l.symbol}`).join('  ');
+  return h('div', { class: 'obsrow' },
+    h('span', { class: 'muted small' }, 'Brouillon : '),
+    obs.map((k, i) => h('button', { type: 'button', class: `obschip ${k}`, 'aria-label': `Retirer l'observation ${levelInfo(k).label}`, title: 'Toucher pour retirer',
+      onClick: () => act('Observation retirée', (x) => removeObs(x, sid, cid, i)) }, levelInfo(k).symbol)),
+    h('span', { class: 'muted small' }, `= ${summary}`));
+}
+
+function noteDialog(s) {
+  let text = getNote(V.ev, s.id);
+  const ta = h('textarea', { rows: 7, placeholder: 'Écrivez ou dessinez au stylet (la saisie manuscrite est convertie en texte)…', autofocus: true, onInput: (e) => { text = e.target.value; } });
+  ta.value = text;
+  openDialog({ title: `Remarque — ${studentLabel(s)}`, body: [h('p', { class: 'dlg-msg' }, 'Remarque libre sur cet élève, pour cette évaluation seulement.'), ta],
+    actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: () => { act('Remarque', (e) => setNote(e, s.id, text)); } }] });
 }
 
 function sheet() {
@@ -190,9 +234,11 @@ function sheet() {
 
   const lvButtons = h('div', { class: 'lvbtns' }, LEVELS.map((l) => {
     const def = c.levels.find((x) => x.key === l.key);
-    return h('button', { type: 'button', class: `lvbtn ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, title: def.text || l.label,
-      onClick: () => act('Niveau', (e) => setLevel(e, sid, cid, l.key)) },
-    h('span', null, `${l.symbol} ${l.label}`), h('small', null, `≈ ${fmt(def.value)} / ${fmt(c.max)}`));
+    return h('div', { class: 'lvcol' },
+      draftBtn(sid, cid, l, cell),
+      h('button', { type: 'button', class: `lvbtn ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, title: def.text || l.label,
+        onClick: () => act('Niveau', (e) => setLevel(e, sid, cid, l.key)) },
+      h('span', null, `${l.symbol} ${l.label}`), h('small', null, `≈ ${fmt(def.value)} / ${fmt(c.max)}`)));
   }));
 
   const input = h('input', { type: 'text', inputmode: 'decimal', 'aria-label': 'Note', value: cell?.score != null ? String(cell.score).replace('.', ',') : '', placeholder: '–',
@@ -211,6 +257,7 @@ function sheet() {
       state !== 'empty' ? h('span', { class: `statepill ${state}` }, state === 'validated' ? 'Validée' : 'Non validée') : null,
       iconBtn('close', 'Fermer la saisie', () => { V.sel = null; render(); }, 'sm')),
     lvButtons,
+    obsRow(sid, cid, cell),
     h('div', { class: 'row wrap' },
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Moins', onClick: () => setSc(Math.max(0, (cell?.score ?? 0) - step)) }, '−'),
@@ -218,6 +265,7 @@ function sheet() {
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Plus', onClick: () => setSc(Math.min(c.max, (cell?.score ?? 0) + step)) }, '+'),
         h('span', { class: 'muted' }, `/ ${fmt(c.max)}`)),
       h('div', { class: 'grow' }),
+      btn(getNote(ev, sid) ? 'Remarque ✎' : 'Remarque', { onClick: () => noteDialog(s) }),
       btn('Effacer', { icon: 'close', disabled: state === 'empty', onClick: () => act('Effacement', (e) => clearCell(e, sid, cid)) }),
       state === 'validated'
         ? btn('Validée — modifier', { icon: 'check', cls: 'soft', onClick: () => act('Annulation de validation', (e) => validateCell(e, sid, cid, false)) })
@@ -237,6 +285,8 @@ function studentMenu(anchor, s) {
     ...STATUSES.map((st) => ({ label: st.label, active: st.key === cur, onClick: () => act('Statut', (e) => setStatus(e, s.id, st.key)) })),
     '-',
     { label: 'Ouvrir la fiche', onClick: () => openStudent(s.id) },
+    { label: 'Remarque…', onClick: () => noteDialog(s) },
+    { label: 'Résumé de l\'année', onClick: () => studentSummaryDialog(s.id, V.ev) },
     { label: 'Historique de l\'élève', onClick: () => studentHistoryDialog(s.id, V.ev) },
     '-',
     { label: 'Retirer de cette évaluation', danger: true, onClick: () => {
@@ -279,7 +329,8 @@ function studentMode() {
     iconBtn('next', 'Élève suivant', () => go2(idx + 1), 'boxed', { disabled: idx >= list.length - 1 }),
     h('div', { class: 'seg', role: 'group', 'aria-label': 'Statut' }, STATUSES.map((st) =>
       h('button', { class: t.status === st.key ? 'on' : '', onClick: () => act('Statut', (e) => setStatus(e, s.id, st.key)) }, st.label))),
-    btn('Historique', { icon: 'chart', onClick: () => studentHistoryDialog(s.id, ev) }));
+    btn('Historique', { icon: 'chart', onClick: () => studentHistoryDialog(s.id, ev) }),
+    btn('Résumé', { icon: 'file', onClick: () => studentSummaryDialog(s.id, ev) }));
 
   const warn = !t.usable ? h('div', { class: 'totalbar', style: { background: '#fff7e0' } },
     `Élève « ${statusInfo(t.status).label} » : ses notes ne sont pas comptées dans les moyennes.`,
@@ -290,8 +341,12 @@ function studentMode() {
       : [h('span', null, `${fmt(t.points)}/${fmt(t.maxFilled)} pts`), h('span', { class: 'muted' }, t.remaining ? `${t.remaining} compétence${t.remaining > 1 ? 's' : ''} restante${t.remaining > 1 ? 's' : ''} — note finale quand tout est renseigné` : ''),
         opts().showProvisional && t.provisional != null ? h('span', { class: 'statepill draft' }, `estimation ≈ ${fmt(t.provisional, 1)}/20 (provisoire)`) : null]);
 
+  const note = h('label', { class: 'notebox' }, h('span', { class: 'muted small' }, 'Remarque sur l\'élève (écriture au stylet possible)'),
+    h('textarea', { rows: 2, 'data-fid': 'note-' + s.id, placeholder: 'Remarque libre…', 'aria-label': 'Remarque sur l\'élève',
+      onChange: (e) => act('Remarque', (x) => setNote(x, s.id, e.target.value)) }, getNote(ev, s.id)));
+
   return h('div', { class: 'split' }, side,
-    h('div', { class: 'detail' }, head, warn, h('div', { class: `comps ${comps.length <= 4 ? 'c2' : 'c3'}`, 'data-keep': 'comps' }, comps.map((c) => compCard(s, c))), total));
+    h('div', { class: 'detail' }, head, warn, h('div', { class: 'comps c2', 'data-keep': 'comps' }, comps.map((c) => compCard(s, c))), note, total));
 }
 
 function compCard(s, c) {
@@ -312,11 +367,17 @@ function compCard(s, c) {
     c.afc ? h('div', { class: 'afc' }, c.afc) : null,
     LEVELS.map((l) => {
       const d = c.levels.find((x) => x.key === l.key);
-      return h('button', { type: 'button', class: `lvrow ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, onClick: () => act('Niveau', (e) => setLevel(e, s.id, c.id, l.key)) },
-        h('span', { class: 'lab' }, `${l.symbol} ${l.short === 'A' ? 'Acquis' : l.short === 'NA' ? 'Non acquis' : l.short === 'EC' ? 'En cours' : 'Dépassé'}`,
-          h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`)),
-        h('span', { class: 'crit' }, d.text || h('span', { class: 'muted' }, 'Critère non renseigné')));
+      const n = (cell?.obs || []).filter((k) => k === l.key).length;
+      return h('div', { class: 'lvwrap' },
+        h('button', { type: 'button', class: `lvrow ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, onClick: () => act('Niveau', (e) => setLevel(e, s.id, c.id, l.key)) },
+          h('span', { class: 'lab' }, `${l.symbol} ${l.short === 'A' ? 'Acquis' : l.short === 'NA' ? 'Non acquis' : l.short === 'EC' ? 'En cours' : 'Dépassé'}`,
+            h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`)),
+          // texte COMPLET (retours à la ligne conservés), plus de coupure
+          h('span', { class: 'crit' }, d.text || h('span', { class: 'muted' }, 'Critère non renseigné'))),
+        h('button', { type: 'button', class: `lvdraft side ${l.key}`, 'aria-label': `Noter une observation « ${l.label} » (brouillon)`, title: 'Observation brouillon (ne place pas l\'élève)',
+          onClick: () => act('Observation', (e) => addObs(e, s.id, c.id, l.key)) }, `+ ${l.symbol}`, n ? h('b', { class: 'cnt' }, n) : null));
     }),
+    obsRow(s.id, c.id, cell),
     h('div', { class: 'foot' },
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Moins', onClick: () => setSc(Math.max(0, (cell?.score ?? 0) - step)) }, '−'),

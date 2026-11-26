@@ -57,6 +57,57 @@ export function clearCell(ev, sid, cid, stamp = now()) {
   cell.u = stamp;
 }
 
+// ---- Observations « brouillon » : symboles notés en cours de séance, sans fixer le degré ----
+// Stockées dans la cellule (cell.obs = ['de','ac','ac']), sans effet sur la note ni sur l'état de la cellule.
+
+export const getObs = (ev, sid, cid) => getCell(ev, sid, cid)?.obs || [];
+
+/** Compte les observations par niveau : { na, ec, ac, de }. */
+export function obsCounts(obs) {
+  const c = { na: 0, ec: 0, ac: 0, de: 0 };
+  for (const k of obs || []) if (k in c) c[k]++;
+  return c;
+}
+
+export function addObs(ev, sid, cid, key, stamp = now()) {
+  const cell = ensureCell(ev, sid, cid);
+  cell.obs = [...(cell.obs || []), key];
+  cell.u = stamp;
+}
+
+/** Retire l'observation d'indice `index` (touche sur le symbole). */
+export function removeObs(ev, sid, cid, index, stamp = now()) {
+  const cell = getCell(ev, sid, cid);
+  if (!cell?.obs || index < 0 || index >= cell.obs.length) return false;
+  cell.obs = cell.obs.filter((_, i) => i !== index);
+  if (!cell.obs.length) delete cell.obs;
+  cell.u = stamp;
+  return true;
+}
+
+/** Élève « à placer » : au moins une compétence avec des observations brouillon mais encore sans degré. */
+export function toPlaceCount(ev, sid) {
+  if (getStatus(ev, sid) !== 'present') return 0;
+  let n = 0;
+  for (const c of ev.model.competences) {
+    const cell = getCell(ev, sid, c.id);
+    if (cell?.obs?.length && cellState(cell) === 'empty') n++;
+  }
+  return n;
+}
+
+// ---- Remarque libre par élève (écriture au stylet ou clavier) ----
+
+export const getNote = (ev, sid) => ev.notes?.[sid]?.text || '';
+
+export function setNote(ev, sid, text, stamp = now()) {
+  ev.notes ??= {};
+  const t = String(text || '').trim() ? String(text) : '';
+  if (!t && !ev.notes[sid]) return;
+  if (!t) { ev.notes[sid] = { text: '', u: stamp }; return; }
+  ev.notes[sid] = { text: t, u: stamp };
+}
+
 export function setStatus(ev, sid, status, stamp = now()) {
   ev.status ??= {};
   ev.statusU ??= {};

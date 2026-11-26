@@ -217,4 +217,69 @@ table.hist th, table.hist td { border-bottom: 1px solid var(--line); padding: 6p
   .syncchip span { display: none; }
 }
 @media (max-height: 560px) { .topbar { min-height: 50px; } .sheet .lvbtns { margin: 4px 0; } .lvbtn { min-height: 46px; } }
-@media print { .topbar, .toolbar, .sheet { display: none; } }
+
+
+/* ---------- v1.1 : observations brouillon ---------- */
+/* Dans le tableau : traces discrètes */
+td.cell .obs { position: absolute; left: 4px; bottom: 1px; font-size: 10px; font-weight: 400; letter-spacing: 1px; color: #5a5d73; opacity: .55; pointer-events: none; }
+td.cell.empty.hasobs .obs { position: static; display: block; font-size: 13px; opacity: .6; color: #6b6f86; letter-spacing: 2px; }
+td.cell.empty.hasobs { color: transparent; }
+.notemark { margin-left: 5px; color: var(--accent); font-size: 12px; font-weight: 700; }
+.toplace { border: 1px dashed var(--accent); background: var(--accent-soft); color: var(--accent-ink); border-radius: 99px; min-height: 38px; padding: 0 14px; font-weight: 650; cursor: pointer; }
+.toplace.on { background: var(--accent); color: #fff; border-style: solid; }
+/* Boutons brouillon : même couleur que le degré, plus discrets */
+.lvcol { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.lvdraft { position: relative; border: 1px dashed rgba(0, 0, 0, .28); border-radius: 10px; min-height: 34px; padding: 0 8px; cursor: pointer; font-size: 14px; font-weight: 600; opacity: .72; }
+.lvdraft.na { background: color-mix(in srgb, var(--na) 45%, #fff); color: var(--na-ink); }
+.lvdraft.ec { background: color-mix(in srgb, var(--ec) 45%, #fff); color: var(--ec-ink); }
+.lvdraft.ac { background: color-mix(in srgb, var(--ac) 45%, #fff); color: var(--ac-ink); }
+.lvdraft.de { background: color-mix(in srgb, var(--de) 45%, #fff); color: var(--de-ink); }
+.lvdraft:active { opacity: 1; }
+.lvdraft .cnt { margin-left: 6px; background: rgba(0, 0, 0, .55); color: #fff; border-radius: 99px; font-size: 11px; padding: 1px 6px; }
+.lvdraft.side { width: 76px; min-height: 40px; flex: none; align-self: stretch; }
+.obsrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
+.obschip { border: 1px solid rgba(0, 0, 0, .2); border-radius: 99px; min-width: 40px; height: 34px; font-size: 15px; cursor: pointer; opacity: .85; }
+.obschip.na { background: var(--na); color: var(--na-ink); } .obschip.ec { background: var(--ec); color: var(--ec-ink); }
+.obschip.ac { background: var(--ac); color: var(--ac-ink); } .obschip.de { background: var(--de); color: var(--de-ink); }
+.sheet .lvbtns { margin: 6px 0 4px; }
+
+/* ---------- v1.1 : fiche élève, textes complets ---------- */
+.lvwrap { display: flex; gap: 6px; align-items: stretch; }
+.lvwrap .lvrow { flex: 1; min-width: 0; }
+.lvrow { height: auto; }
+.lvrow .lab { width: 96px; }
+.lvrow .crit { display: block; -webkit-line-clamp: unset; overflow: visible; font-size: 15px; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; padding: 3px 0; }
+.compcard { gap: 8px; }
+.notebox { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; flex: none; }
+.notebox textarea { min-height: 52px; }
+
+/* ---------- v1.1 : sauvegarde ---------- */
+.backupbar { display: flex; align-items: center; gap: 10px; margin: 0 12px 8px; padding: 8px 12px; border-radius: 12px; background: #eef7f0; color: #25613a; font-size: 14px; }
+.backupbar.warn { background: #fff3d6; color: #7a5a00; }
+.backupbar .grow { min-width: 0; }
+
+/* ---------- v1.1 : résumé élève ---------- */
+.sumstats { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
+.sumstat { background: #f4f2fb; border-radius: 12px; padding: 8px 14px; min-width: 120px; }
+.sumstat b { display: block; font-size: 20px; }
+.sumstat span { font-size: 12px; color: var(--muted); }
+
+/* ---------- Impression / export PDF ---------- */
+#print-root { display: none; }
+@media print {
+  body.printing #app, body.printing #toasts, body.printing #overlay-root { display: none !important; }
+  body.printing #print-root { display: block; }
+  body.printing { background: #fff; height: auto; overflow: visible; }
+  html { height: auto; }
+  #print-root { font-family: var(--font); color: #000; font-size: 11pt; }
+  #print-root h1 { font-size: 16pt; margin: 0 0 2mm; }
+  #print-root .sub { color: #444; margin-bottom: 4mm; }
+  #print-root table { border-collapse: collapse; width: 100%; }
+  #print-root th, #print-root td { border: 1px solid #888; padding: 2mm 2.5mm; text-align: center; font-size: 10pt; }
+  #print-root th { background: #eee; }
+  #print-root td.l, #print-root th.l { text-align: left; }
+  #print-root tr { page-break-inside: avoid; }
+  #print-root td.na { background: #f6b9b9 !important; } #print-root td.ec { background: #fbe9a3 !important; }
+  #print-root td.ac { background: #bde5c3 !important; } #print-root td.de { background: #b9d7f7 !important; }
+  #print-root { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

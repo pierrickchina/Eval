@@ -4,6 +4,7 @@ import { h, btn, icon, iconBtn, classBadge, openDialog, popMenu, toast } from '.
 import { fmtDate, todayISO, collator } from '../util.js';
 import { createEvaluation, duplicateEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
+import { shareBackup, backupText, backupNeedsAttention, changesSinceBackup } from './backup.js';
 
 const F = { cls: '', act: '', sort: 'date' };
 
@@ -35,6 +36,7 @@ registerView('home', () => {
       syncChip(),
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') }),
       btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })),
+    all.length || repo.list('classes').length ? backupBar() : null,
     all.length ? h('div', { class: 'toolbar' },
       sel(classNames, F.cls, (v) => (F.cls = v), 'Toutes les classes'),
       sel(acts, F.act, (v) => (F.act = v), 'Toutes les activités'),
@@ -51,6 +53,14 @@ registerView('home', () => {
           hasSetup ? btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })
             : btn('Ouvrir les réglages', { icon: 'gear', cls: 'primary', onClick: () => go('settings') })));
 });
+
+/** Rappel discret de la dernière sauvegarde, avec bouton de partage (Drive…) en une touche. */
+function backupBar() {
+  const warn = backupNeedsAttention(), n = changesSinceBackup();
+  return h('div', { class: `backupbar ${warn ? 'warn' : ''}` },
+    h('span', { class: 'grow' }, `${warn ? '⚠ ' : '✓ '}${backupText()}`, n && warn ? ` · ${n} élément(s) modifié(s) depuis` : ''),
+    btn('Sauvegarder', { icon: 'cloud', cls: 'small', onClick: async () => { await shareBackup(); render(); } }));
+}
 
 function evCard(ev) {
   const more = iconBtn('more', 'Actions', (e) => {

@@ -57,24 +57,21 @@ export function distributeByWeights(weights, total = TOTAL_POINTS, step = DEFAUL
   return base.map((u) => r4(u * step));
 }
 
-/** Change le barème d'une compétence et remet les plages de niveaux à l'échelle. */
+/**
+ * Applique la règle des niveaux (voir defaultLevels) à une compétence, en conservant les textes descriptifs.
+ * Utilisée quand le barème change et pour la migration des modèles existants.
+ */
+export function applyLevelRule(comp, step = DEFAULT_STEP) {
+  if (!(Number(comp.max) > 0)) return;
+  const fresh = defaultLevels(comp.max, step);
+  const oldByKey = Object.fromEntries((comp.levels || []).map((l) => [l.key, l]));
+  comp.levels = fresh.map((l) => ({ ...l, text: oldByKey[l.key]?.text || '' }));
+}
+
+/** Change le barème d'une compétence : les niveaux sont recalés (« en cours » = toujours la moitié du barème). */
 export function setCompetenceMax(comp, newMax, step = DEFAULT_STEP) {
-  const old = Number(comp.max) || 0;
   comp.max = newMax;
-  if (!(newMax > 0)) return;
-  if (!(old > 0)) {
-    comp.levels.forEach((l, i) => Object.assign(l, defaultLevels(newMax, step)[i], { text: l.text }));
-    return;
-  }
-  const k = newMax / old;
-  const sc = (v) => Math.min(newMax, roundTo(v * k, step));
-  for (const l of comp.levels) {
-    l.min = sc(l.min);
-    l.max = sc(l.max);
-    l.value = sc(l.value);
-  }
-  const de = comp.levels.find((l) => l.key === 'de');
-  if (de) de.min = de.max = de.value = newMax;
+  applyLevelRule(comp, step);
 }
 
 /** Applique la répartition selon les coefficients : modifie les barèmes pour totaliser 20. */

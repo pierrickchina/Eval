@@ -1,7 +1,7 @@
 // Annuler / rétablir pour une évaluation ouverte (instantanés de la partie modifiable).
 import { clone, now } from '../util.js';
 
-const MUTABLE = ['date', 'students', 'groups', 'membership', 'status', 'statusU', 'results'];
+const MUTABLE = ['date', 'students', 'groups', 'membership', 'status', 'statusU', 'results', 'notes'];
 
 const snap = (ev) => {
   const o = {};
