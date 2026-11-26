@@ -318,3 +318,29 @@ td.cell .self { position: absolute; left: 4px; top: 1px; font-size: 10px; font-s
 .bigvalid { min-height: 68px; font-size: 20px; padding: 0 28px; border-radius: 16px; flex: none; animation: glow 1.4s ease-in-out infinite; }
 @keyframes rise { from { transform: translateY(40px); opacity: 0; } }
 @keyframes glow { 50% { box-shadow: 0 0 0 8px rgba(107, 122, 227, .28); } }
+
+/* ---------- v1.4 : page classe ---------- */
+.colbtn { border: 0; background: none; cursor: pointer; width: 100%; padding: 2px 0; color: inherit; }
+table.grid.notes td.ncell { height: 46px; min-width: 96px; font-size: 16px; font-weight: 650; }
+table.grid.notes td.na-cell { color: #c3c5d3; font-weight: 400; background: #fafafc; }
+table.grid.notes td.st-cell { color: var(--muted); font-size: 13px; font-weight: 600; }
+table.grid.notes td.part-cell { color: #9a9ab0; font-weight: 500; font-size: 14px; }
+table.grid.notes td.total { min-width: 96px; font-size: 16px; background: #f7f6fc; }
+table.grid.notes tbody tr.inactive th, table.grid.notes tbody tr.inactive td { background: #f4f3f8; color: var(--muted); }
+.forgets { flex: 1; min-height: 0; overflow: auto; padding: 4px 14px 24px; }
+.forgethead { margin: 4px 0 10px; gap: 10px; }
+.legend { font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.forgetrow { display: flex; align-items: center; gap: 8px; min-height: 58px; background: var(--panel); border-radius: 12px; padding: 4px 10px; margin-bottom: 6px; box-shadow: var(--shadow); }
+.fname { width: 170px; flex: none; font-weight: 650; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crosses { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.xmark { font-size: 22px; font-weight: 800; line-height: 1; }
+.xmark.y { color: #e6b800; } .xmark.o { color: #f07f1a; } .xmark.r { color: #e0343f; }
+.fbtn { width: 52px; height: 52px; }
+.fbtn.primaryish { background: var(--accent-soft); color: var(--accent-ink); }
+.fcount { width: 34px; text-align: center; font-weight: 800; font-size: 18px; flex: none; }
+.fcount.y { color: #c79a00; } .fcount.o { color: #f07f1a; } .fcount.r { color: #e0343f; }
+.flast { width: 120px; flex: none; text-align: right; }
+.inforow { display: flex; align-items: flex-start; gap: 10px; background: var(--panel); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; box-shadow: var(--shadow); }
+.inforow .fname { padding-top: 10px; }
+.inforow textarea { flex: 1; min-height: 44px; }
+@media print { #print-root table.notes td.na-cell { color: #aaa; } }

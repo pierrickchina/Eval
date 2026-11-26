@@ -75,7 +75,7 @@ function topbar() {
     { label: 'Auto-évaluation des élèves…', onClick: () => startSelfEval(ev) },
   ]), 'boxed');
   return h('div', { class: 'topbar' },
-    iconBtn('back', 'Retour aux évaluations', () => { V.sel = null; go('home'); }, '', { 'data-back': '1' }),
+    iconBtn('back', 'Retour', () => { V.sel = null; const r = app.route; if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home'); }, '', { 'data-back': '1' }),
     h('div', { class: 'grow evtitle' },
       h('h1', null, `${ev.classInfo.name} · ${ev.model.activity}`),
       h('div', { class: 'sub' }, `${ev.model.name} — ${ev.students.length} élèves — ${fmtDate(ev.date)}`)),

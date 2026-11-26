@@ -6,7 +6,8 @@ import { SCHOOL_LEVELS, CLASS_COLORS, newClass, newStudent, studentLabel } from 
 
 let CE = null; // { cls }
 
-registerView('classEdit', ({ id }) => {
+registerView('classEdit', ({ id, from }) => {
+  const leave = () => { CE = null; if (from === 'classPage' && id) go('classPage', { id }); else go('settings', { tab: 'classes' }); };
   if (!CE || CE.key !== (id ?? 'new')) {
     let cls = id ? app.repo.get('classes', id) : null;
     if (!cls) {
@@ -79,10 +80,10 @@ registerView('classEdit', ({ id }) => {
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => { CE = null; go('settings', { tab: 'classes' }); }, '', { 'data-back': '1' }),
+      iconBtn('back', 'Retour', leave, '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, exists ? c.name || 'Classe' : 'Nouvelle classe'),
       h('span', { class: 'muted small' }, exists ? 'Enregistré automatiquement' : ''),
-      btn('Terminer', { icon: 'check', cls: 'primary', onClick: () => { CE = null; go('settings', { tab: 'classes' }); } })),
+      btn('Terminer', { icon: 'check', cls: 'primary', onClick: leave })),
     h('div', { class: 'settings scroll', 'data-keep': 'classedit' },
       h('div', { class: 'panel' },
         h('div', { class: 'row wrap' },

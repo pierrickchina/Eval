@@ -10,12 +10,13 @@ import './ui/modelEditor.js';
 import './ui/classEditor.js';
 import './ui/importWizard.js';
 import './ui/selfEval.js';
+import './ui/classesView.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 
-window.__APP_VERSION = '1.3.0';
+window.__APP_VERSION = '1.4.0';
 const rootEl = document.getElementById('app');
 mount(rootEl);
 

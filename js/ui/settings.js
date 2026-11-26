@@ -5,6 +5,8 @@ import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
 import { shareBackup, downloadBackup, backupText, changesSinceBackup, makeSafetyCopy, safetyInfo, restoreSafetyCopy } from './backup.js';
 import { DEFAULT_CODE } from './selfEval.js';
+import { getTrimesters, defaultTrimesters } from '../logic/classes.js';
+import { schoolYear } from '../util.js';
 import { validateModel } from '../logic/model.js';
 
 const TABS = [['models', 'Modèles d\'évaluation'], ['classes', 'Classes'], ['data', 'Données et synchronisation']];
@@ -61,6 +63,7 @@ function classesTab() {
     h('div', { class: 'row wrap', style: { marginBottom: '12px' } },
       btn('Nouvelle classe', { icon: 'plus', cls: 'primary', onClick: () => go('classEdit', { id: null }) }),
       h('span', { class: 'muted small' }, 'Seuls le prénom et l\'initiale du nom (si nécessaire) sont enregistrés.')),
+    trimestersPanel(classes),
     classes.length ? h('div', { class: 'panel' }, classes.map((c) => {
       const act = c.students.filter((s) => s.active !== false).length;
       const more = iconBtn('more', 'Actions', () => popMenu(more, [
@@ -77,6 +80,25 @@ function classesTab() {
   ];
 }
 
+/** Dates des trimestres, par année scolaire (utilisées par le filtre de la page Classe). */
+function trimestersPanel(classes) {
+  const years = [...new Set([schoolYear(), ...classes.map((c) => c.year).filter(Boolean)])].sort().reverse();
+  const st = trimestersPanel.st ??= { year: years[0] };
+  if (!years.includes(st.year)) st.year = years[0];
+  const all = () => ({ ...(app.repo.getMeta('settings', {}) || {}) });
+  const trims = getTrimesters(all(), st.year);
+  const saveTrims = (arr) => { const s = all(); s.trimesters = { ...(s.trimesters || {}), [st.year]: arr }; return app.repo.setMeta('settings', s); };
+  return h('div', { class: 'panel' }, h('h3', null, 'Trimestres'),
+    h('p', { class: 'muted small', style: { margin: '0 0 8px' } }, 'Dates de début et de fin de chaque trimestre, utilisées pour filtrer les notes d\'une classe. Dates proposées à titre indicatif : vérifiez-les avec le calendrier de votre collège.'),
+    h('label', { class: 'field', style: { maxWidth: '220px', marginBottom: '8px' } }, 'Année scolaire',
+      h('select', { value: st.year, onChange: (e) => { st.year = e.target.value; render(); } }, years.map((y) => h('option', { value: y }, y)))),
+    trims.map((t, i) => h('div', { class: 'row wrap', style: { marginBottom: '6px' } },
+      h('b', { style: { width: '110px' } }, `Trimestre ${i + 1}`),
+      h('label', { class: 'row' }, 'du', h('input', { type: 'date', value: t.start, onChange: async (e) => { const a = trims.map((x) => ({ ...x })); a[i].start = e.target.value || t.start; await saveTrims(a); render(); } })),
+      h('label', { class: 'row' }, 'au', h('input', { type: 'date', value: t.end, onChange: async (e) => { const a = trims.map((x) => ({ ...x })); a[i].end = e.target.value || t.end; await saveTrims(a); render(); } })))),
+    btn('Remettre les dates proposées', { cls: 'small', onClick: async () => { await saveTrims(defaultTrimesters(st.year)); render(); } }));
+}
+
 function nextYear(c) {
   const o = { year: nextSchoolYear(c.year), name: c.name, level: c.level };
   openDialog({
@@ -91,6 +113,7 @@ function nextYear(c) {
       const n = clone(c);
       n.id = uid(); n.name = o.name.trim() || c.name; n.level = o.level; n.year = o.year.trim(); n.createdAt = now(); delete n.deleted;
       n.students = c.students.filter((s) => s.active !== false).map((s) => ({ ...s }));
+      delete n.forgets; delete n.infos; // oublis et infos restent sur l'ancienne classe (année terminée)
       await app.repo.save('classes', n);
       go('classEdit', { id: n.id });
     } }],
@@ -167,7 +190,7 @@ function dataTab() {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.3.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.4.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

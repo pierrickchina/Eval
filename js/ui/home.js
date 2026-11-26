@@ -34,6 +34,7 @@ registerView('home', () => {
     h('div', { class: 'topbar' },
       h('div', { class: 'grow evtitle' }, h('h1', null, 'EPS'), h('div', { class: 'sub' }, 'Évaluations')),
       syncChip(),
+      btn('Classes', { icon: 'users', onClick: () => go('classes') }),
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') }),
       btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })),
     all.length || repo.list('classes').length ? backupBar() : null,
