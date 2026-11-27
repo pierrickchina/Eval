@@ -64,11 +64,30 @@ export function resumeInfo() {
   }
   return null;
 }
-export function resumeChip() {
+export function resumeChip({ compact = false } = {}) {
   const info = resumeInfo();
   if (!info) return null;
   const { at, ...route } = info.route; // eslint-disable-line no-unused-vars
-  return h('button', { type: 'button', class: 'chip resume', onClick: () => go(route.name, route) }, icon('resume', 18), h('span', null, 'Reprendre : ', h('b', null, info.label)));
+  return h('button', { type: 'button', class: `chip resume ${compact ? 'compact' : ''}`, title: info.label, onClick: () => go(route.name, route) }, icon('resume', 18), h('span', null, h('b', null, 'Reprendre'), h('small', null, info.label)));
+}
+
+// ---------- Dernière tâche d'une classe (raccourci sur la carte de l'accueil) ----------
+
+/** Dernière chose faite avec cette classe : dernière évaluation modifiée ou dernier outil utilisé. { label, route } ou null. */
+export function lastTask(cls) {
+  const evals = app.repo.list('evaluations').filter((e) => !e.deleted && e.classId === cls.id);
+  let best = null;
+  for (const a of activitiesOf(cls)) {
+    for (const ev of activityEvals(evals, cls, a)) {
+      const t = ev.updatedAt || ev.createdAt || 0;
+      if (!best || t > best.t) best = { t, label: `${a.name} · ${ev.title?.trim() || 'Évaluation'}`, route: { name: 'eval', id: ev.id, from: 'classPage', classId: cls.id } };
+    }
+    for (const tool of a.tools) {
+      if (tool.type === 'evaluation' || !TOOLS[tool.type]?.available || !tool.lastUsed || tool.lastUsed === tool.addedAt) continue;
+      if (!best || tool.lastUsed > best.t) best = { t: tool.lastUsed, label: `${a.name} · ${TOOLS[tool.type].label}`, route: { name: TOOLS[tool.type].route, from: 'classPage', classId: cls.id, scope: 'act', actId: a.id } };
+    }
+  }
+  return best;
 }
 
 // ---------- Outils épinglés ----------

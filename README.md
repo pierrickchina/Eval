@@ -25,6 +25,13 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.6.1
+- Évaluation ↔ Équipes : dans « Équipes et groupes de niveau », les équipes viennent de l'outil Équipes de l'activité (choix de la composition) et suivent ses modifications.
+- Aide dans les menus ⋮ ; « Générer » dans le ⋮ de l'écran Équipes ; rôles en pastilles colorées (capitaine rouge, officiel jaune, matériel bleu, préparateur vert, manager orange).
+- Réglages : onglets Modèles | Classes | Général (trimestres, notation, auto-évaluation, affichage, application) | Sauvegarde (sauvegarde, Drive).
+- Accueil : pastille « Sauvegarder » discrète avant Réglages, cartes de classe plus grandes avec raccourci vers la dernière tâche, « Reprendre » à droite du filtre, tri supprimé.
+- Liste des compositions : « Leçon 1 – Clubs », date et détail, maillots colorés. Icônes raquette et chrono simplifiées.
+
 ### Nouveautés de la version 1.6 (fondations, Chronomètre, Équipes)
 - **Chronomètre** : 1 à 4 panneaux (chronomètre ou minuteur), très grand affichage, mode affichage sans boutons (appui long 1 s pour en sortir), écran maintenu allumé, rien n'est enregistré.
 - **Équipes** : compositions par leçon (dupliquer, garder l'historique), glisser-déposer au doigt ou au stylet, tirage au hasard / équipes équilibrées / groupes de niveau / duos de tutorat, contraintes ensemble-séparés, rôles, élèves dispensés ou absents, couleurs de chasubles, **mode Clubs** (clubs durables divisés en 2 équipes), plein écran coloré, PDF. Outil libre (classes ou prénoms saisis) ou dans le carnet de bord d'une activité ; « Reprendre les équipes » depuis le menu ⋮ d'une évaluation.

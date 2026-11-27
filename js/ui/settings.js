@@ -1,4 +1,4 @@
-// Réglages : modèles, classes, données (sauvegarde, Drive, installation).
+// Réglages : modèles, classes, général (trimestres, notation, auto-évaluation, affichage, application), sauvegarde (+ Drive).
 import { displayPanel, demoPanel, importModelButton, shareModel } from './foundations.js';
 import { app, registerView, go, render, syncChip, updateSyncChips } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
@@ -10,10 +10,10 @@ import { getTrimesters, defaultTrimesters } from '../logic/classes.js';
 import { schoolYear } from '../util.js';
 import { validateModel } from '../logic/model.js';
 
-const TABS = [['models', 'Modèles d\'évaluation'], ['classes', 'Classes'], ['data', 'Données et synchronisation']];
+const TABS = [['models', 'Modèles'], ['classes', 'Classes'], ['general', 'Général'], ['data', 'Sauvegarde']];
 
 registerView('settings', ({ tab = 'models' }) => {
-  const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : dataTab();
+  const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : dataTab(tab);
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
@@ -66,7 +66,6 @@ function classesTab() {
     h('div', { class: 'row wrap', style: { marginBottom: '12px' } },
       btn('Nouvelle classe', { icon: 'plus', cls: 'primary', onClick: () => go('classEdit', { id: null }) }),
       h('span', { class: 'muted small' }, 'Seuls le prénom et l\'initiale du nom (si nécessaire) sont enregistrés.')),
-    trimestersPanel(classes),
     classes.length ? h('div', { class: 'panel' }, classes.map((c) => {
       const act = c.students.filter((s) => s.active !== false).length;
       const more = iconBtn('more', 'Actions', () => popMenu(more, [
@@ -125,7 +124,7 @@ function nextYear(c) {
 
 // ---------- Données ----------
 
-function dataTab() {
+function dataTab(which = 'data') {
   const repo = app.repo;
   const settings = repo.getMeta('settings', {}) || {};
   const setSetting = (k, v) => repo.setMeta('settings', { ...(repo.getMeta('settings', {}) || {}), [k]: v });
@@ -142,7 +141,7 @@ function dataTab() {
   } });
 
   const inst = window.__installPrompt;
-  return [
+  const P = [
     displayPanel(), demoPanel(),
     h('div', { class: 'panel' }, h('h3', null, 'Sauvegarde'),
       h('p', { class: 'muted', style: { margin: '0 0 10px' } }, `Contenu actuel : ${counts}. Les données sont enregistrées automatiquement dans la tablette. « Partager » ouvre le menu de la tablette : choisissez Google Drive (dossier de votre choix), Mes fichiers ou un mail.`),
@@ -194,10 +193,14 @@ function dataTab() {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.6.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.6.1'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];
+  // P : 0 affichage, 1 découverte, 2 sauvegarde, 3 Drive, 4 notation, 5 auto-évaluation, 6 application
+  return which === 'general'
+    ? [trimestersPanel(app.repo.list('classes')), P[4], P[5], P[0], P[1], P[6]]
+    : [P[2], P[3]];
 }
 
 if (typeof navigator !== 'undefined' && navigator.storage?.persisted) {

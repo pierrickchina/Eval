@@ -71,7 +71,7 @@ label.field { display: flex; flex-direction: column; gap: 5px; font-size: 13px; 
 label.field > input, label.field > select { color: var(--ink); font-weight: 400; font-size: 16px; }
 
 /* ---------- Accueil ---------- */
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; padding: 4px 14px 24px; align-content: start; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; padding: 8px 14px 24px; align-content: start; }
 .card { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 8px 12px 12px; background: var(--panel); border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid transparent; cursor: pointer; text-align: left; width: 100%; }
 .card:active { border-color: var(--accent); }
 .card .t { font-weight: 650; font-size: 17px; }
@@ -467,3 +467,25 @@ html[data-contrast="high"] .btn, html[data-contrast="high"] .card, html[data-con
 .printteams { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .printteams h2 { padding-bottom: 4px; }
 .dragchip .toast { pointer-events: none; opacity: .5; }
+
+/* ===== 1.6.1 ===== */
+.schip .sr, .fcard .sr { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 3px; border-radius: 99px; border: 2px solid var(--rc, #6b7089); color: var(--rc, #6b7089); background: #fff; font-size: 12px; font-weight: 800; line-height: 1; }
+.fcard .sr { min-width: .8em; height: auto; font-size: .55em; margin-left: 10px; padding: 2px 8px; vertical-align: middle; background: #fff; }
+.comprow { padding: 12px 8px 12px 14px; margin-bottom: 8px; min-height: 64px; }
+.comprow .t { font-size: 17px; }
+.shirts { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; max-width: 280px; justify-content: flex-end; }
+
+.backupchip { display: inline-flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--muted); border-radius: 12px; padding: 4px 10px; cursor: pointer; min-height: 40px; text-align: left; }
+.backupchip span { display: flex; flex-direction: column; line-height: 1.15; }
+.backupchip b { font-size: 13px; font-weight: 600; }
+.backupchip small { font-size: 11px; opacity: .85; }
+.backupchip.warn { color: #8a5a00; background: #fff3d6; }
+.chip.resume.compact { min-height: 40px; padding: 0 14px; max-width: 300px; }
+.chip.resume span { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; text-align: left; }
+.chip.resume small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.toolbar .chip.resume { margin-left: auto; }
+.card.big { padding: 18px 20px; gap: 16px; min-height: 120px; }
+.card.big .t { font-size: 22px; }
+.card.big .d { font-size: 14px; }
+.lasttask { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent-ink); border-radius: 99px; min-height: 36px; padding: 0 12px; font-size: 13px; cursor: pointer; }
+.lasttask span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

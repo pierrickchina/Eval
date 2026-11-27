@@ -18,13 +18,16 @@ export const VEST_COLORS = [
 ];
 export const vestOf = (id) => VEST_COLORS.find((c) => c.id === id) || VEST_COLORS.at(-1);
 
+/** Couleur d'un rôle (les rôles enregistrés avant la 1.6.1 n'ont pas de couleur : on retrouve celle du rôle d'origine). */
+export const roleColor = (ro) => ro.color || DEFAULT_ROLES.find((d) => d.id === ro.id)?.color || '#6b7089';
+
 /** Rôles proposés (modifiables dans les réglages de l'outil). short = abréviation affichée sur la tuile. */
 export const DEFAULT_ROLES = [
-  { id: 'capitaine', label: 'Capitaine', short: 'C' },
-  { id: 'materiel', label: 'Responsable matériel', short: 'M' },
-  { id: 'officiel', label: 'Jeune officiel', short: 'O' },
-  { id: 'prepa', label: 'Préparateur / préparatrice physique', short: 'P' },
-  { id: 'manager', label: 'Manager / manageuse', short: 'Mg' },
+  { id: 'capitaine', label: 'Capitaine', short: 'C', color: '#e03a3e' },
+  { id: 'materiel', label: 'Responsable matériel', short: 'M', color: '#2f6fe0' },
+  { id: 'officiel', label: 'Jeune officiel', short: 'O', color: '#e0a800' },
+  { id: 'prepa', label: 'Préparateur / préparatrice physique', short: 'P', color: '#2e9b4f' },
+  { id: 'manager', label: 'Manager / manageuse', short: 'Mg', color: '#ef7d1a' },
 ];
 
 // ---------- Modèle ----------

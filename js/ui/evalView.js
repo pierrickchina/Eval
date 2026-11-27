@@ -1,7 +1,7 @@
 // Écran d'une évaluation : tableau général, saisie rapide, fiche élève, groupes, statuts.
 import { evTitle } from '../logic/activities.js';
 import { app, registerView, go, render, syncChip } from '../app.js';
-import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog, confirmDialog } from './dom.js';
+import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog, confirmDialog, closeTopDialog } from './dom.js';
 import { fmt, fmtDate, parseNum, todayISO } from '../util.js';
 import { LEVELS, STATUSES, levelInfo, studentLabel, newStudent } from '../data/schema.js';
 import {
@@ -14,7 +14,7 @@ import {
 import { EvalSession } from '../logic/history.js';
 import { studentHistoryDialog } from './historyView.js';
 import { duplicateDialog } from './home.js';
-import { setsForEvaluation, copyIntoEvaluation } from './teamsView.js';
+import { setsForEvaluation, copyIntoEvaluation, syncLinkedTeams } from './teamsView.js';
 import { studentSummaryDialog } from './summaryView.js';
 import { printEvaluation } from './printView.js';
 import { startSelfEval } from './selfEval.js';
@@ -59,6 +59,7 @@ window.addEventListener('keydown', (e) => {
 registerView('eval', ({ id }) => {
   const v = open(id);
   if (!v) { queueMicrotask(() => go('home')); return h('div'); }
+  syncLinkedTeams(v.ev); // équipes liées à l'outil Équipes de l'activité : toujours à jour
   return h('div', { class: 'main' }, topbar(), v.mode === 'student' ? studentMode() : tableMode());
 });
 
@@ -71,7 +72,6 @@ function topbar() {
     { label: 'Nom de l\'évaluation…', onClick: titleDialog },
     { label: `Date : ${fmtDate(ev.date)}…`, onClick: dateDialog },
     { label: 'Équipes et groupes de niveau…', onClick: groupsDialog },
-    setsForEvaluation(ev).length ? { label: 'Reprendre les équipes d\'une composition…', onClick: importTeamsDialog } : null,
     { label: 'Ajouter un élève…', onClick: addStudentDialog },
     { label: 'Dupliquer…', onClick: () => duplicateDialog(ev) },
     { label: 'Imprimer / exporter en PDF', onClick: () => printEvaluation(ev) },
@@ -446,17 +446,6 @@ function compCard(s, c) {
 
 // ---------- Équipes et groupes de niveau ----------
 
-/** Copie dans l'évaluation (copie figée) les équipes d'une composition de l'outil Équipes de la même activité. */
-function importTeamsDialog() {
-  const sets = setsForEvaluation(V.ev);
-  const dlg = openDialog({
-    title: 'Reprendre les équipes',
-    body: [h('p', { class: 'dlg-msg' }, 'Les équipes de la composition choisie remplacent les équipes actuelles de cette évaluation (les groupes de niveau ne changent pas).'),
-      ...sets.map((set) => btn(`${set.name}${set.date ? ' · ' + fmtDate(set.date) : ''}`, { cls: 'bigbtn', onClick: () => { dlg.close(); act('Équipes reprises', (e) => { copyIntoEvaluation(e, set); return true; }); toast('Équipes reprises dans l\'évaluation.'); } }))],
-    actions: [{ label: 'Annuler' }],
-  });
-}
-
 function groupsDialog() {
   const body = h('div', { class: 'dlg-body', style: { padding: 0 } });
   const act2 = (label, fn) => { if (V.sess.do(label, fn)) { render(); } paint(); };
@@ -472,16 +461,32 @@ function groupsDialog() {
           iconBtn('trash', 'Supprimer ' + g.name, () => act2('Suppression de groupe', (x) => removeGroup(x, g.id)), 'sm'))),
         btn(`Ajouter ${noun}`, { icon: 'plus', cls: 'small soft', onClick: () => act2('Nouveau groupe', (x) => addGroup(x, type, `${type === 'team' ? 'Équipe' : 'Niveau'} ${gs.length + 1}`)) }));
     };
+    const sets = setsForEvaluation(ev);
+    const linked = sets.length > 0; // l'activité a des compositions : les équipes viennent de l'outil Équipes
+    const teamSection = () => {
+      const cur = ev.teamSet?.setId && sets.find((x) => x.id === ev.teamSet.setId);
+      const gs = ev.groups.filter((g) => g.type === 'team');
+      return h('div', { class: 'panel', style: { boxShadow: 'none', border: '1px solid var(--line)', marginBottom: 0 } },
+        h('h3', null, 'Équipes'),
+        h('label', { class: 'field' }, 'Composition de l\'outil Équipes',
+          h('select', { onChange: (e) => { const id = e.target.value; act2('Équipes', (x) => { if (!id) { delete x.teamSet; for (const m of Object.values(x.membership)) delete m.team; x.groups = x.groups.filter((g) => g.type !== 'team'); } else copyIntoEvaluation(x, sets.find((y) => y.id === id)); }); } },
+            h('option', { value: '' }, 'Aucune'), sets.map((x) => h('option', { value: x.id, selected: cur && cur.id === x.id }, `${x.name}${x.date ? ' · ' + fmtDate(x.date) : ''}`)))),
+        ev.teamSet && !cur ? h('p', { class: 'muted small', style: { margin: '6px 0 0' } }, 'La composition liée a été supprimée : les équipes sont conservées telles quelles.') : null,
+        gs.map((g) => h('div', { class: 'listrow' }, h('i', { class: 'dotc', style: { background: g.color } }), h('b', { class: 'grow' }, g.name), h('span', { class: 'muted small' }, `${ev.students.filter((s) => ev.membership[s.id]?.team === g.id).length} élève(s)`))),
+        h('p', { class: 'muted small', style: { margin: '8px 0 0' } }, 'Les équipes suivent l\'outil Équipes : modifiez-les là-bas, elles se mettent à jour ici.'),
+        btn('Ouvrir l\'outil Équipes', { cls: 'small soft', onClick: () => { closeTopDialog(); go('equipes', { from: 'classPage', classId: ev.classId, scope: 'act', actId: ev.activityId }); } }));
+    };
     const sel = (s, type) => {
+      if (type === 'team' && linked) { const g = ev.groups.find((x) => x.id === ev.membership[s.id]?.team); return h('span', { class: g ? '' : 'muted' }, g ? g.name : '—'); }
       const gs = ev.groups.filter((g) => g.type === type);
       return h('select', { 'aria-label': `${type === 'team' ? 'Équipe' : 'Niveau'} de ${s.first}`, value: ev.membership[s.id]?.[type] || '', disabled: !gs.length,
         onChange: (e) => act2('Affectation', (x) => assignGroup(x, s.id, type, e.target.value || null)) },
       h('option', { value: '' }, '—'), gs.map((g) => h('option', { value: g.id }, g.name)));
     };
     body.replaceChildren(
-      h('p', { class: 'muted small', style: { margin: 0 } }, 'Ces groupes n\'existent que dans cette évaluation : la composition de la classe n\'est pas modifiée.'),
+      h('p', { class: 'muted small', style: { margin: 0 } }, 'Les groupes de niveau n\'existent que dans cette évaluation.'),
       h('div', { class: 'row wrap', style: { alignItems: 'stretch' } },
-        h('div', { style: { flex: '1 1 300px' } }, section('team', 'Équipes', 'une équipe')),
+        h('div', { style: { flex: '1 1 300px' } }, linked ? teamSection() : section('team', 'Équipes', 'une équipe')),
         h('div', { style: { flex: '1 1 300px' } }, section('level', 'Groupes de niveau', 'un groupe de niveau'))),
       h('table', { class: 'edit' }, h('thead', null, h('tr', null, h('th', null, 'Élève'), h('th', null, 'Équipe'), h('th', null, 'Niveau'))),
         h('tbody', null, orderedStudents(ev, { sort: 'list' }).map((s) => h('tr', null, h('td', null, studentLabel(s)), h('td', null, sel(s, 'team')), h('td', null, sel(s, 'level')))))));

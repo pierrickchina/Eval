@@ -8,10 +8,10 @@ import { activitiesOf, activityEvals, touchTool, hasTool } from '../logic/activi
 import {
   VEST_COLORS, vestOf, DEFAULT_ROLES, newSet, addTeam, addClub, removeTeam, removeClub, teamsOnly, teamColorId, teamLabel,
   studentsOf, syncStudents, unplaced, moveStudent, setStatus, statusOf, toggleRole, visibleRole, toggleLock, duplicateSet,
-  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent,
+  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor,
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
-import { helpButton } from './help.js';
+import { helpItem } from './help.js';
 
 const T = { full: false };
 const roleDefs = () => app.repo.getMeta('teamRoles', null) || DEFAULT_ROLES;
@@ -64,8 +64,16 @@ registerView('equipes', (r) => {
   if (!ctx) { queueMicrotask(() => go('home')); return h('div'); }
   if (r.setId) { const set = ctx.sets().find((s) => s.id === r.setId); if (set) return editor(r, ctx, set); }
   const sets = ctx.sets();
+  /** Petits maillots aux couleurs des chasubles (un par club, ou par équipe). */
+  const shirts = (set) => {
+    const items = set.mode === 'clubs' ? set.clubs.map((c) => c.color) : teamsOnly(set).map((t) => teamColorId(set, t));
+    const shown = items.slice(0, 10);
+    return h('span', { class: 'shirts' }, shown.map((id) => { const v = vestOf(id); const sv = icon('teams', 22); sv.setAttribute('fill', v.hex); sv.setAttribute('stroke', v.id === 'sans' ? '#8b90a6' : 'rgba(0,0,0,.45)'); return sv; }),
+      items.length > shown.length ? h('span', { class: 'muted small' }, `+${items.length - shown.length}`) : null);
+  };
   const row = (set) => {
-    const nT = teamsOnly(set).length, mode = set.mode === 'clubs' ? `${set.clubs.length} clubs · ${nT} équipes` : `${nT} équipes`;
+    const nT = teamsOnly(set).length;
+    const detail = set.mode === 'clubs' ? `${set.clubs.length} club${set.clubs.length > 1 ? 's' : ''} · ${nT} équipe${nT > 1 ? 's' : ''}` : `${nT} équipe${nT > 1 ? 's' : ''}`;
     const more = iconBtn('more', 'Actions', (e) => {
       e.stopPropagation();
       popMenu(more, [
@@ -74,15 +82,19 @@ registerView('equipes', (r) => {
       ]);
     }, 'sm');
     const open = () => go('equipes', { ...r, setId: set.id });
-    return h('div', { class: 'evrow', role: 'button', tabindex: 0, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
-      h('div', { class: 'grow' }, h('div', { class: 't' }, set.name || 'Sans nom'), h('div', { class: 'muted small' }, `${set.date ? fmtDate(set.date) + ' · ' : ''}${set.mode === 'clubs' ? 'Clubs' : 'Équipes'} · ${mode}`)), more);
+    return h('div', { class: 'evrow comprow', role: 'button', tabindex: 0, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
+      h('div', { class: 'grow' },
+        h('div', { class: 't' }, `${set.name || 'Sans nom'} – ${set.mode === 'clubs' ? 'Clubs' : 'Équipes'}`),
+        h('div', { class: 'muted small' }, [set.date ? fmtDate(set.date) : '', detail].filter(Boolean).join(' · '))),
+      shirts(set), more);
   };
+  const listMore = iconBtn('more', 'Options', () => popMenu(listMore, [helpItem('equipes')]), 'boxed');
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, 'Équipes'), h('div', { class: 'sub' }, ctx.title)),
-      helpButton('equipes'),
-      btn('Nouvelle composition', { icon: 'plus', cls: 'primary', onClick: () => newSetDialog(r, ctx) })),
+      btn('Nouvelle composition', { icon: 'plus', cls: 'primary', onClick: () => newSetDialog(r, ctx) }),
+      listMore),
     sets.length
       ? h('div', { class: 'scroll grow listpad', 'data-keep': 'teamsets' }, sets.map(row))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucune composition'),
@@ -162,7 +174,7 @@ function editor(r, ctx, set) {
     const role = visibleRole(set, s.id, roles), st = statusOf(set, s.id), locked = !!set.locked[s.id];
     return h('div', { class: `schip ${st !== 'present' ? 'st-' + st : ''}`, 'data-sid': s.id, role: 'button', tabindex: 0, 'aria-label': studentLabel(s) },
       h('span', { class: 'sn' }, studentLabel(s)),
-      role ? h('span', { class: 'sr', title: role.label }, role.short) : null,
+      role ? h('span', { class: 'sr', title: role.label, style: { '--rc': roleColor(role) } }, role.short) : null,
       st === 'dispense' ? h('span', { class: 'sb', title: 'Dispensé' }, 'D') : null,
       locked ? h('span', { class: 'sl', title: 'Verrouillé' }, icon('lock', 13)) : null);
   };
@@ -208,16 +220,19 @@ function editor(r, ctx, set) {
   const cards = set.mode === 'clubs' ? set.clubs.map(clubCard) : teamsOnly(set).map(teamCard);
   const board = h('div', { class: 'tboard scroll', 'data-keep': 'tboard' },
     cards.length ? cards : h('div', { class: 'empty' }, h('h2', null, set.mode === 'clubs' ? 'Aucun club' : 'Aucune équipe'),
-      h('p', null, 'Ajoutez des équipes puis glissez les élèves dedans, ou touchez « Générer ».'),
+      h('p', null, 'Ajoutez des équipes puis glissez les élèves dedans, ou ouvrez ⋮ › Générer.'),
       btn(set.mode === 'clubs' ? 'Ajouter un club' : 'Ajouter une équipe', { icon: 'plus', cls: 'primary', onClick: () => apply(() => (set.mode === 'clubs' ? addClub(set) : addTeam(set))) })));
 
   const more = iconBtn('more', 'Options', () => popMenu(more, [
+    { label: set.mode === 'clubs' ? 'Générer les clubs…' : 'Générer les équipes…', onClick: () => generateDialog(r, ctx, set, students, apply, undoable) },
+    '-',
     { label: 'Renommer la composition…', onClick: () => renameSetDialog(set, apply) },
     { label: 'Contraintes (ensemble / séparés)…', onClick: () => constraintsDialog(set, students, nameOf, apply) },
     { label: 'Rôles (liste)…', onClick: () => rolesDialog(render) },
     ctx.kind === 'free' ? { label: 'Ajouter des élèves…', onClick: () => addStudentsDialog(set, apply) } : null,
     { label: 'Imprimer / PDF', onClick: () => printSet(set, nameOf, roles) },
     { label: 'Dupliquer pour la leçon suivante', onClick: () => duplicate(r, ctx, set) },
+    helpItem('equipes'),
     '-',
     { label: 'Tout remettre en « non placés »', danger: true, onClick: () => undoable(ctx, set, 'Équipes vidées.', () => { for (const t of set.teams) t.members = []; }) },
   ].filter(Boolean)), 'boxed');
@@ -226,8 +241,6 @@ function editor(r, ctx, set) {
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', back, '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, set.name || 'Composition'), h('div', { class: 'sub' }, `${ctx.title}${set.date ? ' · ' + fmtDate(set.date) : ''} · ${set.mode === 'clubs' ? 'clubs' : 'équipes'}`)),
-      helpButton('equipes'),
-      btn('Générer', { icon: 'shuffle', cls: 'primary', onClick: () => generateDialog(r, ctx, set, students, apply, undoable) }),
       btn('Mélanger', { icon: 'shuffle', onClick: () => reshuffle(ctx, set, students) }),
       btn(set.mode === 'clubs' ? 'Club' : 'Équipe', { icon: 'plus', onClick: () => apply(() => (set.mode === 'clubs' ? addClub(set) : addTeam(set))) }),
       iconBtn('expand', 'Affichage plein écran', () => { T.full = true; render(); }, 'boxed'),
@@ -247,7 +260,7 @@ function reshuffle(ctx, set, students) {
   const opts = { ...(set.lastGen || { mode: 'random' }), seed: null };
   if (opts.mode === 'tutor') opts.mode = 'random';
   opts.scores = scoresFor(ctx, set, opts.source);
-  if (!teamsOnly(set).length && set.mode !== 'clubs') return toast('Ajoutez des équipes ou touchez « Générer ».');
+  if (!teamsOnly(set).length && set.mode !== 'clubs') return toast('Ajoutez des équipes ou ouvrez ⋮ › Générer.');
   if (set.mode !== 'clubs') opts.teams = teamsOnly(set).length;
   else opts.teams = set.clubs.length;
   undoable(ctx, set, 'Équipes mélangées (les élèves verrouillés n\'ont pas bougé).', () => {
@@ -390,7 +403,7 @@ function fullScreen(set, nameOf, roles, back) {
   const groups = groupsForDisplay(set);
   const n = groups.length;
   const cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 6 ? 3 : 4;
-  const member = (id) => { const ro = visibleRole(set, id, roles); return h('li', { class: statusOf(set, id) === 'dispense' ? 'disp' : '' }, nameOf(id), ro ? h('span', { class: 'sr' }, ro.short) : null); };
+  const member = (id) => { const ro = visibleRole(set, id, roles); return h('li', { class: statusOf(set, id) === 'dispense' ? 'disp' : '' }, nameOf(id), ro ? h('span', { class: 'sr', style: { '--rc': roleColor(ro) } }, ro.short) : null); };
   return h('div', { class: 'main teamsfull' },
     h('div', { class: 'fullbar' }, h('span', { class: 'fulltitle' }, set.name), iconBtn('close', 'Fermer l\'affichage plein écran', back, 'boxed', { 'data-back': '1' })),
     h('div', { class: 'fullgrid scroll', style: { gridTemplateColumns: `repeat(${cols}, 1fr)` } }, groups.map((g) => {
@@ -452,3 +465,22 @@ export function setsForEvaluation(ev) {
   return act?.equipes?.sets || [];
 }
 export { copyIntoEvaluation };
+
+/**
+ * Évaluation liée à une composition (ev.teamSet) : les équipes de l'évaluation suivent celles de l'outil Équipes.
+ * Appelée à chaque affichage de l'évaluation ; ne fait rien si rien n'a changé. Retourne true si l'évaluation a été mise à jour.
+ */
+export function syncLinkedTeams(ev) {
+  if (!ev.teamSet?.setId) return false;
+  const set = setsForEvaluation(ev).find((x) => x.id === ev.teamSet.setId);
+  if (!set) return false; // composition supprimée : on garde les équipes telles quelles
+  const sig = (e) => JSON.stringify([e.groups.filter((g) => g.type === 'team').map((g) => [g.id, g.name, g.color]), e.students.map((s) => e.membership?.[s.id]?.team || '')]);
+  const before = sig(ev);
+  const probe = { groups: clone(ev.groups), membership: clone(ev.membership), students: ev.students, teamSet: ev.teamSet };
+  copyIntoEvaluation(probe, set);
+  if (sig(probe) === before && probe.teamSet.name === ev.teamSet.name) return false;
+  ev.groups = probe.groups; ev.membership = probe.membership; ev.teamSet = { ...probe.teamSet, at: ev.teamSet.at };
+  ev.updatedAt = now();
+  app.repo.save('evaluations', ev);
+  return true;
+}

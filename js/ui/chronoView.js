@@ -1,9 +1,9 @@
 // Outil Chronomètre : de 1 à 4 panneaux (chronomètre ou minuteur), très grands chiffres, rien n'est enregistré.
 // Utilisable seul (onglet Outils) ou comme raccourci dans une activité : même écran dans les deux cas.
 import { app, registerView, go, render } from '../app.js';
-import { h, btn, icon, iconBtn, openDialog, confirmDialog } from './dom.js';
+import { h, btn, icon, iconBtn, openDialog, confirmDialog, popMenu } from './dom.js';
 import { uid } from '../util.js';
-import { helpButton } from './help.js';
+import { helpItem } from './help.js';
 
 const MAX = 4;
 const PRESETS = [1, 2, 3, 5, 10]; // minutes
@@ -133,10 +133,10 @@ registerView('chrono', () => {
   const bar = h('div', { class: `topbar ${C.display ? 'hidden' : ''}` },
     iconBtn('back', 'Retour', tryLeave, '', { 'data-back': '1' }),
     h('div', { class: 'grow evtitle' }, h('h1', null, 'Chronomètre'), h('div', { class: 'sub' }, `${C.panels.length} / ${MAX} panneaux`)),
-    helpButton('chrono'),
     allBtn,
     btn('Ajouter', { icon: 'plus', cls: 'primary', disabled: C.panels.length >= MAX, onClick: addDialog }),
-    iconBtn('eye', 'Mode affichage (masque les boutons)', () => { C.display = true; render(); }, 'boxed', { disabled: !C.panels.length }));
+    iconBtn('eye', 'Mode affichage (masque les boutons)', () => { C.display = true; render(); }, 'boxed', { disabled: !C.panels.length }),
+    (() => { const m = iconBtn('more', 'Options', () => popMenu(m, [helpItem('chrono')]), 'boxed'); return m; })());
   const body = C.panels.length
     ? h('div', { class: `cgrid n${C.panels.length}` }, C.panels.map(panelEl))
     : h('div', { class: 'empty' }, h('h2', null, 'Aucun panneau'),
