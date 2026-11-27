@@ -1,4 +1,5 @@
 // Réglages : modèles, classes, données (sauvegarde, Drive, installation).
+import { displayPanel, demoPanel, importModelButton, shareModel } from './foundations.js';
 import { app, registerView, go, render, syncChip, updateSyncChips } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
@@ -37,10 +38,12 @@ function modelsTab() {
     h('div', { class: 'row wrap', style: { marginBottom: '12px' } },
       btn('Nouveau modèle', { icon: 'plus', cls: 'primary', onClick: () => go('modelEdit', { id: null }) }),
       btn('Importer un tableau (CSV / Excel)', { icon: 'upload', onClick: () => go('import') }),
+      importModelButton(() => render()),
       h('span', { class: 'muted small' }, 'Un modèle = une activité + un tableau de compétences par niveau scolaire (total des barèmes = 20).')),
     models.length ? h('div', { class: 'panel' }, models.map((m) => {
       const more = iconBtn('more', 'Actions', () => popMenu(more, [
         { label: 'Modifier', onClick: () => go('modelEdit', { id: m.id }) },
+        { label: 'Partager ce modèle (fichier sans données d\'élèves)', onClick: () => shareModel(m) },
         { label: 'Dupliquer', onClick: async () => { const c = clone(m); c.id = uid(); c.name += ' (copie)'; for (const lv of Object.values(c.levels)) for (const comp of lv.competences) comp.id = uid(); delete c.deleted; await app.repo.save('models', c); render(); } },
         { label: 'Supprimer', danger: true, onClick: () => softDelete('models', m, `Modèle « ${m.name} »`) },
       ]), 'sm');
@@ -140,6 +143,7 @@ function dataTab() {
 
   const inst = window.__installPrompt;
   return [
+    displayPanel(), demoPanel(),
     h('div', { class: 'panel' }, h('h3', null, 'Sauvegarde'),
       h('p', { class: 'muted', style: { margin: '0 0 10px' } }, `Contenu actuel : ${counts}. Les données sont enregistrées automatiquement dans la tablette. « Partager » ouvre le menu de la tablette : choisissez Google Drive (dossier de votre choix), Mes fichiers ou un mail.`),
       h('p', { class: 'small', style: { margin: '0 0 10px' } }, h('b', null, backupText()),
@@ -190,7 +194,7 @@ function dataTab() {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.5.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.6.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

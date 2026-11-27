@@ -3,7 +3,7 @@
 import { uid, now, clone } from '../util.js';
 import { SCHEMA_VERSION } from './schema.js';
 
-export const DATA_STORES = ['models', 'classes', 'evaluations'];
+export const DATA_STORES = ['models', 'classes', 'evaluations', 'freetools'];
 export const keyOf = (store, id) => `${store}:${id}`;
 
 export class Repo {
@@ -94,6 +94,7 @@ export class Repo {
       models: this.all('models').map(clone),
       classes: this.all('classes').map(clone),
       evaluations: this.all('evaluations').map(clone),
+      freetools: this.all('freetools').map(clone),
     };
   }
 

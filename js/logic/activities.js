@@ -10,9 +10,14 @@ export const activityColor = (act) => act.color || ACTIVITY_COLORS[0];
 /** Registre des outils. Chaque outil a SA couleur pastel, toujours la même, pour le repérer d'un coup d'œil.
  *  available:false → affiché « bientôt » (structure prête, outil à venir). */
 export const TOOLS = {
-  evaluation: { label: 'Évaluation', icon: 'file', color: '#f6b8b8', available: true, hint: 'Grilles, notes, bilans' },
-  tournoi: { label: 'Suivi de tournoi', icon: 'users', color: '#b8d4f6', available: false, hint: 'Bientôt' },
-  tables: { label: 'Suivi des tables', icon: 'users', color: '#b8e6bd', available: false, hint: 'Bientôt (tennis de table)' },
+  evaluation: { label: 'Évaluation', icon: 'file', color: '#f6b8b8', available: true, hint: 'Grilles, notes, bilans',
+    help: ['Une grille d\'évaluation par séance ou par cycle, avec notes sur 20 et niveaux de maîtrise.', 'Touchez la tuile : elle ouvre l\'évaluation (ou la liste s\'il y en a plusieurs).', 'Le « + » du cadre crée une nouvelle évaluation.'] },
+  chrono: { label: 'Chronomètre', icon: 'chrono', color: '#fbe08a', available: true, free: true, route: 'chrono', hint: 'Grand affichage, 1 à 4 panneaux',
+    help: ['Affiche en très gros un chronomètre ou un minuteur, lisible de toute la salle ; jusqu\'à 4 panneaux côte à côte.', 'Chaque panneau est un chronomètre ou un minuteur ; « +1 min » et « Tout démarrer » vont plus vite.', 'Rien n\'est enregistré : tout s\'efface en quittant.'] },
+  equipes: { label: 'Équipes', icon: 'teams', color: '#f5c28a', available: true, free: true, route: 'equipes', hint: 'Compositions, clubs, tirages',
+    help: ['Composez vos équipes en glissant les élèves, ou laissez l\'outil tirer au sort, par niveau ou en duos de tutorat.', 'Chaque équipe a un nom et une couleur de chasuble ; les rôles et les contraintes (ensemble / séparés) restent discrets.', 'Gardez une composition par leçon : dupliquez-la, modifiez-la, l\'ancienne reste consultable.'] },
+  tournoi: { label: 'Suivi de tournoi', icon: 'trophy', color: '#b8d4f6', available: false, hint: 'Bientôt' },
+  tables: { label: 'Suivi des tables', icon: 'racket', color: '#b8e6bd', available: false, hint: 'Bientôt (tennis de table)' },
 };
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
 export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';
@@ -102,5 +107,5 @@ export function deleteImpact(evals, cls, act, type = null) {
   return { evals: items, empty: !items.length };
 }
 
-/** Outils libres (utilisables sans classe ni activité), proposés dans l'onglet Outils de l'accueil. Aucun pour l'instant. */
-export const FREE_TOOLS = [];
+/** Outils libres (utilisables sans classe ni activité), proposés dans l'onglet Outils de l'accueil. */
+export const FREE_TOOLS = Object.entries(TOOLS).filter(([, t]) => t.free && t.available).map(([type]) => type);

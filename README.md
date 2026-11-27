@@ -1,4 +1,6 @@
-# Évaluation EPS — application tablette (PWA)
+# EPS — application tablette (PWA)
+
+> Anciennement « Évaluation EPS ». Le module **Évaluations** est le premier ; d'autres outils (oublis de matériel, tournois, tennis de table…) pourront s'y ajouter. Les identifiants techniques internes (`eps-eval`, format des sauvegardes) restent inchangés pour ne rien casser.
 
 Application web (HTML / CSS / JavaScript pur, sans build ni dépendance) pour évaluer les élèves en EPS depuis une tablette Android, **hors connexion**, avec sauvegarde locale (IndexedDB), export JSON et synchronisation Google Drive.
 
@@ -22,6 +24,48 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 5. Ouvrir l'application **une première fois avec du réseau** : elle se met en cache, puis fonctionne sans connexion.
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
+
+### Nouveautés de la version 1.6 (fondations, Chronomètre, Équipes)
+- **Chronomètre** : 1 à 4 panneaux (chronomètre ou minuteur), très grand affichage, mode affichage sans boutons (appui long 1 s pour en sortir), écran maintenu allumé, rien n'est enregistré.
+- **Équipes** : compositions par leçon (dupliquer, garder l'historique), glisser-déposer au doigt ou au stylet, tirage au hasard / équipes équilibrées / groupes de niveau / duos de tutorat, contraintes ensemble-séparés, rôles, élèves dispensés ou absents, couleurs de chasubles, **mode Clubs** (clubs durables divisés en 2 équipes), plein écran coloré, PDF. Outil libre (classes ou prénoms saisis) ou dans le carnet de bord d'une activité ; « Reprendre les équipes » depuis le menu ⋮ d'une évaluation.
+- **Fondations** : « Reprendre : … » sur l'accueil, outils libres épinglables (☆), icônes pastel par outil, « ? » d'aide en 3 lignes, visite guidée (installation vide uniquement), écrans vides qui expliquent quoi faire, bouton « Annuler » après les actions importantes, classe de démonstration, partage d'un modèle d'évaluation par petit fichier (sans données d'élèves), taille du texte et contraste renforcé (Réglages › Données).
+- Prévu en 1.7 : tournois (libre et en activité), suivi des résultats, onglet « Résultats » de la classe.
+
+### Nouveautés de la version 1.5 (restructuration)
+- **Accueil** : deux onglets **Classes | Outils**. L'onglet Classes montre directement les tuiles des classes (tri par niveau 6e → 3e ou par nom, filtre par niveau). Plus de bouton « Nouvelle évaluation » ni « Classes » : classes et modèles se créent dans Réglages. L'onglet Outils accueillera les outils libres (aucun pour l'instant ; le « + » montre ceux qui sont prévus).
+- **Page d'une classe** : **Carnet de bord** · **Oublis de matériel** · **Notes**, avec les actions de chaque onglet à la suite sur la même ligne (Nouvelle activité ; filtre, tri des élèves et PDF ; filtre des oublis). L'onglet est mémorisé dans la classe. L'onglet « Infos élèves » est supprimé (et le champ effacé des données).
+- **Carnet de bord** : un cadre par **activité** (« Handball · 3e B ») contenant des tuiles d'outils. La tuile **Évaluation** : aucune évaluation → elle propose d'en créer une ; une seule → elle l'ouvre directement ; plusieurs → la liste se déplie pour choisir (renommer, dupliquer, supprimer). Le « + » du cadre ajoute un outil (dont une nouvelle évaluation) ; le ⋮ permet de renommer l'activité, gérer les outils ou la supprimer. Le cadre d'une activité a une **couleur pastel** au choix (menu ⋮ › Nom et couleur) ; **chaque outil a sa propre couleur fixe** (Évaluation = rouge pastel, suivi de tournoi = bleu, suivi des tables = vert…) pour les repérer d'un coup d'œil. Chaque évaluation peut recevoir un nom (aussi dans le menu ⋮ de l'évaluation, qui permet aussi de la supprimer). Les outils peu utilisés depuis plus de 60 jours passent derrière un « + n de plus » (6 tuiles visibles au maximum).
+- **Évaluations existantes** : rangées automatiquement, au premier lancement, dans l'activité du même nom de leur classe. Rien n'est perdu.
+- **Suppression** : retirer un outil ou supprimer une activité supprime ses données, après une fenêtre « Attention, vous allez supprimer des données » qui liste précisément les évaluations (dates, résultats, observations, remarques, auto-évaluations) concernées.
+- Structure prête pour les prochains outils (suivi de tournoi, suivi des tables de tennis de table… signalés « bientôt »). Les activités sont stockées dans l'enregistrement de la classe (`activities`) et les évaluations portent `activityId`.
+
+### Nouveautés de la version 1.4
+- **Page d'une classe** (depuis la 1.5 : tuile de classe sur l'accueil), onglets :
+  - **Notes** : une colonne par évaluation (autant d'activités que l'on veut), notes finales uniquement, moyenne par élève et de classe ; filtre par trimestre ; toucher une colonne ouvre l'évaluation, toucher un élève ouvre son résumé de l'année ; impression / PDF.
+  - **Oublis de matériel** : − / + par élève, croix 1-2 jaunes, 3 orange, 4 et + rouges, comptage **à l'année** (une date par croix), filtre « 3 croix et + ».
+  - *(Infos élèves : supprimé en 1.5.)*
+- **Trimestres** modifiables dans Réglages › Classes (dates proposées par défaut, à vérifier avec le collège).
+- Les oublis sont dans l'enregistrement de la classe : ils partent donc dans les sauvegardes (JSON/Drive). « Passer à l'année suivante » ne les recopie pas.
+
+### Nouveautés de la version 1.3
+- **Auto-évaluation** : le bouton « Valider » n'apparaît que lorsque toutes les compétences sont choisies, en grand, dans une barre verte fixe en bas, avec la **note estimée** et la note de chaque compétence (« Tu as tout choisi ! »). La confirmation rappelle la note.
+- **Fiche élève** : statut (présent/absent/dispensé/non évalué) et remarque déplacés dans le menu ⋮ ; le nom de l'élève reste bien visible.
+- **Nom de l'application : « EPS »** (manifeste, titre, accueil), pour accueillir d'autres outils. Les identifiants internes ne changent pas : aucune donnée perdue.
+
+### Nouveautés de la version 1.2
+- **Bouton Précédent de la tablette** : remonte d'un niveau (fiche élève → tableau → accueil ; réglages → accueil ; éditeurs → réglages ; ferme d'abord une fenêtre ouverte). À l'accueil : un 1er appui prévient, le 2e quitte.
+- **En-tête d'évaluation épuré** : titre complet, annuler/rétablir, et un seul menu ⋮ (date, groupes, + élève, dupliquer, imprimer, auto-évaluation). Dans la fiche élève, Résumé/Historique/Remarque sont dans un menu ⋮.
+- **Fiche élève compacte** : titre du degré en gras en haut, texte pleine largeur en plus petit, boutons brouillon réduits.
+- **Auto-évaluation** : menu ⋮ › « Auto-évaluation des élèves… ». Mode élève verrouillé (aucune donnée de l'enseignant visible), chaque élève choisit un degré par compétence → note, puis valide (non modifiable ensuite, rouvrable par l'enseignant). Sortie par code (0007 par défaut, modifiable dans Réglages). Le verrou survit à un rechargement. Dans le tableau : symbole en italique grisé en haut à gauche de la case ; rappel dans la saisie rapide et la fiche. Elle n'entre jamais dans les notes. Conseil : « Épingler l'écran » sur la tablette.
+- **Partage de la sauvegarde** : essai en .txt (type autorisé par Chrome), puis .json, puis téléchargement avec bouton « Ouvrir Drive ». L'import accepte .json et .txt.
+- **Copie de sécurité interne** au 1er lancement d'une nouvelle version et avant « Remplacer tout » (Réglages › Données › Restaurer).
+
+### Nouveautés de la version 1.1
+- **Sauvegarde en deux touches** : bouton « Sauvegarder » (accueil) / « Partager la sauvegarde » (Réglages) → menu de partage de la tablette → Google Drive, Mes fichiers, mail. Rappel « dernière sauvegarde il y a X jours » (orange après 7 jours avec des modifications).
+- **Règle des niveaux** : non acquis 0–30 % (proposé 0) · en cours 30–50 % (proposé = **exactement la moitié du barème**) · acquis 55–90 % (proposé 80 %) · dépassé 90–100 % (proposé 100 %). Appliquée aux nouveaux barèmes et, une seule fois, aux modèles existants ; les évaluations déjà créées ne changent pas.
+- **Observations brouillon** : boutons discrets « + ✕ ≈ ✓ ★ » au-dessus de chaque degré ; elles ne fixent pas le degré, restent visibles (discrètes) dans le tableau, se retirent d'une touche, et sont conservées comme trace après placement. Filtre **« À placer »**.
+- **Textes des critères en entier** dans la fiche élève.
+- **Remarque libre par élève** (stylet ou clavier), **résumé de l'année** (copiable, imprimable), **export PDF** d'une évaluation (impression → « Enregistrer au format PDF »).
 
 ### Mettre à jour l'application sans perdre les données
 Les données sont dans IndexedDB, séparées du code : une mise à jour n'y touche jamais.
@@ -54,7 +98,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 | # | Sujet | Décision |
 |---|---|---|
 | 1 | **Coefficients** | Le barème *est* la pondération (somme = 20). Le champ « coef. » est conservé comme aide : le bouton *Répartir selon les coefficients* redistribue les 20 points (multiples du pas, somme exacte). |
-| 2 | **Niveau → note** | Plages par défaut en % du barème : Non acquis 0–40 %, En cours 40–70 %, Acquis 70–90 %, Dépassé = barème. Note proposée au milieu de la plage. Modifiable par compétence. Une note saisie à la main recalcule le niveau. |
+| 2 | **Niveau → note** | (v1.1) Non acquis 0–30 % (proposé 0), En cours 30–50 % (proposé = moitié du barème, non modifiable), Acquis 55–90 % (proposé 80 %), Dépassé 90–100 % (proposé 100 %). Arrondi au pas. Une note saisie à la main recalcule le niveau. |
 | 3 | **Pas des notes** | Demi-point par défaut ; 0,25 ou 1 dans *Réglages › Notation* (s'applique aux nouvelles évaluations). |
 | 4 | **Cellules** | Couleur = niveau (avec symbole ✕ ≈ ✓ ★). Vide / grisé (non validé) / noir (validé). |
 | 5 | **Note provisoire** | Pas d'extrapolation par défaut : « 9/15 · 1 restante », note sur 20 seulement quand tout est renseigné. Estimation « prov. » activable dans les réglages. Les notes non validées comptent dans les totaux (la note s'affiche grisée tant que tout n'est pas validé). |
@@ -77,10 +121,14 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/core.test.mjs tests/import.test.mjs     # 54 tests : calculs, historique, annulation, duplication, synchro, import
+node --test tests/*.test.mjs                               # 82 tests : calculs, historique, annulation, duplication, synchro, import, v1.1
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
+node tests/e2e4.mjs       # v1.2 : Précédent, en-tête, fiche compacte, auto-évaluation + code, partage
+node tests/e2e5.mjs       # v1.4 : notes, oublis, trimestres, sauvegarde
+node tests/e2e6.mjs       # v1.5 : accueil, carnet de bord, activités, avertissements de suppression
+node tests/e2e3.mjs       # v1.1 : brouillons, « à placer », textes longs, remarque, partage, migration, PDF
 ```
 
 ## 6. Organisation du code
@@ -90,10 +138,10 @@ index.html · manifest.webmanifest · sw.js          PWA, cache hors connexion
 css/style.css                                       thème pastel, tablette
 js/main.js · app.js                                 démarrage, routeur, rendu
 js/data/   schema.js  db.js  repo.js                modèle de données, IndexedDB, dépôt (autosauvegarde, export/import JSON)
-js/logic/  model.js scoring.js evaluation.js history.js   règles métier (sans DOM, testées)
+js/logic/  model.js scoring.js evaluation.js history.js activities.js classes.js   règles métier (sans DOM, testées)
 js/sync/   engine.js drive.js controller.js         moteur de synchro (plan, conflits, fusion) · Google · état et dialogues
 js/import/ csv.js xlsx.js mapper.js                 lecture de fichiers et correspondance des colonnes
-js/ui/     home evalView historyView settings modelEditor classEditor importWizard dom
+js/ui/     home carnet classesView evalView selfEval historyView summaryView printView backup settings modelEditor classEditor importWizard dom
 tests/                                              tests Node + parcours Chromium
 ```
 Chaque enregistrement porte `id` (UUID), `updatedAt`, `deviceId`. Une évaluation embarque une **copie figée** du modèle, de la classe et de la liste d'élèves : modifier un modèle ou une classe ne change jamais une évaluation existante.

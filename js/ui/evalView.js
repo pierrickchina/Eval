@@ -14,6 +14,7 @@ import {
 import { EvalSession } from '../logic/history.js';
 import { studentHistoryDialog } from './historyView.js';
 import { duplicateDialog } from './home.js';
+import { setsForEvaluation, copyIntoEvaluation } from './teamsView.js';
 import { studentSummaryDialog } from './summaryView.js';
 import { printEvaluation } from './printView.js';
 import { startSelfEval } from './selfEval.js';
@@ -70,6 +71,7 @@ function topbar() {
     { label: 'Nom de l\'évaluation…', onClick: titleDialog },
     { label: `Date : ${fmtDate(ev.date)}…`, onClick: dateDialog },
     { label: 'Équipes et groupes de niveau…', onClick: groupsDialog },
+    setsForEvaluation(ev).length ? { label: 'Reprendre les équipes d\'une composition…', onClick: importTeamsDialog } : null,
     { label: 'Ajouter un élève…', onClick: addStudentDialog },
     { label: 'Dupliquer…', onClick: () => duplicateDialog(ev) },
     { label: 'Imprimer / exporter en PDF', onClick: () => printEvaluation(ev) },
@@ -443,6 +445,17 @@ function compCard(s, c) {
 }
 
 // ---------- Équipes et groupes de niveau ----------
+
+/** Copie dans l'évaluation (copie figée) les équipes d'une composition de l'outil Équipes de la même activité. */
+function importTeamsDialog() {
+  const sets = setsForEvaluation(V.ev);
+  const dlg = openDialog({
+    title: 'Reprendre les équipes',
+    body: [h('p', { class: 'dlg-msg' }, 'Les équipes de la composition choisie remplacent les équipes actuelles de cette évaluation (les groupes de niveau ne changent pas).'),
+      ...sets.map((set) => btn(`${set.name}${set.date ? ' · ' + fmtDate(set.date) : ''}`, { cls: 'bigbtn', onClick: () => { dlg.close(); act('Équipes reprises', (e) => { copyIntoEvaluation(e, set); return true; }); toast('Équipes reprises dans l\'évaluation.'); } }))],
+    actions: [{ label: 'Annuler' }],
+  });
+}
 
 function groupsDialog() {
   const body = h('div', { class: 'dlg-body', style: { padding: 0 } });

@@ -11,13 +11,17 @@ import './ui/classEditor.js';
 import './ui/importWizard.js';
 import './ui/selfEval.js';
 import './ui/classesView.js';
+import './ui/chronoView.js';
+import './ui/teamsView.js';
+import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
 
-window.__APP_VERSION = '1.5.0';
+window.__APP_VERSION = '1.6.0';
+applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
 
@@ -75,8 +79,10 @@ async function boot() {
     if (last?.name === 'eval' && repo.get('evaluations', last.id) && !repo.get('evaluations', last.id).deleted) first = last;
   } catch { /* ignore */ }
   initBack();
+  app.onRoute = noteRoute;
   first = resumeRoute() || first; // mode élève actif : on y reste, même après un rechargement
   go(first.name, first);
+  if (first.name === 'home') setTimeout(() => maybeTour(), 400);
 
   window.addEventListener('online', updateSyncChips);
   window.addEventListener('offline', updateSyncChips);

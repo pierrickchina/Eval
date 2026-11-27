@@ -39,8 +39,8 @@ function activityFrame(cls, act) {
   const tools = showAll ? [...shown, ...hidden] : shown;
   const add = iconBtn('plus', 'Ajouter un outil', () => popMenu(add, [
     ...Object.entries(TOOLS).map(([type, t]) => ({
-      label: type === 'evaluation' ? 'Nouvelle évaluation…' : `${t.label} (bientôt)`,
-      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : toast(`${t.label} : bientôt disponible.`)),
+      label: type === 'evaluation' ? 'Nouvelle évaluation…' : t.available ? `${t.label}${hasTool(act, type) ? ' (ouvrir)' : ''}` : `${t.label} (bientôt)`,
+      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : t.available ? useTool(cls, act, type) : toast(`${t.label} : bientôt disponible.`)),
     })),
     '-',
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
@@ -65,6 +65,13 @@ function activityFrame(cls, act) {
         icon(TOOLS.evaluation.icon), h('b', null, 'Évaluation'),
         h('span', { class: 'muted small' }, n === 0 ? 'Aucune · toucher pour créer' : n === 1 ? '1 évaluation · toucher pour ouvrir' : `${n} évaluations`));
     }
+    const def = TOOLS[t.type];
+    if (def?.available) {
+      const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : 0;
+      return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
+        icon(def.icon), h('b', null, def.label),
+        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
+    }
     return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'bientôt'));
   };
@@ -75,6 +82,17 @@ function activityFrame(cls, act) {
     hidden.length ? h('button', { type: 'button', class: 'linkbtn', onClick: () => { showAll ? E.all.delete(act.id) : E.all.add(act.id); render(); } },
       showAll ? 'Masquer les outils peu utilisés' : `Afficher ${hidden.length} outil${hidden.length > 1 ? 's' : ''} peu utilisé${hidden.length > 1 ? 's' : ''}`) : null,
     E.open.has(act.id) && hasTool(act, 'evaluation') && activityEvals(evals, cls, act).length > 1 ? evalList(cls, act) : null);
+}
+
+/** Ouvre un outil de l'activité (l'ajoute au cadre s'il n'y est pas encore). */
+async function useTool(cls, act, type) {
+  if (!hasTool(act, type)) {
+    const t = Date.now();
+    act.tools.push({ type, addedAt: t, lastUsed: t });
+    await saveClass(cls);
+  }
+  touchTool(act, type);
+  go(TOOLS[type].route, { from: 'classPage', classId: cls.id, scope: 'act', actId: act.id });
 }
 
 function evalList(cls, act) {

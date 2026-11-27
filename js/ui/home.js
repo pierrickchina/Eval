@@ -1,10 +1,11 @@
 // Accueil : deux onglets « Classes » (tuiles) et « Outils » (outils libres), tri/filtre des classes.
 import { app, registerView, go, render, syncChip } from '../app.js';
-import { h, btn, classBadge, openDialog } from './dom.js';
+import { pinnedTools, togglePin, openFreeTool, pinnedStrip, resumeChip, createDemo } from './foundations.js';
+import { h, btn, icon, classBadge, openDialog, toast } from './dom.js';
 import { fmtDate, todayISO, collator } from '../util.js';
 import { duplicateEvaluation } from '../logic/evaluation.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
-import { FREE_TOOLS, TOOLS, activitiesOf } from '../logic/activities.js';
+import { TOOLS, toolColor, activitiesOf } from '../logic/activities.js';
 import { shareBackup, backupText, backupNeedsAttention, changesSinceBackup } from './backup.js';
 
 const F = { tab: 'classes', sort: 'level', level: '' }; // état conservé entre deux visites
@@ -29,6 +30,7 @@ registerView('home', () => {
       syncChip(),
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') })),
     classes.length || evals.length ? backupBar() : null,
+    quickRow(),
     h('div', { class: 'toolbar' }, tabs,
       F.tab === 'classes' && classes.length ? [
         h('select', { 'aria-label': 'Niveau', value: F.level, onChange: (e) => { F.level = e.target.value; render(); } },
@@ -39,11 +41,19 @@ registerView('home', () => {
     F.tab === 'classes' ? classesTab(list, classes, evals) : toolsTab());
 });
 
+/** Reprendre + outils épinglés : une seule ligne discrète en haut de l'accueil. */
+function quickRow() {
+  const a = resumeChip(), b = pinnedStrip();
+  return a || b ? h('div', { class: 'quickrow' }, a, b) : null;
+}
+
 function classesTab(list, classes, evals) {
   if (!classes.length) {
     return h('div', { class: 'empty' }, h('h2', null, 'Bienvenue 👋'),
       h('p', null, 'Pour commencer, créez vos classes et vos modèles d\'évaluation dans les réglages.'),
-      btn('Ouvrir les réglages', { icon: 'gear', cls: 'primary', onClick: () => go('settings') }));
+      h('div', { class: 'row', style: { justifyContent: 'center', flexWrap: 'wrap' } },
+        btn('Ouvrir les réglages', { icon: 'gear', cls: 'primary', onClick: () => go('settings') }),
+        btn('Essayer avec une classe de démonstration', { onClick: createDemo })));
   }
   return h('div', { class: 'home-grid scroll grow', 'data-keep': 'home' }, list.map((c) => {
     const n = evals.filter((e) => e.classId === c.id).length;
@@ -57,21 +67,21 @@ function classesTab(list, classes, evals) {
   }));
 }
 
-/** Outils libres : pas encore d'outil disponible ; le « + » ouvre la liste des outils (structure prête). */
+/** Outils libres : une tuile par outil (icône pastel, étoile pour épingler en haut de l'accueil) ; les outils à venir sont grisés. */
 function toolsTab() {
-  const add = () => openDialog({
-    title: 'Ajouter un outil',
-    body: [
-      FREE_TOOLS.length ? null : h('p', { class: 'dlg-msg' }, 'Aucun outil libre n\'est disponible pour le moment. Ils arriveront dans les prochaines versions.'),
-      h('p', { class: 'muted small', style: { margin: 0 } }, 'Prévus :'),
-      Object.entries(TOOLS).filter(([, t]) => !t.available).map(([, t]) => h('div', { class: 'row', style: { opacity: .6 } }, h('span', null, t.label), h('span', { class: 'muted small' }, 'bientôt'))),
-    ],
-    actions: [{ label: 'Fermer', primary: true }],
-  });
-  return h('div', { class: 'scroll grow' },
-    h('div', { class: 'empty' }, h('h2', null, 'Pas encore d\'outil libre'),
-      h('p', null, 'Les outils utilisables sans classe (chronomètre, tirage au sort…) apparaîtront ici. Les outils liés à une classe se trouvent dans son carnet de bord.'),
-      btn('Ajouter un outil', { icon: 'plus', cls: 'primary', onClick: add })));
+  const pins = pinnedTools();
+  const tile = ([type, t]) => {
+    const pinned = pins.includes(type);
+    const star = t.available ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer de l\'accueil' : 'Épingler en haut de l\'accueil', 'aria-pressed': pinned,
+      onClick: async (e) => { e.stopPropagation(); await togglePin(type); render(); } }, icon('star', 20)) : null;
+    return h('div', { class: `tooltile big ${t.available ? '' : 'soon'}`, role: 'button', tabindex: 0, style: { '--tc': toolColor(type) },
+      onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil se trouve dans le carnet de bord d\'une classe.' : `${t.label} : bientôt disponible.`)),
+      onKeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
+    h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? t.hint : 'bientôt'));
+  };
+  return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
+    h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(([, t]) => t.free || !t.available).map(tile)),
+    h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));
 }
 
 /** Rappel discret de la dernière sauvegarde, avec bouton de partage (Drive…) en une touche. */

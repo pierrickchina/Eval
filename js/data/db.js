@@ -1,8 +1,8 @@
 // Stockage local : IndexedDB dans le navigateur, mémoire pour les tests Node.
 import { clone } from '../util.js';
 
-export const STORES = ['models', 'classes', 'evaluations', 'meta'];
-const DB_VERSION = 1;
+export const STORES = ['models', 'classes', 'evaluations', 'freetools', 'meta'];
+const DB_VERSION = 2; // v2 (EPS 1.6) : ajout du stockage des outils libres (équipes, tournois…)
 
 export class MemStore {
   constructor() {
@@ -27,7 +27,7 @@ export class IDBStore {
       req.onupgradeneeded = (e) => {
         const db = req.result;
         // Migrations futures : tester e.oldVersion et ajouter des cases ici sans jamais supprimer de données.
-        if (e.oldVersion < 1) for (const s of STORES) db.createObjectStore(s, { keyPath: 'id' });
+        for (const s of STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: 'id' }); // ne touche jamais aux cases existantes
       };
       req.onsuccess = () => {
         this.db = req.result;

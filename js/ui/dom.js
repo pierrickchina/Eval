@@ -45,6 +45,25 @@ const ICONS = {
   download: 'M12 4v11 M7 11l5 5 5-5 M5 20h14',
   upload: 'M12 16V5 M7 9l5-5 5 5 M5 20h14',
   file: 'M7 3h7l4 4v14H7z M14 3v4h4',
+  help: 'M12 21a9 9 0 100-18 9 9 0 000 18z M9.6 9.4a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.6 M12 17h.01',
+  chrono: 'M12 21a8 8 0 100-16 8 8 0 000 16z M12 9v4.2l2.6 1.6 M9.5 2.5h5 M12 2.5V5 M18.5 6l1.5-1.5',
+  teams: 'M8.5 4L3 7l2 4 3-1.5V20h8V9.5L19 11l2-4-5.5-3c-.6 1.3-1.9 2-3.5 2s-2.9-.7-3.5-2z',
+  club: 'M12 3l7.5 3v5.5c0 4.7-3.1 8.2-7.5 9.5-4.4-1.3-7.5-4.8-7.5-9.5V6z M9 11l2.2 2.2L15 9.5',
+  trophy: 'M8 4h8v5a4 4 0 01-8 0z M8 6H5a3 3 0 003.2 4.2 M16 6h3a3 3 0 01-3.2 4.2 M12 13v4 M9 20h6 M10 17h4',
+  racket: 'M10.5 3a5.5 6.5 0 100 13 5.5 6.5 0 000-13z M14.5 15l5.5 5.5 M5.5 8.5h10 M6 12h9',
+  pin: 'M9 4h6l-1 6 3 3H7l3-3z M12 13v7',
+  play: 'M8 5l11 7-11 7z',
+  pause: 'M8 5v14 M16 5v14',
+  reset: 'M4 12a8 8 0 108-8 M4 4v5h5',
+  lock: 'M7 11h10v9H7z M9 11V8a3 3 0 016 0v3',
+  expand: 'M4 9V4h5 M20 9V4h-5 M4 15v5h5 M20 15v5h-5',
+  print: 'M7 9V4h10v5 M7 17H4v-7h16v7h-3 M7 14h10v6H7z',
+  shuffle: 'M4 7h4l8 10h4 M4 17h4l2-2.5 M14 9l2-2h4 M18 5l2 2-2 2 M18 15l2 2-2 2',
+  star: 'M12 4l2.4 5 5.6.7-4 3.9 1 5.6-5-2.7-5 2.7 1-5.6-4-3.9 5.6-.7z',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z M12 15a3 3 0 100-6 3 3 0 000 6z',
+  link: 'M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1 M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1',
+  resume: 'M4 12a8 8 0 118 8 M4 20v-5h5 M12 8v4l3 2',
+  share: 'M12 4v11 M7 8l5-5 5 5 M5 14v6h14v-6',
 };
 
 export function icon(name, size = 22) {
@@ -131,7 +150,7 @@ export function popMenu(anchor, items) {
   overlayRoot ??= document.getElementById('overlay-root');
   const close = () => { menu.remove(); document.removeEventListener('pointerdown', outside, true); };
   const outside = (e) => { if (!menu.contains(e.target)) close(); };
-  const menu = h('div', { class: 'popmenu', role: 'menu' }, items.map((it) =>
+  const menu = h('div', { class: 'popmenu', role: 'menu' }, items.filter(Boolean).map((it) =>
     it === '-' ? h('hr') : h('button', { type: 'button', role: 'menuitem', class: `${it.danger ? 'danger' : ''} ${it.active ? 'active' : ''}`, disabled: it.disabled,
       onClick: () => { close(); it.onClick?.(); } }, it.label)));
   overlayRoot.append(menu);

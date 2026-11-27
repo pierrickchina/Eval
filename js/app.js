@@ -49,6 +49,7 @@ export function initBack() {
 
 export function go(name, params = {}) {
   app.route = { name, ...params };
+  app.onRoute?.(app.route);
   try {
     // Bouton « Précédent » de la tablette : on garde toujours une entrée « garde » devant l'entrée de base
     if (history.state?.base) history.pushState({ guard: 1 }, '', '#' + name);
