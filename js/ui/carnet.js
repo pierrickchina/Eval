@@ -6,7 +6,7 @@ import { fmtDate, todayISO, collator } from '../util.js';
 import { createEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
 import {
-  TOOLS, toolLabel, evTitle, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
+  TOOLS, ACTIVITY_COLORS, activityColor, toolColor, toolLabel, evTitle, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
 } from '../logic/activities.js';
 import { duplicateDialog } from './home.js';
 
@@ -46,7 +46,7 @@ function activityFrame(cls, act) {
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
   ]), 'boxed');
   const more = iconBtn('more', 'Options de l\'activité', () => popMenu(more, [
-    { label: 'Renommer…', onClick: () => renameDialog(cls, act) },
+    { label: 'Nom et couleur…', onClick: () => editActivityDialog(cls, act) },
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
     '-',
     { label: 'Supprimer l\'activité…', danger: true, onClick: () => deleteActivity(cls, act) },
@@ -61,14 +61,14 @@ function activityFrame(cls, act) {
         E.open.has(act.id) ? E.open.delete(act.id) : E.open.add(act.id);
         render();
       };
-      return h('button', { type: 'button', class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': n > 1 ? open : null, onClick: press },
+      return h('button', { type: 'button', style: { '--tc': toolColor('evaluation') }, class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': n > 1 ? open : null, onClick: press },
         icon(TOOLS.evaluation.icon), h('b', null, 'Évaluation'),
         h('span', { class: 'muted small' }, n === 0 ? 'Aucune · toucher pour créer' : n === 1 ? '1 évaluation · toucher pour ouvrir' : `${n} évaluations`));
     }
-    return h('button', { type: 'button', class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
+    return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'bientôt'));
   };
-  return h('section', { class: 'actframe', style: { '--ac': cls.color } },
+  return h('section', { class: 'actframe', style: { '--ac': activityColor(act) } },
     h('div', { class: 'acthead' }, h('h2', { class: 'grow' }, `${act.name} · ${cls.name}`), add, more),
     h('div', { class: 'tooltiles' }, tools.map(tile),
       null),
@@ -128,7 +128,7 @@ async function deleteEvaluation(ev) {
 export function newActivityDialog(cls) {
   const names = [...new Set([...app.repo.list('models').map((m) => m.activity), ...app.repo.list('classes').flatMap((c) => activitiesOf(c).map((a) => a.name))])]
     .filter(Boolean).sort(collator.compare);
-  const st = { name: '', tools: new Set(['evaluation']) };
+  const st = { name: '', tools: new Set(['evaluation']), color: ACTIVITY_COLORS[activitiesOf(cls).length % ACTIVITY_COLORS.length] };
   const dup = (n) => activitiesOf(cls).some((a) => a.name.trim().toLowerCase() === n.trim().toLowerCase());
   const dlg = openDialog({
     title: `Nouvelle activité · ${cls.name}`,
@@ -136,6 +136,9 @@ export function newActivityDialog(cls) {
       h('label', { class: 'field' }, 'Nom de l\'activité',
         h('input', { type: 'text', list: 'act-names', placeholder: 'Handball, Badminton…', autofocus: true, onInput: (e) => { st.name = e.target.value; } }),
         h('datalist', { id: 'act-names' }, names.map((n) => h('option', { value: n })))),
+      h('div', { class: 'muted small' }, 'Couleur du cadre (modifiable ensuite)'),
+      h('div', { class: 'swatches' }, ACTIVITY_COLORS.map((c) => h('button', { type: 'button', class: 'swatch', style: { background: c }, 'aria-label': `Couleur ${c}`,
+        onClick: (e) => { st.color = c; e.currentTarget.parentNode.querySelectorAll('.swatch').forEach((x) => x.classList.toggle('on', x === e.currentTarget)); } }))),
       h('div', { class: 'muted small' }, 'Outils de l\'activité'),
       Object.entries(TOOLS).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available ? 1 : .55 } },
         h('input', { type: 'checkbox', checked: st.tools.has(type), disabled: !t.available, style: { width: '22px', height: '22px' },
@@ -146,7 +149,7 @@ export function newActivityDialog(cls) {
       const name = st.name.trim();
       if (!name) { toast('Donnez un nom à l\'activité.'); return false; }
       if (dup(name)) { toast('Cette classe a déjà une activité de ce nom.'); return false; }
-      const act = newActivity(name, [...st.tools]);
+      const act = newActivity(name, [...st.tools], undefined, st.color);
       activitiesOf(cls).push(act);
       dlg.close();
       render();
@@ -156,16 +159,22 @@ export function newActivityDialog(cls) {
   });
 }
 
-function renameDialog(cls, act) {
-  let name = act.name;
+/** Nom et couleur (pastel) du cadre d'activité. */
+function editActivityDialog(cls, act) {
+  let name = act.name, color = activityColor(act);
+  const sw = h('div', { class: 'swatches' });
+  const paintSw = () => sw.replaceChildren(...ACTIVITY_COLORS.map((c) => h('button', { type: 'button', class: `swatch ${c === color ? 'on' : ''}`,
+    style: { background: c }, 'aria-label': `Couleur ${c}`, 'aria-pressed': c === color, onClick: () => { color = c; paintSw(); } })));
+  paintSw();
   const dlg = openDialog({
-    title: 'Renommer l\'activité',
-    body: h('label', { class: 'field' }, 'Nom', h('input', { type: 'text', value: act.name, autofocus: true, onInput: (e) => { name = e.target.value; } })),
+    title: 'Nom et couleur de l\'activité',
+    body: [h('label', { class: 'field' }, 'Nom', h('input', { type: 'text', value: act.name, autofocus: true, onInput: (e) => { name = e.target.value; } })),
+      h('div', { class: 'muted small' }, 'Couleur du cadre'), sw],
     actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, keepOpen: true, onClick: async () => {
       name = name.trim();
       if (!name) return false;
       if (activitiesOf(cls).some((a) => a !== act && a.name.trim().toLowerCase() === name.toLowerCase())) { toast('Ce nom existe déjà dans cette classe.'); return false; }
-      act.name = name; dlg.close(); render(); await saveClass(cls); return false;
+      act.name = name; act.color = color; dlg.close(); render(); await saveClass(cls); return false;
     } }],
   });
 }

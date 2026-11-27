@@ -3,21 +3,28 @@
 // Un outil = { type, addedAt, lastUsed }. Les évaluations sont rattachées par ev.activityId.
 import { uid, now } from '../util.js';
 
-/** Registre des outils. available:false → affiché « bientôt » (structure prête, outil à venir). */
+/** Couleurs pastel proposées pour les cadres d'activité (pas de rouge : le rouge est la couleur de l'outil Évaluation). */
+export const ACTIVITY_COLORS = ['#cfe3ff', '#d6efd2', '#fff0b8', '#e4dbf8', '#cdeeea', '#ffe0c2', '#e6e6ec', '#dfe9c2'];
+export const activityColor = (act) => act.color || ACTIVITY_COLORS[0];
+
+/** Registre des outils. Chaque outil a SA couleur pastel, toujours la même, pour le repérer d'un coup d'œil.
+ *  available:false → affiché « bientôt » (structure prête, outil à venir). */
 export const TOOLS = {
-  evaluation: { label: 'Évaluation', icon: 'file', available: true, hint: 'Grilles, notes, bilans' },
-  tournoi: { label: 'Suivi de tournoi', icon: 'users', available: false, hint: 'Bientôt' },
-  tables: { label: 'Suivi des tables', icon: 'users', available: false, hint: 'Bientôt (tennis de table)' },
+  evaluation: { label: 'Évaluation', icon: 'file', color: '#f6b8b8', available: true, hint: 'Grilles, notes, bilans' },
+  tournoi: { label: 'Suivi de tournoi', icon: 'users', color: '#b8d4f6', available: false, hint: 'Bientôt' },
+  tables: { label: 'Suivi des tables', icon: 'users', color: '#b8e6bd', available: false, hint: 'Bientôt (tennis de table)' },
 };
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
 export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';
+/** Couleurs réservées aux futurs outils (une par outil, jamais deux fois la même). */
+export const toolColor = (type) => (TOOLS[type] && TOOLS[type].color) || '#d9d9e3';
 export const toolLabel = (type) => (TOOLS[type] ? TOOLS[type].label : type);
 
 const key = (s) => String(s || '').trim().toLowerCase();
 const DAY = 86400000;
 
-export function newActivity(name, types = ['evaluation'], t = now()) {
-  return { id: uid(), name: String(name).trim(), tools: types.map((type) => ({ type, addedAt: t, lastUsed: t })), createdAt: t };
+export function newActivity(name, types = ['evaluation'], t = now(), color = ACTIVITY_COLORS[0]) {
+  return { id: uid(), name: String(name).trim(), color, tools: types.map((type) => ({ type, addedAt: t, lastUsed: t })), createdAt: t };
 }
 
 export const activitiesOf = (cls) => (Array.isArray(cls.activities) ? cls.activities : (cls.activities = []));
@@ -38,6 +45,7 @@ export function ensureActivities(classes, evals, t = now()) {
   const byId = new Map(classes.filter((c) => !c.deleted).map((c) => [c.id, c]));
   for (const c of byId.values()) {
     if (!Array.isArray(c.activities)) { c.activities = []; dirtyC.add(c); }
+    c.activities.forEach((a, i) => { if (!a.color) { a.color = ACTIVITY_COLORS[i % ACTIVITY_COLORS.length]; dirtyC.add(c); } });
     if ('infos' in c) { delete c.infos; dirtyC.add(c); }
   }
   for (const ev of evals) {
@@ -52,7 +60,7 @@ export function ensureActivities(classes, evals, t = now()) {
     }
     const name = (ev.model && ev.model.activity) || 'Activité';
     let act = cls.activities.find((a) => key(a.name) === key(name));
-    if (!act) { act = newActivity(name, ['evaluation'], ev.createdAt || t); cls.activities.push(act); dirtyC.add(cls); }
+    if (!act) { act = newActivity(name, ['evaluation'], ev.createdAt || t, ACTIVITY_COLORS[cls.activities.length % ACTIVITY_COLORS.length]); cls.activities.push(act); dirtyC.add(cls); }
     else if (!hasTool(act, 'evaluation')) { act.tools.push({ type: 'evaluation', addedAt: t, lastUsed: t }); dirtyC.add(cls); }
     ev.activityId = act.id; dirtyE.push(ev);
     const last = Math.max(act.tools.find((x) => x.type === 'evaluation').lastUsed || 0, ev.updatedAt || ev.createdAt || 0);
