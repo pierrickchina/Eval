@@ -4,24 +4,20 @@ import { TOTAL_POINTS, DEFAULT_STEP, defaultLevels } from '../data/schema.js';
 
 export const sumMax = (comps) => r4(comps.reduce((s, c) => s + (Number(c.max) || 0), 0));
 
-/** Valide un tableau de compétences. ok = true seulement si la somme vaut exactement 20. */
-export function validateTable(comps) {
+/**
+ * Valide un tableau de compétences. Depuis la 1.10, le total des barèmes est libre (la note est ramenée sur 20) ;
+ * `noScore` : grille sans note (niveaux seulement), aucun barème à vérifier.
+ * `exact20` reste disponible pour l'information (« total = 20 »).
+ */
+export function validateTable(comps, { noScore = false } = {}) {
   const errors = [];
   const sum = sumMax(comps);
   if (!comps.length) errors.push('Ajoutez au moins une compétence.');
   comps.forEach((c, i) => {
     if (!String(c.name || '').trim()) errors.push(`Compétence ${i + 1} : nom manquant.`);
-    if (!(Number(c.max) > 0)) errors.push(`Compétence ${i + 1} : barème invalide.`);
+    if (!noScore && !(Number(c.max) > 0)) errors.push(`Compétence ${i + 1} : barème invalide.`);
   });
-  if (comps.length && Math.abs(sum - TOTAL_POINTS) > 1e-6) {
-    const diff = r4(TOTAL_POINTS - sum);
-    errors.push(
-      diff > 0
-        ? `Total des barèmes : ${sum} / 20 — il manque ${diff} point(s).`
-        : `Total des barèmes : ${sum} / 20 — ${-diff} point(s) en trop.`,
-    );
-  }
-  return { ok: errors.length === 0, sum, diff: r4(TOTAL_POINTS - sum), errors };
+  return { ok: errors.length === 0, sum, diff: r4(TOTAL_POINTS - sum), exact20: Math.abs(sum - TOTAL_POINTS) < 1e-6, errors };
 }
 
 /** Valide l'ensemble d'un modèle : nom, activité, au moins un niveau scolaire, chaque tableau juste. */
@@ -33,7 +29,7 @@ export function validateModel(model) {
   if (!levels.length) errors.push('Choisissez au moins un niveau scolaire.');
   const perLevel = {};
   for (const lv of levels) {
-    perLevel[lv] = validateTable(model.levels[lv].competences);
+    perLevel[lv] = validateTable(model.levels[lv].competences, { noScore: !!(model.noScore || model.levels[lv].noScore) });
     if (!perLevel[lv].ok) errors.push(`Niveau ${lv} : ${perLevel[lv].errors[0]}`);
   }
   return { ok: errors.length === 0, errors, perLevel };

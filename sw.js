@@ -1,7 +1,7 @@
 // Service worker : l'application fonctionne entièrement hors connexion après le 1er chargement.
 // Les données (IndexedDB) ne sont jamais touchées par une mise à jour.
 // À CHAQUE nouvelle version de l'application : incrémenter VERSION.
-const VERSION = 'eps-eval-v1.9.0';
+const VERSION = 'eps-eval-v1.10.0';
 
 const ASSETS = [
   './',
@@ -60,6 +60,33 @@ const ASSETS = [
   'js/ui/ladderView.js',
   'js/ui/mkView.js',
   'js/ui/circuitView.js',
+  'js/ui/drag.js',
+  'js/ui/presets.js',
+  'js/ui/kivaouView.js',
+  'js/ui/duathlonView.js',
+  'js/logic/kivaou.js',
+  'js/data/exercises.js',
+  'img/exos/burpees.jpg',
+  'img/exos/chaise.jpg',
+  'img/exos/course-sur-place.jpg',
+  'img/exos/crunchs-lateraux-2.jpg',
+  'img/exos/crunchs-lateraux.jpg',
+  'img/exos/crunchs.jpg',
+  'img/exos/extension-hanches.jpg',
+  'img/exos/extensions-mollet.jpg',
+  'img/exos/fentes.jpg',
+  'img/exos/gainage-inverse.jpg',
+  'img/exos/gainage-lateral.jpg',
+  'img/exos/gainage-militaire.jpg',
+  'img/exos/high-kick.jpg',
+  'img/exos/hip-thrust.jpg',
+  'img/exos/jumping-jacks.jpg',
+  'img/exos/mountain-climbers.jpg',
+  'img/exos/planche.jpg',
+  'img/exos/pompes-ouverture.jpg',
+  'img/exos/pompes.jpg',
+  'img/exos/squats.jpg',
+  'img/exos/superman.jpg',
   'js/logic/results.js',
   'js/ui/suiviView.js',
   'js/ui/foundations.js',

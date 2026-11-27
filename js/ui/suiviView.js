@@ -7,6 +7,7 @@ import { studentLabel } from '../data/schema.js';
 import { activitiesOf } from '../logic/activities.js';
 import * as R from '../logic/results.js';
 import { ladderResults } from './ladderView.js';
+import { kivaouResults } from './kivaouView.js';
 
 const V = { setId: '', actId: '' };
 const dot = (c) => h('i', { class: 'tdot', style: { background: vestOf(c).hex } });
@@ -65,14 +66,15 @@ function bonusDialog(cls, act, kind, e) {
 
 export function resultsTab(cls) {
   const hasLadder = (a) => Object.values(a.ladders || {}).some((L) => L.sessions?.length);
-  const acts = activitiesOf(cls).filter((a) => R.doneTournaments(a).length || hasLadder(a));
+  const hasKv = (a) => a.kivaou?.sessions?.some((s) => s.groups.some((g) => g.end));
+  const acts = activitiesOf(cls).filter((a) => R.doneTournaments(a).length || hasLadder(a) || hasKv(a));
   if (V.actId && !acts.some((a) => a.id === V.actId)) V.actId = '';
   if (!acts.length) {
     return h('div', { class: 'empty' }, h('h2', null, 'Pas encore de résultats'),
       h('p', null, 'Les résultats des élèves apparaîtront ici, activité par activité : tournois terminés (outil Tournoi) et tableau général des outils Tables et Rings.'));
   }
   const shown = V.actId ? acts.filter((a) => a.id === V.actId) : acts;
-  const ladders = shown.flatMap((a) => ladderResults(cls, a));
+  const ladders = shown.flatMap((a) => [...ladderResults(cls, a), ...kivaouResults(cls, a)]);
   const tshown = shown.filter((a) => R.doneTournaments(a).length);
   const cols = tshown.flatMap((a) => R.doneTournaments(a).sort((x, y) => (x.date < y.date ? -1 : 1)).map((t) => ({ act: a, t })));
   const students = cls.students.filter((s) => s.active !== false).sort((a, b) => collator.compare(studentLabel(a), studentLabel(b)));

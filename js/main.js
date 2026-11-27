@@ -17,17 +17,19 @@ import './ui/tournoiView.js';
 import './ui/ladderView.js';
 import './ui/mkView.js';
 import './ui/circuitView.js';
+import './ui/kivaouView.js';
+import './ui/duathlonView.js';
 import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
-import { installLibrary } from './data/library.js';
+import { installLibrary, upgradeLibrary, originalOf } from './data/library.js';
 import { defaultLevels } from './data/schema.js';
 import { uid } from './util.js';
 
-window.__APP_VERSION = '1.9.0';
+window.__APP_VERSION = '1.10.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
@@ -65,6 +67,11 @@ async function boot() {
 
   // v1.9 : bibliothèque « Projet EPS » (grilles de l'équipe), installée une seule fois, modifiable ensuite.
   try {
+    const lo = { uid, defaultLevels, step: (repo.getMeta('settings', {}) || {}).step || 0.5 };
+    const up = await upgradeLibrary(repo, lo);
+    for (const m of up.pending) {
+      toast(`La grille « ${m.activity} » du Projet EPS a changé (fiches élèves). Vous l'aviez modifiée : la remplacer ?`, { ms: 20000, action: 'Remplacer', onAction: async () => { await repo.save('models', originalOf(m, lo)); toast('Grille mise à jour.'); render(); } });
+    }
     const n = await installLibrary(repo, { uid, defaultLevels, step: (repo.getMeta('settings', {}) || {}).step || 0.5 });
     if (n && repo.list('evaluations').length) toast(`Nouveau : ${n} modèles d'évaluation du Projet EPS ajoutés (Réglages › Modèles).`, { ms: 8000 });
   } catch (e) { console.warn('Bibliothèque Projet EPS non installée :', e); }

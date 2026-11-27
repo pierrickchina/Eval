@@ -58,7 +58,8 @@ registerView('modelEdit', ({ id }) => {
           h('label', { class: 'field', style: { flex: '1 1 260px' } }, 'Activité sportive',
             h('input', { type: 'text', 'data-fid': 'm-act', value: m.activity, placeholder: 'ex. Badminton', onInput: (e) => { m.activity = e.target.value; ME.dirty = true; refreshSave(); } }))),
         h('div', { style: { marginTop: '12px' } }, h('div', { class: 'muted small', style: { marginBottom: '6px', fontWeight: 600 } }, 'Niveaux scolaires (chacun a son propre tableau de compétences)'),
-          h('div', { class: 'chips' }, SCHOOL_LEVELS.map((l) => h('button', { type: 'button', class: `chip ${m.levels[l] ? 'on' : ''}`, onClick: () => toggleLevel(l) }, l))))),
+          h('div', { class: 'chips' }, SCHOOL_LEVELS.map((l) => h('button', { type: 'button', class: `chip ${m.levels[l] ? 'on' : ''}`, onClick: () => toggleLevel(l) }, l)))),
+),
       levelsOn.length ? levelPanel(levelsOn) : h('div', { class: 'panel muted' }, 'Choisissez au moins un niveau scolaire pour définir les compétences.'),
       v.ok ? null : h('div', { class: 'panel warnbg', id: 'm-errors' }, h('b', null, 'À corriger avant d\'enregistrer'), h('ul', { style: { margin: '6px 0 0', paddingLeft: '20px' } }, v.errors.map((e) => h('li', null, e))))));
 });
@@ -91,11 +92,10 @@ function levelPanel(levelsOn) {
 
   const sumbar = h('div', { class: `sumbar ${t.ok ? 'ok' : 'bad'}`, id: 'm-sum' });
   const paintSum = (sum) => {
-    const diff = Math.round((20 - sum) * 1e4) / 1e4;
-    sumbar.className = `sumbar ${Math.abs(diff) < 1e-6 && comps.length ? 'ok' : 'bad'}`;
-    sumbar.replaceChildren(icon(Math.abs(diff) < 1e-6 && comps.length ? 'check' : 'close', 20),
-      h('span', null, `Total des barèmes : ${fmt(sum)} / 20`,
-        Math.abs(diff) < 1e-6 ? '' : diff > 0 ? ` — il manque ${fmt(diff)} point(s)` : ` — ${fmt(-diff)} point(s) en trop`));
+    const exact = Math.abs(20 - sum) < 1e-6;
+    sumbar.className = `sumbar ${comps.length && sum > 0 ? 'ok' : 'bad'}`;
+    sumbar.replaceChildren(icon(comps.length && sum > 0 ? 'check' : 'close', 20),
+      h('span', null, `Total des barèmes : ${fmt(sum)}`, exact ? ' / 20' : sum > 0 ? ` — la note sera ramenée sur 20 (× ${fmt(Math.round(2000 / sum) / 100)})` : ''));
   };
   paintSum(t.sum);
   const liveSum = () => {
@@ -134,14 +134,17 @@ function levelPanel(levelsOn) {
         m.levels[lv].competences = clone(m.levels[src].competences).map((c) => ({ ...c, id: uid() }));
         ME.dirty = true; render();
       } }, h('option', { value: '' }, 'Copier le tableau depuis…'), levelsOn.filter((x) => x !== lv && m.levels[x].competences.length).map((x) => h('option', { value: x }, x))) : null),
-    sumbar,
-    comps.length ? h('div', { style: { overflow: 'auto', marginTop: '8px' } }, h('table', { class: 'edit' },
+    h('label', { class: 'row', style: { margin: '0 0 8px' } },
+      h('input', { type: 'checkbox', checked: !!m.levels[lv].noScore, style: { width: '22px', height: '22px' }, onChange: (e) => { if (e.target.checked) m.levels[lv].noScore = true; else delete m.levels[lv].noScore; ME.dirty = true; render(); } }),
+      h('span', null, `Sans note en ${lv} : niveaux de maîtrise seulement (pas de barème)`)),
+    m.levels[lv].noScore ? h('div', { class: 'sumbar ok' }, icon('check', 20), h('span', null, 'Grille sans note : on choisit seulement un niveau de maîtrise par compétence.')) : sumbar,
+    comps.length ? h('div', { style: { overflow: 'auto', marginTop: '8px' } }, h('table', { class: `edit ${m.levels[lv].noScore ? 'noscore' : ''}` },
       h('thead', null, h('tr', null, h('th'), h('th', null, 'Compétence'), h('th', null, 'AFC / référence'), h('th', null, 'Barème'), h('th', null, 'Coef.'), h('th'))),
       h('tbody', null, rows))) : h('p', { class: 'muted' }, `Aucune compétence pour le niveau ${lv}.`),
     h('div', { class: 'row wrap', style: { marginTop: '10px' } },
       btn('Ajouter une compétence', { icon: 'plus', cls: 'soft', onClick: () => { const c = newCompetence(Math.max(0.5, Math.min(5, 20 - sumMax(comps) || 5)), step); comps.push(c); ME.open.clear(); ME.open.add(c.id); ME.dirty = true; render(); } }),
       btn('Répartir selon les coefficients', { disabled: !comps.length, title: 'Redistribue les 20 points proportionnellement aux coefficients', onClick: () => { applyCoefficients(comps, step); ME.dirty = true; render(); } }),
-      h('span', { class: 'muted small' }, 'La somme des barèmes doit valoir exactement 20.')));
+      h('span', { class: 'muted small' }, 'Total libre : la note finale est toujours ramenée sur 20.')));
 }
 
 function move(arr, i, d) {

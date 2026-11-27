@@ -145,8 +145,8 @@ function tableMode() {
 
   const head = h('tr', null,
     h('th', { class: 'sticky' }, h('div', { style: { padding: '0 12px' } }, 'Élève')),
-    comps.map((c) => h('th', { title: c.name + (c.afc ? ` — ${c.afc}` : '') }, h('div', { class: 'cn' }, c.name), h('div', { class: 'cm' }, `/${fmt(c.max)}`))),
-    h('th', { class: 'totalh' }, h('div', { class: 'cn' }, 'Note'), h('div', { class: 'cm' }, '/20')));
+    comps.map((c) => h('th', { title: c.name + (c.afc ? ` — ${c.afc}` : '') }, h('div', { class: 'cn' }, c.name), h('div', { class: 'cm' }, ev.model.noScore ? '' : `/${fmt(c.max)}`))),
+    h('th', { class: 'totalh' }, h('div', { class: 'cn' }, ev.model.noScore ? 'Niveaux' : 'Note'), h('div', { class: 'cm' }, ev.model.noScore ? '' : '/20')));
 
   const foot = h('tr', null,
     h('th', { class: 'sticky' }, h('div', { style: { padding: '0 6px' } }, 'Moyenne de classe')),
@@ -182,7 +182,7 @@ function studentRow(s, comps) {
       const obs = cell?.obs || [];
       return h('td', { class: `cell ${state} ${state !== 'empty' && cell.level ? 'lv-' + cell.level : ''} ${selected ? 'sel' : ''} ${obs.length ? 'hasobs' : ''}`,
         'aria-label': `${label}, ${c.name}`, onClick: () => { V.sel = { sid: s.id, cid: c.id }; render(); } },
-      state === 'empty' ? '' : fmt(cell.score),
+      state === 'empty' ? '' : ev.model.noScore ? h('span', { class: 'lvword' }, levelInfo(cell.level)?.label || '') : fmt(cell.score),
       state !== 'empty' && cell.level ? h('span', { class: 'sym' }, levelInfo(cell.level).symbol) : null,
       obs.length ? h('span', { class: 'obs', title: 'Observations brouillon' }, obs.map((k) => levelInfo(k).symbol).join('')) : null,
       selfCell(ev, s.id, c.id) ? h('span', { class: 'self', title: `Auto-évaluation de l'élève : ${levelInfo(selfCell(ev, s.id, c.id).level).label}` }, levelInfo(selfCell(ev, s.id, c.id).level).symbol) : null);
@@ -193,6 +193,7 @@ function studentRow(s, comps) {
 
 function totalCell(t) {
   if (!t.usable) return h('td', { class: 'total' }, h('span', { class: 'tag' }, statusInfo(t.status).short));
+  if (t.noScore) return h('td', { class: `total ${t.complete ? '' : 'draft'}` }, t.filled ? `${t.filled}/${t.filled + t.remaining}` : '', t.filled ? h('span', { class: 'part' }, 'niveaux') : null);
   if (t.complete) return h('td', { class: `total ${t.allValidated ? '' : 'draft'}` }, `${fmt(t.final)}/20`);
   if (t.filled) {
     return h('td', { class: 'total draft' }, `${fmt(t.points)}/${fmt(t.maxFilled)}`,
@@ -367,7 +368,7 @@ function studentMode() {
     const tt = studentTotals(ev, x.id);
     return h('button', { type: 'button', class: x.id === s.id ? 'on' : '', onClick: () => { V.sid = x.id; render(); } },
       h('span', null, studentLabel(x)),
-      h('span', { class: 'tt' }, !tt.usable ? statusInfo(tt.status).short : tt.complete ? `${fmt(tt.final)}/20` : tt.filled ? `${fmt(tt.points)}/${fmt(tt.maxFilled)}` : ''));
+      h('span', { class: 'tt' }, !tt.usable ? statusInfo(tt.status).short : tt.noScore ? (tt.filled ? `${tt.filled}/${tt.filled + tt.remaining}` : '') : tt.complete ? `${fmt(tt.final)}/20` : tt.filled ? `${fmt(tt.points)}/${fmt(tt.maxFilled)}` : ''));
   }));
 
   const head = h('div', { class: 'head' },
@@ -392,7 +393,8 @@ function studentMode() {
     btn('Repasser en présent', { cls: 'small', onClick: () => act('Statut', (e) => setStatus(e, s.id, 'present')) })) : null;
 
   const total = h('div', { class: 'totalbar' },
-    t.complete ? [h('span', null, `Note : ${fmt(t.final)}/20`), h('span', { class: `statepill ${t.allValidated ? 'validated' : 'draft'}` }, t.allValidated ? 'toutes validées' : 'à valider')]
+    t.noScore ? [h('span', null, `${t.filled} niveau${t.filled > 1 ? 'x' : ''} sur ${t.filled + t.remaining}`), h('span', { class: 'muted' }, 'Évaluation sans note')]
+    : t.complete ? [h('span', null, `Note : ${fmt(t.final)}/20`), h('span', { class: `statepill ${t.allValidated ? 'validated' : 'draft'}` }, t.allValidated ? 'toutes validées' : 'à valider')]
       : [h('span', null, `${fmt(t.points)}/${fmt(t.maxFilled)} pts`), h('span', { class: 'muted' }, t.remaining ? `${t.remaining} compétence${t.remaining > 1 ? 's' : ''} restante${t.remaining > 1 ? 's' : ''} — note finale quand tout est renseigné` : ''),
         opts().showProvisional && t.provisional != null ? h('span', { class: 'statepill draft' }, `estimation ≈ ${fmt(t.provisional, 1)}/20 (provisoire)`) : null]);
 
@@ -418,7 +420,7 @@ function compCard(s, c) {
       if (!act('Note', (x) => setScore(x, s.id, c.id, v))) render();
     } });
   return h('div', { class: 'compcard' },
-    h('div', { class: 'ch' }, h('b', null, c.name), h('span', { class: 'muted' }, `/${fmt(c.max)}`)),
+    h('div', { class: 'ch' }, h('b', null, c.name), ev.model.noScore ? null : h('span', { class: 'muted' }, `/${fmt(c.max)}`)),
     c.afc ? h('div', { class: 'afc' }, c.afc) : null,
     LEVELS.map((l) => {
       const d = c.levels.find((x) => x.key === l.key);
@@ -427,7 +429,7 @@ function compCard(s, c) {
       return h('div', { class: 'lvwrap' },
         h('button', { type: 'button', class: `lvrow ${l.key} ${cell?.level === l.key && state !== 'empty' ? 'on' : ''}`, onClick: () => act('Niveau', (e) => setLevel(e, s.id, c.id, l.key)) },
           // titre en gras en haut, puis le texte COMPLET sur toute la largeur de la case
-          h('span', { class: 'lvh' }, `${l.symbol} ${l.label}`, h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`),
+          h('span', { class: 'lvh' }, `${l.symbol} ${l.label}`, ev.model.noScore ? null : h('small', null, d.min === d.max ? `${fmt(d.value)} pt` : `${fmt(d.min)}–${fmt(d.max)} pts`),
             mine ? h('i', { class: 'selfmark' }, 'auto-éval. de l\'élève') : null),
           h('span', { class: 'crit' }, d.text || h('span', { class: 'muted' }, 'Critère non renseigné'))),
         // petit bouton brouillon, discret (usage principal : vue tableau)
@@ -437,7 +439,7 @@ function compCard(s, c) {
     obsRow(s.id, c.id, cell),
     c.perf ? perfRow(s, c, cell) : null,
     h('div', { class: 'foot' },
-      h('div', { class: 'stepper' },
+      ev.model.noScore ? null : h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Moins', onClick: () => setSc(Math.max(0, (cell?.score ?? 0) - step)) }, '−'),
         input,
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Plus', onClick: () => setSc(Math.min(c.max, (cell?.score ?? 0) + step)) }, '+')),
@@ -461,6 +463,15 @@ function perfSummary(p, type) {
   return bits.join(' · ');
 }
 function perfRow(s, c, cell) {
+  if (c.perf.type === 'mklaps') {
+    const st = app.repo.getMeta(`mk:${V.ev.activityId}`, null) || app.repo.getMeta('mk:free', null);
+    if (!st?.groups?.some((g) => g.laps)) return h('div', { class: 'perfrow muted small' }, 'Compteur Mario Kart : pas encore de tours comptés.');
+    return h('div', { class: 'perfrow' }, h('span', { class: 'grow small' }, h('b', null, 'Compteur Mario Kart : '), 'choisissez le groupe de l\'élève'),
+      btn('Groupe…', { icon: 'flag', cls: 'small soft', onClick: (e) => popMenu(e.currentTarget, st.groups.map((g) => {
+        const key = g.laps > 9 ? 'de' : g.laps >= 8 ? 'ac' : g.laps >= 6 ? 'ec' : 'na';
+        return { label: `${g.name} · ${g.laps} tours → ${levelInfo(key).label}`, onClick: () => act('Niveau proposé (Mario Kart)', (x) => setLevel(x, s.id, c.id, key)) };
+      })) }));
+  }
   if (c.perf.type === 'ladder') {
     const sug = ladderSuggestion(app.repo, V.ev, s.id);
     if (!sug) return h('div', { class: 'perfrow muted small' }, 'Aucun classement Tables & Rings pour cet élève dans cette activité.');
@@ -485,14 +496,14 @@ function perfDialog(s, c) {
     return r;
   };
   const seg = (k, opts) => h('div', { class: 'seg' }, opts.map(([v, l]) => h('button', { type: 'button', class: String(st[k]) === String(v) ? 'on' : '', onClick: () => { st[k] = v; paint(); } }, l)));
-  const paint = () => body.replaceChildren(
-    type !== 'gap' ? h('div', { class: 'field' }, 'Barème', seg('sex', [['G', 'Garçon'], ['F', 'Fille']])) : null,
+  const paint = () => { body.replaceChildren(...[
+    type !== 'gap' && !(type === 'zone' && c.perf.single) ? h('div', { class: 'field' }, 'Barème', seg('sex', [['G', 'Garçon'], ['F', 'Fille']])) : null,
     type === 'time' || type === 'timezone' ? h('label', { class: 'field' }, 'Temps (min\'s)', h('input', { type: 'text', inputmode: 'decimal', value: st.time || '', placeholder: 'ex. 7\'45', onInput: (e) => { st.time = e.target.value; show(); } })) : null,
     type === 'zone' || type === 'timezone' ? h('div', { class: 'field' }, 'Zone de lancer', seg('zone', [0, 1, 2, 3, 4, 5].map((z) => [z, String(z)]))) : null,
     type === 'gap' ? h('label', { class: 'field' }, 'Écart au projet (en secondes, ou min\'s)', h('input', { type: 'text', inputmode: 'decimal', value: st.gap || '', placeholder: 'ex. 25', onInput: (e) => { st.gap = e.target.value; show(); } })) : null,
     type === 'gap' ? h('div', { class: 'field' }, 'Zones de lancer prévues respectées', seg('zonesOk', [[0, 'Aucune'], [1, 'Une'], [2, 'Les deux']])) : null,
     out,
-  ) && show();
+  ].filter(Boolean)); show(); };
   paint();
   openDialog({ title: `${c.name} · ${studentLabel(s)}`, body, actions: [{ label: 'Annuler' }, { label: 'Appliquer', primary: true, onClick: () => {
     const r = show(); if (!r) return;

@@ -24,6 +24,7 @@ export function h(tag, props, ...kids) {
 
 const ICONS = {
   paddle: 'M16 9a6 6 0 1 1-12 0 6 6 0 0 1 12 0z M7 14l-3.5 6.5 M20.5 18a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0z',
+  compass: 'M12 21a9 9 0 100-18 9 9 0 000 18z M15.5 8.5l-2 5-5 2 2-5z',
   ring: 'M3 7h18 M3 12h18 M3 17h18 M5 4v16 M19 4v16',
   flag: 'M5 21V4 M5 4h12l-2.5 4 2.5 4H5',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',

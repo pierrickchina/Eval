@@ -5,16 +5,23 @@ import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, downl
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
 import { SCHOOL_LEVELS, defaultLevels } from '../data/schema.js';
 import { installLibrary, originalOf } from '../data/library.js';
+import { allPresets, savePreset, removePreset, norm } from './presets.js';
+import { kivaouSettingsDialog } from './kivaouView.js';
+import { mkSettingsDialog } from './mkView.js';
+import { KV_DEFAULT } from '../logic/kivaou.js';
+import { newMK } from '../logic/mariokart.js';
+import { CT_PRESETS, CT_DEFAULT, CT_LIMITS, totalOf as ctTotal } from '../logic/intervals.js';
+import { SPORTS } from '../logic/tournament.js';
 import { shareBackup, downloadBackup, backupText, changesSinceBackup, makeSafetyCopy, safetyInfo, restoreSafetyCopy } from './backup.js';
 import { DEFAULT_CODE } from './selfEval.js';
 import { getTrimesters, defaultTrimesters } from '../logic/classes.js';
 import { schoolYear } from '../util.js';
 import { validateModel } from '../logic/model.js';
 
-const TABS = [['models', 'Modèles'], ['classes', 'Classes'], ['general', 'Général'], ['data', 'Sauvegarde']];
+const TABS = [['models', 'Modèles'], ['classes', 'Classes'], ['presets', 'Préréglages équipe EPS'], ['general', 'Général'], ['data', 'Sauvegarde']];
 
 registerView('settings', ({ tab = 'models' }) => {
-  const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : dataTab(tab);
+  const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : tab === 'presets' ? presetsTab() : dataTab(tab);
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
@@ -29,6 +36,61 @@ async function softDelete(store, rec, label) {
   await app.repo.remove(store, rec.id);
   render();
   toast(`${label} supprimé(e).`, { action: 'Annuler', ms: 9000, onAction: async () => { await app.repo.restore(store, rec.id); render(); } });
+}
+
+// ---------- Préréglages de l'équipe EPS ----------
+
+const PRESET_TOOLS = { kivaou: 'Kivaou', mariokart: 'Mario Kart', circuit: 'Circuit training', tournoi: 'Tournoi' };
+function presetSummary(tool, p) {
+  if (tool === 'kivaou') return `${p.maxMin} min max · malus ${p.malusMin} min · ${p.courses.map((c) => `${c.name} (${c.balises})`).join(', ')}${p.grouped ? ' · départ groupé' : ''}`;
+  if (tool === 'mariokart') { const filled = Object.values(p.objectives || {}).flatMap((x) => Object.values(x)).filter((x) => x != null).length; return `${(p.version || 'v1').toUpperCase()} · ${p.durationMin} min · ${p.bonus?.length || 0} bonus · ${filled ? `${filled} objectif(s) rempli(s)` : 'objectifs à remplir'}`; }
+  if (tool === 'circuit') return `${p.work} s / ${p.rest} s · ${p.stations} exercices × ${p.rounds} tour(s)`;
+  if (tool === 'tournoi') return `${SPORTS[p.sport]?.label || p.sport} · ${p.halves === 2 ? `2 × ${p.halfMin}` : p.halfMin} min · ${p.courts} terrain(s) · ${p.format === 'double' ? 'aller-retour' : 'tous contre tous'}`;
+  return '';
+}
+function editPreset(label, tool) {
+  const cur = (allPresets()[norm(label)] || {})[tool];
+  const done = async (S) => { await savePreset(label, tool, S); render(); };
+  if (tool === 'kivaou') return kivaouSettingsDialog(cur || KV_DEFAULT, done, label, { presetOnly: true });
+  if (tool === 'mariokart') return mkSettingsDialog(cur || newMK(), (S) => done({ version: S.version, durationMin: S.durationMin, bonus: S.bonus, objectives: S.objectives }), label, { presetOnly: true });
+  if (tool === 'circuit') return ctPresetDialog(label, cur || CT_DEFAULT, done);
+  toast('Le préréglage Tournoi s\'enregistre depuis un tournoi : ⋮ › « Enregistrer comme préréglage de l\'équipe EPS ».', { ms: 5000 });
+}
+function ctPresetDialog(label, initial, done) {
+  const S = { work: initial.work, rest: initial.rest, stations: initial.stations, rounds: initial.rounds, roundRest: initial.roundRest || 0, prep: initial.prep ?? 5 };
+  const body = h('div', { class: 'dlg-body kvdlg' });
+  const step = (k, lab, unit) => { const [lo, hi, st] = CT_LIMITS[k]; return h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, lab), h('div', { class: 'stepper' },
+    h('button', { type: 'button', 'aria-label': 'Moins', disabled: S[k] <= lo, onClick: () => { S[k] = Math.max(lo, S[k] - st); paint(); } }, icon('minus', 18)), h('output', null, `${S[k]}${unit}`),
+    h('button', { type: 'button', 'aria-label': 'Plus', disabled: S[k] >= hi, onClick: () => { S[k] = Math.min(hi, S[k] + st); paint(); } }, icon('plus', 18))), h('span')); };
+  const paint = () => body.replaceChildren(
+    h('div', { class: 'field' }, 'Partir d\'un préréglage', h('div', { class: 'seg wrap' }, CT_PRESETS.map((p) => h('button', { type: 'button', onClick: () => { Object.assign(S, p.cfg); paint(); } }, p.label)))),
+    step('work', 'Travail', ' s'), step('rest', 'Récupération', ' s'), step('stations', 'Exercices', ''), step('rounds', 'Tours', ''), step('roundRest', 'Récup. entre tours', ' s'),
+    h('p', { class: 'muted small' }, `Durée : ${Math.floor(ctTotal(S) / 60)} min ${String(ctTotal(S) % 60).padStart(2, '0')} s`));
+  paint();
+  openDialog({ title: `Préréglage Circuit training · ${label}`, body, actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: () => done(S) }] });
+}
+function presetsTab() {
+  const all = allPresets();
+  const keys = Object.keys(all).sort((a, b) => collator.compare(all[a].label || a, all[b].label || b));
+  const addDlg = () => {
+    let name = '';
+    const dlg = openDialog({ title: 'Préréglage pour une activité', body: [
+      h('label', { class: 'field' }, 'Activité (nom tel qu\'il apparaît dans le carnet)', h('input', { type: 'text', list: 'preset-acts', autofocus: true, placeholder: 'ex. Course d\'orientation, Mario Kart, Basket…', onInput: (e) => { name = e.target.value; } }),
+        h('datalist', { id: 'preset-acts' }, [...new Set(app.repo.list('classes').flatMap((c) => (c.activities || []).map((a) => a.name)))].map((n) => h('option', { value: n })))),
+      h('div', { class: 'row wrap' }, Object.entries(PRESET_TOOLS).filter(([k]) => k !== 'tournoi').map(([k, l]) => btn(l, { onClick: () => { if (!name.trim()) return toast('Donnez le nom de l\'activité.'); dlg.close(); editPreset(name.trim(), k); } })))],
+    actions: [{ label: 'Annuler' }] });
+  };
+  return [
+    h('div', { class: 'row wrap', style: { marginBottom: '12px' } }, btn('Nouveau préréglage', { icon: 'plus', cls: 'primary', onClick: addDlg }),
+      h('span', { class: 'muted small' }, 'Par activité, les valeurs de départ des outils. Elles s\'appliquent quand on ouvre l\'outil dans une activité de ce nom (« Basket » vaut aussi pour « Basket 3e »). Plus tard : fichier à partager entre collègues.')),
+    keys.length ? keys.map((k) => h('div', { class: 'panel' }, h('h3', null, all[k].label || k),
+      Object.entries(PRESET_TOOLS).filter(([t]) => all[k][t]).map(([t, l]) => h('div', { class: 'listrow' },
+        h('div', { class: 'grow' }, h('b', null, l), h('div', { class: 'muted small' }, presetSummary(t, all[k][t]))),
+        t !== 'tournoi' ? btn('Modifier', { cls: 'small', onClick: () => editPreset(all[k].label || k, t) }) : null,
+        iconBtn('trash', `Retirer le préréglage ${l}`, async () => { await removePreset(k, t); render(); }, 'sm'))),
+      h('div', { class: 'row wrap', style: { marginTop: '6px' } }, Object.entries(PRESET_TOOLS).filter(([t]) => !all[k][t] && t !== 'tournoi').map(([t, l]) => btn(`+ ${l}`, { cls: 'small soft', onClick: () => editPreset(all[k].label || k, t) })))))
+      : h('div', { class: 'empty' }, h('h2', null, 'Aucun préréglage'), h('p', null, 'Exemple : « Course d\'orientation » → Kivaou avec vos parcours et votre temps maximum ; « Mario Kart » → V2, 12 minutes, vos objectifs.')),
+  ];
 }
 
 // ---------- Modèles ----------
@@ -213,7 +275,7 @@ function dataTab(which = 'data') {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.9.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.10.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

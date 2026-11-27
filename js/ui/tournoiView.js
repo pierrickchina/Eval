@@ -10,6 +10,7 @@ import { clockText } from './chronoView.js';
 import { helpItem } from './help.js';
 import { printNode } from './printView.js';
 import { buzz } from './foundations.js';
+import { presetFor, savePreset } from './presets.js';
 
 const K = { ticker: null, lock: null, active: [], setup: null, lastCur: {}, chgSig: {} };
 const saveClass = (cls) => app.repo.save('classes', cls);
@@ -126,7 +127,9 @@ function initSetup(ctx) {
   const last = [...ctx.list()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
   if (last) Object.assign(S, TN.settingsOf(last));
   if (ctx.kind === 'act') {
-    if (!last) S.sport = TN.sportFromActivity(ctx.act.name, ctx.cls.level);
+    const preset = !last ? presetFor(ctx.act.name, 'tournoi') : null; // préréglage de l'équipe EPS
+    if (preset) Object.assign(S, preset);
+    else if (!last) S.sport = TN.sportFromActivity(ctx.act.name, ctx.cls.level);
     const set = TN.latestSet(ctx.act.equipes?.sets);
     if (set) fillFromSet(S, set); // clubs : « 2 tournois en parallèle » est coché
   } else S.teamsA = defaultTeams(4);
@@ -310,8 +313,9 @@ function playView(r, ctx, t) {
     ...ts.map((x, i) => ({ label: ts.length > 1 ? `Classement du tournoi ${i + 1}…` : 'Classement détaillé…', onClick: () => rankDialog(x) })),
     { label: 'Imprimer calendrier et classement', onClick: () => printTournoi(ts) },
     { label: 'Renommer…', onClick: () => renameDialog(ctx, t) },
+    ctx.kind === 'act' ? { label: `Enregistrer ces réglages comme préréglage de l'équipe EPS (${ctx.act.name})`, onClick: async () => { await savePreset(ctx.act.name, 'tournoi', TN.settingsOf(t)); toast('Préréglage enregistré.'); } } : null,
     helpItem('tournoi'),
-  ]), 'boxed');
+  ].filter(Boolean)), 'boxed');
   const played = ts.map((x) => `${x.matches.filter((m) => m.done).length}/${x.matches.length}`).join(' + ');
   const left = Math.max(...ts.map(remainingMin));
   return h('div', { class: `main tplay ${partner ? 'tn-split' : ''}` },
@@ -357,8 +361,15 @@ function board(ctx, t, court) {
   };
   const pts = (sd, id) => {
     const v = vest(t, id);
-    return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, TN.scoreButtons(t).map((d, _i, all) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''} ${d < 0 && all.filter((x) => x < 0).length > 1 ? 'mini' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
-      onClick: () => { if (TN.addPoint(m, sd, d)) { buzz(d > 0 ? 'tap' : 'undo'); save(); } } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`)));
+    const all = TN.scoreButtons(t);
+    const b1 = (d, cls = '') => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''} ${cls}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
+      onClick: () => { if (TN.addPoint(m, sd, d)) { buzz(d > 0 ? 'tap' : 'undo'); save(); } } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`);
+    const minus = all.filter((d) => d < 0);
+    if (minus.length < 2) return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, all.map((d) => b1(d)));
+    // plusieurs retraits (Basket 5e / 3e) : gros boutons +, petite ligne de retraits en dessous
+    return h('div', { class: 'tn-pts stack', style: { '--v': v.hex, '--vi': v.ink } },
+      h('div', { class: 'tn-prow' }, all.filter((d) => d > 0).map((d) => b1(d))),
+      h('div', { class: 'tn-mrow' }, minus.map((d) => b1(d, 'mini'))));
   };
   const goBtn = h('button', { type: 'button', class: `tn-go ${running ? 'run' : ''}`, disabled: over,
     onClick: () => { t.live ||= {}; t.live[court] = running ? TN.livePause(lv) : TN.liveStart(lv, m.id); keepAwake(); save(); } },

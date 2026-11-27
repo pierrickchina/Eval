@@ -29,7 +29,9 @@ export function selfTotals(ev, sid) {
     if (cell?.score != null) { points += cell.score; filled++; }
   }
   const complete = comps.length > 0 && filled === comps.length;
-  return { points: r4(points), filled, total: comps.length, complete, final: complete ? r4(points) : null, done: selfDone(ev, sid) };
+  const sum = comps.reduce((a, c) => a + (Number(c.max) || 0), 0);
+  const final = complete && !ev.model.noScore ? r4(points * (sum > 0 ? 20 / sum : 1)) : null;
+  return { points: r4(points), filled, total: comps.length, complete, final, done: selfDone(ev, sid) };
 }
 
 /** Valide l'auto-évaluation (impossible tant que tout n'est pas renseigné). */

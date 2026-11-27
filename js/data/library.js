@@ -1,9 +1,10 @@
 // Bibliothèque « Projet EPS » (collège Jean-Jacques Rousseau, Le Pré-Saint-Gervais) : grilles d'évaluation livrées avec PEPS.
 // Source : Projet EPS « finito » (01/09/2026) et tableurs d'évaluation de l'équipe, corrigés et complétés en novembre 2026.
-// Les 6e sont évalués en compétences : quand le projet ne donne pas de barème, une répartition indicative est proposée (modifiable).
+// Les 6e sont évalués en compétences : grilles « sans note » (niveaux seulement) quand le projet ne donne pas de barème.
+// Duathlon : barèmes des fiches élèves 4e / 3e (novembre 2026), plus récentes que le Projet EPS.
 // Format compact : c(nom, attendus/AFC, barème, [non acquis, en cours, acquis, dépassé], points proposés par niveau (facultatif), perf (facultatif)).
 
-export const LIBRARY_VERSION = 1;
+export const LIBRARY_VERSION = 2; // 2 (1.10) : Duathlon aligné sur les fiches élèves ; 6e sans note
 export const LIBRARY_TAG = 'projet-eps-jjr';
 
 const c = (name, afc, max, texts, pts = null, perf = null) => ({ name, afc, max, texts, pts, perf });
@@ -36,29 +37,33 @@ const GRIDS = [
     c('L\'athlète discipliné', 'Savoir respecter les règles dans un jeu, une course. D3 : Comprendre, respecter et faire respecter règles et règlements.', 4,
       ['Je ne suis pas le parcours, je coupe. Je n\'écoute pas mon équipe, je reste au stand quand je veux. Je ne suis pas les règles établies.', 'Je cours autour du terrain sans couper. Je cours seul sans attendre mon groupe ou sans faire d\'effort. Je ne sais pas comment utiliser un bonus.', 'Je suis le parcours. Je cours avec mon groupe. Je vais au bon endroit pour utiliser mon bonus.', 'Idem A. J\'encourage, motive et soutiens mes camarades.']),
     c('Le groupe performant', 'Faire la meilleure performance possible. AFC 1 : Réaliser des efforts pour aller plus vite, plus longtemps.', 4,
-      ['Moins de 6 tours.', '6 ou 7 tours.', '8 ou 9 tours.', 'Plus de 9 tours.']),
+      ['Moins de 6 tours.', '6 ou 7 tours.', '8 ou 9 tours.', 'Plus de 9 tours.'], null, { type: 'mklaps' }),
     c('Le groupe organisé et solidaire', 'Savoir communiquer et s\'organiser avec et pour ses camarades. AFC 3 : Mesurer, enregistrer, comparer, classer les performances.', 4,
       ['Les élèves du groupe se crient dessus, ne s\'écoutent pas. Aucun consensus. Chacun en fait qu\'à sa tête. Le groupe enfonce les athlètes en difficulté.', 'Les élèves s\'écoutent mais sont négatifs, la performance prend le dessus sur la solidarité. Pas de stratégie. Les règles sont parfois enfreintes.', 'Les élèves s\'écoutent et parlent calmement. Les règles du jeu sont toujours respectées. Le groupe soutient et aide toutes les personnes du groupe.', 'Idem. Les rôles sont répartis selon les forces et faiblesses de chacun·e (repos, courses, bonus…) : stratégie d\'équipe.']),
     c('L\'élève investi et persévérant', 'Utiliser pleinement ses capacités en fournissant un effort soutenu. AFC 1.', 4,
       ['Je ne fais rien, aucun effort, je marche et ne suis pas fatigué.', 'J\'alterne entre la marche et la course, je ne suis pas persévérant, je m\'arrête quand je me crois fatigué.', 'Je cours tout le long, je fournis des efforts soutenus, je sais que transpirer, respirer fort et avoir la gorge qui brûle est normal.', 'Idem. Je connais mon corps et je gère mon allure pour accélérer et ralentir aux bons moments.']),
   ]],
   ['Duathlon', '4e', [
-    c('Athlète compétent (course)', 'Réaliser une performance optimale en course lors d\'une épreuve de duathlon (4 tours, lancer, 2 tours, lancer, 1 tour).', 8,
+    c('Course', 'Athlète compétent : réaliser une performance optimale en course (4 tours, lancer, 2 tours, lancer, 1 tour : 1400 m et 2 lancers).', 8,
       ['Garçons : plus de 11 min. Filles : plus de 12 min.', 'Garçons : entre 8 et 11 min. Filles : entre 8\'30 et 12 min.', 'Garçons : entre 6 et 8 min. Filles : entre 6\'30 et 8\'30.', 'Garçons : moins de 6 min. Filles : moins de 6\'30.'], null, { type: 'time' }),
-    c('Athlète compétent (lancer)', 'Réaliser une performance optimale en lancer lors d\'une épreuve de duathlon.', 4,
-      ['G : zone 0-1. F : zone 0.', 'G : zone 2. F : zone 1.', 'G : zone 3-4. F : zone 2-3.', 'G : zone 5. F : zone 4-5.'], null, { type: 'zone' }),
-    c('Élève investi', 'S\'investir dans un effort physique, se dépasser.', 4,
-      ['Aucun investissement physique, l\'élève se préserve en marchant.', 'Faible investissement physique, alternance entre course et marche, dominance de marche.', 'Investissement physique satisfaisant : court la plupart du temps, accélère dans le dernier tour.', 'Course continue, l\'élève gère son effort, accélère dans le dernier tour ; arrive sans pouvoir réaliser un tour de plus.']),
-    c('Élève observateur', 'Participer à l\'observation et au bon déroulement d\'une épreuve pour un élève donné.', 4, DUA_OBS, [0.5, 1.5, 3, 4]),
+    c('Lancer', 'Athlète compétent : réaliser une performance optimale en lancer.', 4,
+      ['Zone 1.', 'Zone 2.', 'Zone 3 ou 4.', 'Zone 5.'], null, { type: 'zone', single: true }),
+    c('Investissement', 'S\'investir dans un effort physique, se dépasser.', 4,
+      ['Aucun investissement physique, l\'élève se préserve en marchant.', 'Faible investissement physique, alternance entre course et marche, dominance de marche.', 'Investissement physique satisfaisant : court la plupart du temps, accélère dans le dernier tour.', 'La course est continue, tu gères ton effort afin de sprinter au dernier tour. Tu es épuisé·e à l\'arrivée.']),
+    c('Coach', 'Observer et accompagner l\'athlète pendant son épreuve.', 4,
+      [DUA_OBS[0], DUA_OBS[1], DUA_OBS[2], 'Tu remplis la fiche d\'observation correctement, tu récupères le vortex après le lancer. Tu donnes des indications orales pertinentes aux passages de l\'athlète.']),
   ]],
   ['Duathlon', '3e', [
-    c('Athlète compétent', 'Réaliser une performance optimale en course et en lancer lors d\'une épreuve de duathlon.', 8,
-      ['G : plus de 11 min. F : plus de 12 min. Zone 1.', 'G : entre 8 et 11 min. F : entre 8\'30 et 12 min. Zone 2.', 'G : entre 6 et 8 min. F : entre 6\'30 et 8\'30. Zone 3-4.', 'G : moins de 6 min. F : moins de 6\'30. Zone 5.'], null, { type: 'timezone' }),
-    c('Athlète lucide', 'Mettre en place et respecter un projet de performance pertinent.', 4,
-      ['Plus d\'une minute d\'écart au projet et/ou zones de lancer prévues non respectées (plus d\'une zone d\'écart).', 'Entre 30 s et 1 min d\'écart au projet, une des deux zones de lancer respectée.', 'Entre 10 s et 30 s d\'écart au projet, les deux zones de lancer sont respectées.', 'Moins de 10 s d\'écart au projet, les deux zones de lancer sont respectées.'], null, { type: 'gap' }),
-    c('Élève observateur', 'Participer à la mise en œuvre et au bon déroulement d\'une épreuve pour un élève donné.', 4, DUA_OBS),
-    c('Élève réfléchi', 'Conseiller et assister de manière pertinente un élève avant, pendant et après sa course.', 4,
-      ['Élève désinvesti, aucune interaction avec le coureur concernant son épreuve.', 'Quelques interactions sur le nombre de tours à effectuer et la zone du lancer.', 'Des interactions à chaque tour : le coach donne le temps de passage, la zone de lancer, et encourage.', 'Idem A. Connaît son coureur, est capable de lui prodiguer des conseils sur l\'allure à tenir.']),
+    c('Course', 'Athlète compétent : réaliser une performance optimale en course (1400 m et 2 lancers).', 6,
+      ['Garçons : plus de 11 min. Filles : plus de 12 min.', 'Garçons : entre 8 et 11 min. Filles : entre 8\'30 et 12 min.', 'Garçons : entre 6 et 8 min. Filles : entre 6\'30 et 8\'30.', 'Garçons : moins de 6 min. Filles : moins de 6\'30.'], null, { type: 'time' }),
+    c('Lancer', 'Athlète compétent : réaliser une performance optimale en lancer.', 2,
+      ['Zone 1.', 'Zone 2.', 'Zone 3 ou 4.', 'Zone 5.'], null, { type: 'zone', single: true }),
+    c('Projet', 'Athlète lucide : mettre en place et respecter un projet de performance pertinent.', 4,
+      ['Plus d\'une minute d\'écart au projet et/ou zones de lancer prévues non respectées (plus d\'une zone d\'écart).', 'Entre 30 s et 1 min d\'écart au projet, une des deux zones de lancer respectée.', 'Entre 10 s et 30 s d\'écart au projet, les deux zones de lancer sont respectées.', 'Moins de 10 s d\'écart avec le projet, les zones de lancer sont respectées.'], null, { type: 'gap' }),
+    c('Observation', 'Participer à la mise en œuvre et au bon déroulement d\'une épreuve pour un élève donné.', 4,
+      [DUA_OBS[0], DUA_OBS[1], 'L\'élève remplit la fiche d\'observation avec quelques oublis, récupère le vortex après le lancer.', 'Tu remplis la fiche d\'observation correctement, tu récupères le vortex après le lancer.']),
+    c('Coach', 'Conseiller et assister de manière pertinente un élève avant, pendant et après sa course.', 4,
+      ['Élève désinvesti, aucune interaction avec le coureur concernant son épreuve.', 'Quelques interactions sur le nombre de tours à effectuer et la zone du lancer.', 'Des interactions à chaque tour : le coach donne le temps de passage, la zone de lancer, et encourage.', 'Tu donnes des indications orales pertinentes aux passages de l\'athlète, sur son nombre de tours, ses temps de passage, tu l\'encourages. Tu connais l\'athlète et sais lui donner des conseils adaptés.']),
   ]],
   ['Circuit training', '3e', [
     c('Élève sportif et lucide', 'Être capable de s\'entraîner en autonomie et en sécurité. AFC 1 : Gérer son effort, faire des choix pour réaliser la meilleure performance.', 5,
@@ -98,7 +103,7 @@ const GRIDS = [
     c('Chorégraphe créatif', 'Trouver des inspirations pour incarner un thème. AFC 2 et AFC 1.', 5,
       ['La chorégraphie ne respecte pas la consigne de temps. Liste de mouvements juxtaposés sans rapport avec le thème ni apports personnels.', 'La chorégraphie peine à être liée au thème choisi et présente partiellement les axes de travail retenus.', 'La chorégraphie est visiblement liée au thème choisi et a évolué de séance en séance selon les axes retenus.', 'La chorégraphie est ancrée dans le thème, prend un parti engagé et prend appui sur différents supports / arts.'], [0, 2, 4, 5]),
   ]],
-  ['Gymnastique', '6e', [
+  ['Gymnastique', '6e!', [
     c('Gymnaste lucide : tourner en avant', 'Savoir tourner en avant.', 4, ['Aucune rotation, l\'élève ne s\'engage pas.', 'Roulade avant avec plan incliné ; tourner en avant sur la petite barre.', 'Roulade avant maîtrisée. Rotation avant sur grande barre.', 'Roulade avant sautée, dans un enchaînement. Rotation avant sur grande barre dans un enchaînement.']),
     c('Gymnaste lucide : tourner en arrière', 'Savoir tourner en arrière.', 4, ['Aucune rotation, l\'élève ne s\'engage pas.', 'Roulade arrière avec plan incliné.', 'Roulade arrière maîtrisée. Rotation arrière sur barres asymétriques.', 'Roulade arrière élevée, dans un enchaînement. Rotation arrière aux barres asymétriques dans un enchaînement.']),
     c('Gymnaste lucide : appui tendu renversé', 'Utiliser l\'appui tendu renversé.', 4, ['Aucun renversement.', 'L\'élève se renverse avec une ou plusieurs étapes intermédiaires (mur, élève qui monte les jambes).', 'L\'élève se renverse contre un support (mur ou pareur).', 'L\'élève tient en ATR sans support.']),
@@ -123,7 +128,7 @@ const GRIDS = [
     c('Le club organisé et performant', 'S\'engager dans un collectif pour progresser et gagner. AFC 3.', 4,
       ['Pas d\'investissement. Directif, je n\'écoute pas. Je m\'énerve contre mon club. Je n\'investis pas le rôle de coach.', 'Investi dans le club. J\'écoute sans prendre en compte les points de vue. Réflexions parfois négatives. Exercices réalisés sans leur donner de sens.', 'Investi et actif. J\'écoute et prends en compte les points de vue. Positif. Choix cohérents d\'exercices. Retours calmes à la mi-temps.', 'Idem A. Moteur dans le club, je désamorce les conflits. Retours motivants et pertinents à la mi-temps.']),
   ]],
-  ['Ultimate', '6e', [
+  ['Ultimate', '6e!', [
     c('Joueur technique', 'Acquérir des techniques et une motricité propres à l\'ultimate. AFC 1 et AFC 2.', 7,
       ['Sur le terrain l\'élève ne fait rien, est passif, ne se rend pas disponible ou ne défend pas.', 'Maîtrise partielle de la passe, du démarquage, de la réception, du changement de statut, de la défense ; et/ou ne maintient pas l\'effort sur la durée du match.', 'Maîtrise ces techniques et sait les réinvestir en match.', 'Idem, avec un impact positif sur l\'équipe : passe au mieux placé, démarquage vers l\'avant, réaction rapide, défense qui intercepte.']),
     c('Joueur conciliant', 'Savoir gagner et perdre en contrôlant ses émotions. AFC 5 et AFC 3.', 7,
@@ -141,7 +146,7 @@ const GRIDS = [
     c('Coach', 'Participer à l\'organisation basique d\'un club sur la séquence. AFC 3 et AFC 5.', 4,
       ['Le club a du mal à fonctionner, les consignes ne sont pas appliquées ; impact négatif sur le club.', 'Pas de conflits, mais des interactions limitées, rôles et situations peinent à être mis en place ; impact neutre.', 'Pas de conflits, les joueurs interagissent et mettent en place les situations et rôles ; impact positif.', 'Idem. Moteur dans le club, prend des initiatives, adopte avec aplomb les rôles confiés.'], [0, 1.5, 3, 4]),
   ]],
-  ['Tennis de table', '6e', [
+  ['Tennis de table', '6e!', [
     c('Joueur technique', 'D1.4 - Acquérir des techniques spécifiques pour améliorer son efficience.', 7,
       ['L\'élève ne maîtrise pas les techniques de service, d\'accélération ou d\'orientation de la balle.', 'Un seul coup utilisé (CD ou RV). Maîtrise 1 technique, ou partiellement : renvoyer dans la direction souhaitée, varier les services.', 'Maîtrise 2 techniques : renvoyer dans la direction souhaitée, accélérer en situation favorable, varier les services.', 'Maîtrise 3 techniques parmi celles-ci et sait donner des effets à la balle.']),
     c('Arbitre compteur et concentré', 'D3 - Assumer les rôles sociaux spécifiques aux APSA et à la classe.', 7, ARB_TT6),
@@ -219,16 +224,45 @@ const slug = (t) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,
 /** Modèles de la bibliothèque, au format de l'appli (un modèle par activité, un tableau par niveau). */
 export function libraryModels({ uid, defaultLevels, step = 0.5 }) {
   const byAct = new Map();
-  for (const [activity, level, comps] of GRIDS) {
+  for (const [activity, lv, comps] of GRIDS) {
+    const level = lv.replace('!', ''), noScore = lv.endsWith('!'); // « 6e! » : grille sans note
     // identifiants fixes : deux tablettes synchronisées n'installent pas deux fois la même grille
     if (!byAct.has(activity)) byAct.set(activity, { id: `lib-${slug(activity)}`, name: 'Projet EPS', activity, levels: {}, library: LIBRARY_TAG, libraryVersion: LIBRARY_VERSION, createdAt: Date.now() });
     byAct.get(activity).levels[level] = {
+      ...(noScore ? { noScore: true } : {}),
       competences: comps.map((x, i) => ({ id: `lib-${slug(activity)}-${level}-${i + 1}`, name: x.name, afc: x.afc, max: x.max, coef: 1, levels: buildLevels(x, defaultLevels, step), ...(x.perf ? { perf: x.perf } : {}) })),
     };
   }
   return [...byAct.values()];
 }
-export const LIBRARY_SUMMARY = GRIDS.map(([a, l, comps]) => ({ activity: a, level: l, total: comps.reduce((s, x) => s + x.max, 0) }));
+export const LIBRARY_SUMMARY = GRIDS.map(([a, l, comps]) => ({ activity: a, level: l.replace('!', ''), noScore: l.endsWith('!'), total: comps.reduce((s, x) => s + x.max, 0) }));
+
+const sig = (comps) => (comps || []).map((x) => `${x.name}:${x.max}`).join('|');
+const DUA_V1 = { '4e': 'Athlète compétent (course):8|Athlète compétent (lancer):4|Élève investi:4|Élève observateur:4', '3e': 'Athlète compétent:8|Athlète lucide:4|Élève observateur:4|Élève réfléchi:4' };
+/**
+ * Mise à jour de la bibliothèque déjà installée (v1 → v2). Renvoie { updated: [...], pending: [modèle] } :
+ * une grille jamais modifiée est remplacée ; une grille corrigée par l'enseignant attend son accord (pending).
+ */
+export async function upgradeLibrary(repo, opts) {
+  const from = repo.getMeta('libraryVersion', 0) || 0;
+  const out = { updated: [], pending: [] };
+  if (!from || from >= LIBRARY_VERSION) return out;
+  for (const m of repo.list('models').filter((x) => x.library === LIBRARY_TAG)) {
+    if (m.activity === 'Duathlon') {
+      const untouched = ['4e', '3e'].every((lv) => !m.levels[lv] || sig(m.levels[lv].competences) === DUA_V1[lv]);
+      if (untouched) { await repo.save('models', originalOf(m, opts)); out.updated.push(m.activity); } else out.pending.push(m);
+    }
+    if (m.activity === 'Mario Kart') {
+      const comp = m.levels['5e']?.competences.find((x) => x.name === 'Le groupe performant');
+      if (comp && !comp.perf) { comp.perf = { type: 'mklaps' }; await repo.save('models', m); }
+    }
+    if (['Gymnastique', 'Ultimate', 'Tennis de table'].includes(m.activity) && m.levels['6e'] && !m.levels['6e'].noScore) {
+      m.levels['6e'].noScore = true; await repo.save('models', m); out.updated.push(m.activity);
+    }
+  }
+  await repo.setMeta('libraryVersion', LIBRARY_VERSION);
+  return out;
+}
 
 /** Installe la bibliothèque au premier lancement (une seule fois). Renvoie le nombre de modèles ajoutés. */
 export async function installLibrary(repo, { uid, defaultLevels, step = 0.5, force = false } = {}) {

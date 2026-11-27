@@ -50,7 +50,7 @@ export function perfResult(comp, input = {}, grade = '4e') {
   const val = (i) => comp.levels[i]?.value ?? 0;
   const type = comp.perf?.type;
   if (type === 'time') { const i = timeLevel(parseTime(input.time), input.sex); return i == null ? null : { level: KEYS[i] }; }
-  if (type === 'zone') { const i = zoneLevel(input.zone, input.sex, grade); return i == null ? null : { level: KEYS[i] }; }
+  if (type === 'zone') { const i = comp.perf.single ? zoneLevel(input.zone, 'G') : zoneLevel(input.zone, input.sex, grade); return i == null ? null : { level: KEYS[i] }; }
   if (type === 'gap') { const i = gapLevel(parseGap(input.gap), input.zonesOk == null ? null : Number(input.zonesOk)); return i == null ? null : { level: KEYS[i] }; }
   if (type === 'timezone') {
     const a = timeLevel(parseTime(input.time), input.sex), b = zoneLevel(input.zone, input.sex, '3e');

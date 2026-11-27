@@ -25,11 +25,14 @@ export const TOOLS = {
     help: ['Répartit les élèves sur les tables (8 au plus) : libre, par niveau moyen, ou d\'après les résultats de la séance précédente ; aussi en duos ou en ronde à l\'italienne.', 'Pendant la séance, rangez le classement final de chaque table : il ne change rien tout de suite. À la séance suivante, le 1er monte, le dernier descend, les autres restent.', 'Un élève inapte ou absent va dans la case « Inapte » et sa table se réorganise. Les feuilles de poule restent sur papier : la tablette garde seulement qui gagne et qui perd.'] },
   rings: { label: 'Rings', icon: 'ring', color: '#f3d3d8', available: true, route: 'rings', hint: 'Groupes de combat, montée et descente',
     help: ['Répartit les élèves en groupes sur les rings (8 au plus) : libre, par niveau moyen, ou d\'après les résultats de la séance précédente.', 'Rangez le classement final de chaque ring pendant la séance : il prend effet à la séance suivante (le 1er monte, le dernier descend).', 'Le niveau atteint (rings hauts, intermédiaires, derniers) est proposé dans l\'évaluation, pour la compétence « Performance ».'] },
-  mariokart: { label: 'Compteur Mario Kart', icon: 'flag', color: '#f6d6e6', available: true, free: true, route: 'mariokart', hint: 'Tours et bonus par groupe',
-    help: ['Un compteur de tours par groupe, en grand, et des compteurs de bonus (Bill Ball, Champi, Banane…) que vous pouvez renommer, ajouter ou retirer.', 'Toucher le compteur ajoute un tour ; le petit « − » corrige.', 'Les compteurs restent en mémoire jusqu\'à « Remettre à zéro ».'] },
-  circuit: { label: 'Chrono Circuit training', icon: 'bolt', color: '#d8e2f6', available: true, free: true, route: 'circuit', hint: 'Travail / récupération, 5, 8 ou 12 min',
-    help: ['Minuteur par intervalles : temps de travail, temps de récupération et durée totale (5, 8 ou 12 minutes tout prêts, ou à régler).', 'Grand affichage lisible de loin, couleur différente pour le travail et la récupération, signal sonore et vibration à chaque changement.', 'Rien n\'est enregistré : tout s\'efface en quittant.'] },
-  duathlon: { label: 'Duathlon', icon: 'chrono', color: '#e6e6ec', available: false, hint: 'Plus tard' },
+  mariokart: { label: 'Mario Kart', icon: 'flag', color: '#f6d6e6', available: true, free: true, route: 'mariokart', hint: 'Chrono, tours, malus, cadeaux',
+    help: ['Règle V1, V2 ou V3 (⋮ › Réglages) : chrono de course (12 min), tours, malus, objectif en cc, pièces en V3 (10 pièces = 1 cadeau).', '« Tirer un cadeau » tire un bonus au hasard et affiche son effet. Total = tours × 2 − malus + points de l\'objectif validé.', 'Les compteurs restent en mémoire jusqu\'à « Remettre à zéro » ; « Corriger » fait retirer 1 à chaque toucher.'] },
+  circuit: { label: 'Circuit training', icon: 'bolt', color: '#d8e2f6', available: true, free: true, route: 'circuit', hint: 'Chrono, exercices, circuits',
+    help: ['Chrono : travail, récupération, exercices, tours. Un cadenas fige un réglage, les autres s\'ajustent. Préréglages : 5 min Workout, 8 min Workout, 30 s / 30 s.', 'Exercices : 24 fiches illustrées, triées par couleur (haut du corps, bas du corps, gainage, cardio), tirage au hasard, matériel à cocher.', 'Circuits : donnez un nom, choisissez les exercices ; dans le chrono, l\'écran affiche alors l\'exercice en cours et le suivant.'] },
+  kivaou: { label: 'Kivaou', icon: 'compass', color: '#cfe8dc', available: true, route: 'kivaou', hint: 'Course d\'orientation : qui va où',
+    help: ['Un groupe = des élèves + un parcours, puis GO : son minuteur part (orange à 2 min, rouge à 1 min, noir quand le temps est dépassé).', 'Le bandeau du haut dit toujours combien de groupes ne sont pas rentrés ; les retards passent en tête. « Arrivé » note l\'heure de retour.', 'Touchez un groupe rentré pour saisir ses balises. L\'onglet Bilan classe les élèves : temps + malus par balise manquée, hors temps toujours derniers. Départ groupé : ⋮.'] },
+  duathlon: { label: 'Fiches Duathlon', icon: 'file', color: '#efe3c8', available: true, free: true, route: 'duathlon', hint: 'En travaux : fiches et barèmes',
+    help: ['Affiche les fiches d\'observation 4e et 3e et leurs barèmes.', 'En travaux : rien à remplir pour l\'instant, les élèves utilisent les fiches papier.', 'La note se calcule dans l\'évaluation (fiche de l\'élève › Saisir).'] },
   arbitre: { label: 'Certification d\'arbitre', icon: 'medal', color: '#e6e6ec', available: false, hint: 'Plus tard' },
   interclasses: { label: 'Interclasses', icon: 'users', color: '#e6e6ec', available: false, hint: 'Plus tard' },
   montee: { label: 'Montée de niveau', icon: 'stairs', color: '#e6e6ec', available: false, hint: 'Plus tard' },
@@ -37,6 +40,21 @@ export const TOOLS = {
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
 export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';
 /** Couleurs réservées aux futurs outils (une par outil, jamais deux fois la même). */
+/** Outils proposés d'office selon le nom de l'activité (l'évaluation est toujours cochée). */
+export function toolsForActivity(name) {
+  const n = String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const t = ['evaluation'];
+  if (/circuit|\bct\b|renfo/.test(n)) t.push('circuit');
+  if (/tennis de table|ping|\btt\b/.test(n)) t.push('tables');
+  if (/boxe|\bbf\b|lutte|judo|combat/.test(n)) t.push('rings', 'chrono');
+  if (/mario|\bmk\b/.test(n)) t.push('mariokart');
+  if (/duathlon/.test(n)) t.push('duathlon', 'chrono');
+  if (/orientation|\bco\b|kivaou/.test(n)) t.push('kivaou');
+  if (/hand|basket|foot|futsal|ultimate|volley|rugby|football/.test(n)) t.push('equipes', 'tournoi', 'chrono');
+  if (/acro|danse/.test(n)) t.push('equipes', 'chrono');
+  if (/gym/.test(n)) t.push('chrono');
+  return [...new Set(t)].filter((x) => TOOLS[x]?.available);
+}
 export const toolColor = (type) => (TOOLS[type] && TOOLS[type].color) || '#d9d9e3';
 export const toolLabel = (type) => (TOOLS[type] ? TOOLS[type].label : type);
 

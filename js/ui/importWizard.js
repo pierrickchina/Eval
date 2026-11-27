@@ -129,8 +129,8 @@ function step3() {
   return [
     h('div', { class: 'panel' },
       h('div', { class: `sumbar ${t.ok ? 'ok' : 'bad'}` }, icon(t.ok ? 'check' : 'close', 20),
-        h('span', null, `Total des barèmes : ${fmt(t.sum)} / 20`, t.ok ? '' : t.diff > 0 ? ` — il manque ${fmt(t.diff)} point(s)` : ` — ${fmt(-t.diff)} point(s) en trop`)),
-      !t.ok && comps.length ? h('div', { class: 'row', style: { marginTop: '8px' } },
+        h('span', null, `Total des barèmes : ${fmt(t.sum)}`, t.exact20 ? ' / 20' : t.sum > 0 ? ' — la note sera ramenée sur 20' : '')),
+      !t.exact20 && t.sum > 0 && comps.length ? h('div', { class: 'row', style: { marginTop: '8px' } },
         btn('Mettre à l\'échelle sur 20 automatiquement', { cls: 'soft', onClick: () => { rescaleTo20(comps); render(); } }),
         h('span', { class: 'muted small' }, 'Répartit les 20 points proportionnellement aux barèmes importés (modifiables ensuite).')) : null,
       blocking.length ? h('ul', { style: { margin: '10px 0 0', paddingLeft: '20px', color: '#8d2330' } }, blocking.map((i) => h('li', null, `Ligne ${i.row} : ${i.message}`))) : null,

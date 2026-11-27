@@ -15,7 +15,7 @@ export function createEvaluation({ cls, model, date, step = DEFAULT_STEP }) {
     date,
     step,
     classInfo: { name: cls.name, level: cls.level, color: cls.color },
-    model: { name: model.name, activity: model.activity, level: cls.level, competences: clone(table.competences) },
+    model: { name: model.name, activity: model.activity, level: cls.level, competences: clone(table.competences), ...(model.noScore || table.noScore ? { noScore: true } : {}) },
     students: cls.students
       .filter((s) => s.active !== false)
       .map((s) => ({ id: s.id, first: s.first, initial: s.initial || '' })),

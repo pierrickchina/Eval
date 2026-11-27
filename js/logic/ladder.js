@@ -17,7 +17,7 @@ export const FORMATS = {
   ronde: { label: 'Ronde à l\'italienne', hint: '3 à 4 équipes de 2 par table', unit: 'duo', min: 3, max: 4 },
 };
 export const PLACES = {
-  libre: 'Tables libres (vous placez)',
+  libre: 'Tables libres (vous placez, par glisser-déposer)',
   niveau: 'Par niveau moyen (toutes les séances)',
   resultats: 'D\'après les résultats de la dernière séance',
 };
@@ -203,6 +203,13 @@ export function setInapte(L, s, sid, on = true) {
   } else { moveUnit(s, sid, 'pool'); s.pool = s.pool.filter((x) => x !== sid); }
   readapt(s);
 }
+/** Unité (élève ou duo) d'un élève dans une séance, qu'elle soit placée ou non. */
+export function unitOfStudent(L, s, sid) {
+  if (s.unit !== 'duo') return sid;
+  const d = L.duos.find((x) => x.a === sid || x.b === sid);
+  return d ? duoUnit(d) : null;
+}
+
 /** Les tables trop petites (1 unité) rejoignent la table voisine ; numérotation conservée du haut vers le bas. */
 export function readapt(s) {
   const tabs = s.tables.filter((t) => t.units.length);

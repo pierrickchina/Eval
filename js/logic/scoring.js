@@ -131,6 +131,9 @@ export function studentTotals(ev, sid) {
   }
   const remaining = comps.length - filled;
   const complete = comps.length > 0 && remaining === 0;
+  const noScore = !!ev.model.noScore;
+  const total = comps.reduce((a, c) => a + (Number(c.max) || 0), 0);
+  const k = total > 0 ? 20 / total : 1; // barème libre : note toujours ramenée sur 20
   return {
     status,
     usable: status === 'present',
@@ -140,8 +143,10 @@ export function studentTotals(ev, sid) {
     remaining,
     complete,
     allValidated: complete && validated === comps.length,
-    final: complete ? r4(points) : null,
-    provisional: filled > 0 && !complete ? r4((points / maxFilled) * 20) : null,
+    noScore,
+    total: r4(total),
+    final: complete && !noScore ? r4(points * k) : null,
+    provisional: filled > 0 && !complete && !noScore ? r4((points / maxFilled) * 20) : null,
   };
 }
 

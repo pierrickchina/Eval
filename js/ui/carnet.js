@@ -7,6 +7,7 @@ import { createEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
 import {
   TOOLS, ACTIVITY_COLORS, activityColor, toolColor, toolLabel, evTitle, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
+  toolsForActivity,
 } from '../logic/activities.js';
 import { duplicateDialog } from './home.js';
 
@@ -94,7 +95,7 @@ async function useTool(cls, act, type) {
     await saveClass(cls);
   }
   touchTool(act, type);
-  go(TOOLS[type].route, { from: 'classPage', classId: cls.id, scope: 'act', actId: act.id });
+  go(TOOLS[type].route, { from: 'classPage', classId: cls.id, scope: 'act', actId: act.id, latest: ['equipes', 'tables', 'rings'].includes(type) ? 1 : undefined });
 }
 
 function evalList(cls, act) {
@@ -148,22 +149,25 @@ async function deleteEvaluation(ev) {
 export function newActivityDialog(cls) {
   const names = [...new Set([...app.repo.list('models').map((m) => m.activity), ...app.repo.list('classes').flatMap((c) => activitiesOf(c).map((a) => a.name))])]
     .filter(Boolean).sort(collator.compare);
-  const st = { name: '', tools: new Set(['evaluation']), color: ACTIVITY_COLORS[activitiesOf(cls).length % ACTIVITY_COLORS.length] };
+  const st = { name: '', tools: new Set(['evaluation']), touched: false, color: ACTIVITY_COLORS[activitiesOf(cls).length % ACTIVITY_COLORS.length] };
+  const toolBox = h('div', { class: 'toolchecks' });
+  const paintTools = () => toolBox.replaceChildren(...Object.entries(TOOLS).filter(([, t]) => t.available).map(([type, t]) => h('label', { class: 'row' },
+    h('input', { type: 'checkbox', checked: st.tools.has(type), style: { width: '22px', height: '22px' },
+      onChange: (e) => { st.touched = true; e.target.checked ? st.tools.add(type) : st.tools.delete(type); } }),
+    h('span', null, t.label))));
+  paintTools();
   const dup = (n) => activitiesOf(cls).some((a) => a.name.trim().toLowerCase() === n.trim().toLowerCase());
   const dlg = openDialog({
     title: `Nouvelle activité · ${cls.name}`,
     body: [
       h('label', { class: 'field' }, 'Nom de l\'activité',
-        h('input', { type: 'text', list: 'act-names', placeholder: 'Handball, Badminton…', autofocus: true, onInput: (e) => { st.name = e.target.value; } }),
+        h('input', { type: 'text', list: 'act-names', placeholder: 'Handball, Badminton…', autofocus: true, onInput: (e) => { st.name = e.target.value; if (!st.touched) { st.tools = new Set(toolsForActivity(st.name)); paintTools(); } } }),
         h('datalist', { id: 'act-names' }, names.map((n) => h('option', { value: n })))),
       h('div', { class: 'muted small' }, 'Couleur du cadre (modifiable ensuite)'),
       h('div', { class: 'swatches' }, ACTIVITY_COLORS.map((c) => h('button', { type: 'button', class: 'swatch', style: { background: c }, 'aria-label': `Couleur ${c}`,
         onClick: (e) => { st.color = c; e.currentTarget.parentNode.querySelectorAll('.swatch').forEach((x) => x.classList.toggle('on', x === e.currentTarget)); } }))),
-      h('div', { class: 'muted small' }, 'Outils de l\'activité'),
-      Object.entries(TOOLS).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available ? 1 : .55 } },
-        h('input', { type: 'checkbox', checked: st.tools.has(type), disabled: !t.available, style: { width: '22px', height: '22px' },
-          onChange: (e) => { e.target.checked ? st.tools.add(type) : st.tools.delete(type); } }),
-        h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — plus tard')))),
+      h('div', { class: 'muted small' }, 'Outils de l\'activité (cochés d\'après le nom, modifiables)'),
+      toolBox,
     ],
     actions: [{ label: 'Annuler' }, { label: 'Créer', primary: true, keepOpen: true, onClick: async () => {
       const name = st.name.trim();

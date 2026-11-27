@@ -76,7 +76,9 @@ function toolsTab() {
     h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
   };
   return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
-    h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(([k, t]) => k !== 'evaluation').sort((a, b) => (b[1].available - a[1].available) || (!!b[1].free - !!a[1].free)).map(tile)),
+    ...[['Pour toutes les activités', ([k, t]) => t.available && ['chrono', 'equipes', 'tournoi'].includes(k)],
+      ['Par activité', ([k, t]) => t.available && k !== 'evaluation' && !['chrono', 'equipes', 'tournoi'].includes(k)],
+      ['Plus tard', ([, t]) => !t.available]].map(([title, f]) => [h('h3', { class: 'toolsec' }, title), h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(f).map(tile))]).flat(),
     h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));
 }
 

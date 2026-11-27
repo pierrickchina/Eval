@@ -12,6 +12,8 @@ import {
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
 import { helpItem } from './help.js';
+import { attachDrag } from './drag.js';
+import { latestSet } from '../logic/tournament.js';
 import { suiviPanel } from './suiviView.js';
 
 const T = { full: false, tab: 'comp', open: new Set() }; // open : zones « une ligne » dépliées (double-tap)
@@ -63,6 +65,8 @@ function undoable(ctx, set, label, fn) {
 registerView('equipes', (r) => {
   const ctx = ctxFor(r);
   if (!ctx) { queueMicrotask(() => go('home')); return h('div'); }
+  // ouverture depuis le carnet : directement la composition la plus récente (la liste reste accessible par le titre)
+  if (r.latest) { delete r.latest; const last = latestSet(ctx.sets()); if (last) r.setId = last.id; }
   if (r.setId) { const set = ctx.sets().find((s) => s.id === r.setId); if (set) return editor(r, ctx, set); }
   const sets = ctx.sets();
   /** Petits maillots aux couleurs des chasubles (un par club, ou par équipe). */
@@ -239,6 +243,8 @@ function editor(r, ctx, set) {
   const more = iconBtn('more', 'Options', () => popMenu(more, [
     { label: set.mode === 'clubs' ? 'Générer les clubs…' : 'Générer les équipes…', onClick: () => generateDialog(r, ctx, set, students, apply, undoable) },
     '-',
+    { label: 'Menu équipes (toutes les compositions)', onClick: () => { T.tab = 'comp'; go('equipes', { ...r, setId: undefined }); } },
+    ctx.kind === 'act' ? { label: 'Suivi des résultats', onClick: () => { T.tab = 'suivi'; go('equipes', { ...r, setId: undefined }); } } : null,
     { label: 'Renommer la composition…', onClick: () => renameSetDialog(set, apply) },
     { label: 'Contraintes (ensemble / séparés)…', onClick: () => constraintsDialog(set, students, nameOf, apply) },
     { label: 'Rôles…', onClick: () => rolesHub(ctx, set, nameOf, apply) },
@@ -253,7 +259,7 @@ function editor(r, ctx, set) {
   const root = h('div', { class: 'main teams' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', back, '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, set.name || 'Composition'), h('div', { class: 'sub' }, `${ctx.title}${set.date ? ' · ' + fmtDate(set.date) : ''} · ${set.mode === 'clubs' ? 'clubs' : 'équipes'}`)),
+      h('div', { class: 'grow evtitle' }, titleMenu(r, ctx, set), h('div', { class: 'sub' }, `${ctx.title}${set.date ? ' · ' + fmtDate(set.date) : ''} · ${set.mode === 'clubs' ? 'clubs' : 'équipes'}`)),
       btn('Mélanger', { icon: 'shuffle', onClick: () => reshuffle(ctx, set, students) }),
       btn(set.mode === 'clubs' ? 'Club' : 'Équipe', { icon: 'plus', onClick: () => apply(() => (set.mode === 'clubs' ? addClub(set) : addTeam(set))) }),
       iconBtn('expand', 'Affichage plein écran', () => { T.full = true; render(); }, 'boxed'),
@@ -268,6 +274,21 @@ function editor(r, ctx, set) {
   }), (sid, anchor) => chipMenu(set, sid, anchor, nameOf, roles, apply, forbidden(ctx, set)));
   attachZoneToggle(root);
   return root;
+}
+
+/** Titre = menu déroulant : passer à une autre composition de l'activité, ou au « Menu équipes ». */
+function titleMenu(r, ctx, set) {
+  const b = h('button', { type: 'button', class: 'titlemenu', 'aria-label': 'Changer de composition' }, h('h1', null, set.name || 'Composition'), icon('down', 18));
+  b.addEventListener('click', () => {
+    const others = [...ctx.sets()].sort((x, y) => String(y.date || '').localeCompare(String(x.date || '')) || (y.createdAt || 0) - (x.createdAt || 0));
+    popMenu(b, [
+      ...others.map((x) => ({ label: `${x.name || 'Sans nom'}${x.date ? ' · ' + fmtDate(x.date) : ''}`, active: x.id === set.id, onClick: () => go('equipes', { ...r, setId: x.id }) })),
+      '-',
+      { label: 'Menu équipes (toutes les compositions)', onClick: () => go('equipes', { ...r, setId: undefined }) },
+      { label: 'Nouvelle composition…', onClick: () => newSetDialog({ ...r, setId: undefined }, ctx) },
+    ]);
+  });
+  return b;
 }
 
 function reshuffle(ctx, set, students) {
@@ -303,7 +324,7 @@ function chipMenu(set, sid, anchor, nameOf, roles, apply, forb) {
     { label: 'Dispensé (reste utile : rôle possible)', active: st === 'dispense', onClick: () => apply(() => setStatus(set, sid, 'dispense')) },
     { label: 'Absent', active: st === 'absent', onClick: () => apply(() => setStatus(set, sid, 'absent')) },
     '-',
-    { label: `Rôles… ${(set.roles[sid] || []).length ? '(' + (set.roles[sid] || []).length + ')' : ''}`, onClick: () => studentRolesDialog(set, sid, nameOf, roles, apply) },
+    ...roles.map((ro) => ({ label: `Rôle : ${ro.label}`, active: (set.roles[sid] || []).includes(ro.id), onClick: () => apply(() => toggleRole(set, sid, ro.id)) })),
     { label: set.locked[sid] ? 'Déverrouiller' : 'Verrouiller à sa place', disabled: !team, onClick: () => apply(() => toggleLock(set, sid)) },
     forb ? { label: forb.has(sid) ? 'Matériel autorisé de nouveau' : 'Matériel interdit (point rouge, jusqu\'à la fin de la séquence)', onClick: () => apply(() => forb.toggle(sid)) } : null,
   ].filter(Boolean));
@@ -321,15 +342,6 @@ function placeDialog(set, sid, nameOf, apply) {
   });
 }
 
-function studentRolesDialog(set, sid, nameOf, roles, apply) {
-  const dlg = openDialog({ title: `Rôles de ${nameOf(sid)}`, body: h('div', null), actions: [{ label: 'Terminé', primary: true }] });
-  const paint = () => dlg.content.replaceChildren(
-    h('p', { class: 'muted small', style: { margin: 0 } }, 'Plusieurs rôles possibles ; le premier choisi est celui qui s\'affiche sur la tuile.'),
-    ...roles.map((ro) => { const on = (set.roles[sid] || []).includes(ro.id), first = (set.roles[sid] || [])[0] === ro.id;
-      return h('button', { type: 'button', class: `btn ${on ? 'primary' : ''}`, style: { display: 'block', width: '100%', margin: '6px 0', textAlign: 'left' },
-        onClick: () => { apply(() => toggleRole(set, sid, ro.id)); paint(); } }, `${on ? '✓ ' : ''}${ro.label}${first ? '  (affiché)' : ''}`); }));
-  paint();
-}
 
 // ---------- Fenêtres : génération, contraintes, rôles, noms ----------
 
@@ -403,7 +415,10 @@ function rolesHub(ctx, set, nameOf, apply) {
         h('thead', null, h('tr', null, h('th', null, 'Équipe'), roles.map((ro) => h('th', null, h('span', { class: 'sr', style: { '--rc': roleColor(ro) } }, ro.short), ' ', ro.label)), h('th', null, 'Sans rôle'))),
         h('tbody', null, teams.map((t) => h('tr', null,
           h('th', null, h('i', { class: 'tdot', style: { background: vestOf(teamColorId(set, t)).hex } }), ' ', teamLabel(set, t)),
-          roles.map((ro) => h('td', null, cell(t, ro.id) || h('span', { class: 'muted' }, '—'))),
+          roles.map((ro) => h('td', { class: 'rcell', role: 'button', tabindex: 0, title: 'Toucher pour choisir l\'élève', onClick: (e) => popMenu(e.currentTarget, t.members.filter((sid) => statusOf(set, sid) !== 'absent').map((sid) => ({
+            label: nameOf(sid), active: (set.roles[sid] || [])[0] === ro.id,
+            onClick: () => { apply(() => { const cur = (set.roles[sid] || []).filter((x) => x !== ro.id); if ((set.roles[sid] || [])[0] === ro.id) { if (cur.length) set.roles[sid] = cur; else delete set.roles[sid]; } else set.roles[sid] = [ro.id, ...cur]; }); paint(); },
+          }))) }, cell(t, ro.id) || h('span', { class: 'muted' }, '+'))),
           h('td', { class: 'muted' }, t.members.filter((sid) => !(set.roles[sid] || []).length && statusOf(set, sid) !== 'absent').map(nameOf).join(', ') || '—')))))) : h('p', { class: 'muted' }, 'Placez d\'abord les élèves dans les équipes.'),
       h('div', { class: 'row wrap', style: { marginTop: '12px', gap: '8px' } },
         btn('Faire tourner les rôles', { icon: 'shuffle', cls: 'primary', disabled: !teams.length || !roles.length, onClick: () => {
@@ -497,39 +512,6 @@ function attachZoneToggle(root) {
 }
 
 // ---------- Glisser-déposer (doigt ou stylet) ----------
-
-function attachDrag(root, onDrop, onTap) {
-  root.addEventListener('pointerdown', (e) => {
-    const chipEl = e.target.closest('.schip');
-    if (!chipEl || e.button > 0) return;
-    const sid = chipEl.dataset.sid, sx = e.clientX, sy = e.clientY;
-    let ghost = null, moved = false, over = null;
-    try { chipEl.setPointerCapture(e.pointerId); } catch { /* ok */ }
-    const zoneAt = (x, y) => { if (ghost) ghost.style.display = 'none'; const z = document.elementFromPoint(x, y)?.closest('[data-zone]'); if (ghost) ghost.style.display = ''; return z; };
-    const onMove = (ev) => {
-      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) {
-        moved = true;
-        document.body.classList.add('dragchip'); ghost = chipEl.cloneNode(true); ghost.classList.add('ghost'); document.body.append(ghost); chipEl.classList.add('dragging');
-      }
-      if (!moved) return;
-      ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
-      const z = zoneAt(ev.clientX, ev.clientY);
-      if (z !== over) { over?.classList.remove('over'); over = z; over?.classList.add('over'); }
-      if (z && z.scrollWidth > z.clientWidth) { const zb = z.getBoundingClientRect(); if (ev.clientX < zb.left + 40) z.scrollLeft -= 14; else if (ev.clientX > zb.right - 40) z.scrollLeft += 14; } // zones à une seule ligne : défilement latéral
-      const sc = z?.closest('.scroll'); // défilement automatique près des bords
-      if (sc) { const b = sc.getBoundingClientRect(); if (ev.clientY < b.top + 50) sc.scrollTop -= 14; else if (ev.clientY > b.bottom - 50) sc.scrollTop += 14; }
-    };
-    const end = (ev) => {
-      chipEl.removeEventListener('pointermove', onMove); chipEl.removeEventListener('pointerup', end); chipEl.removeEventListener('pointercancel', cancel);
-      if (!moved) { onTap(sid, chipEl); return; }
-      const z = zoneAt(ev.clientX, ev.clientY);
-      document.body.classList.remove('dragchip'); over?.classList.remove('over'); ghost.remove(); chipEl.classList.remove('dragging');
-      if (z) onDrop(sid, z.dataset.zone);
-    };
-    const cancel = () => { chipEl.removeEventListener('pointermove', onMove); chipEl.removeEventListener('pointerup', end); chipEl.removeEventListener('pointercancel', cancel); document.body.classList.remove('dragchip'); over?.classList.remove('over'); ghost?.remove(); chipEl.classList.remove('dragging'); };
-    chipEl.addEventListener('pointermove', onMove); chipEl.addEventListener('pointerup', end); chipEl.addEventListener('pointercancel', cancel);
-  });
-}
 
 // ---------- Lien avec l'évaluation (appelé par l'écran d'une évaluation) ----------
 

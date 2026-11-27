@@ -25,6 +25,20 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.10
+
+- **Navigation** : un seul choix = pas de page intermédiaire. Équipes, Tables et Rings ouvrent directement la composition / la séance la plus récente (titre = menu déroulant ; ⋮ › Menu équipes, Suivi des résultats).
+- **Nouvelle activité** : Évaluation toujours cochée, outils liés cochés d'après le nom (CO → Kivaou, Tennis de table → Tables, Boxe / Lutte → Rings, Circuit training, Mario Kart, Duathlon, sports collectifs → Équipes + Tournoi + Chrono).
+- **Barèmes libres** : total quelconque (note toujours ramenée sur 20) ; grille « sans note » possible par niveau (niveaux de maîtrise seulement). Bibliothèque : Gym, Ultimate et Tennis de table 6e sans note.
+- **Duathlon** aligné sur les fiches élèves (4e : Course /8, Lancer /4, Investissement /4, Coach /4 ; 3e : Course /6, Lancer /2, Projet /4, Observation /4, Coach /4) ; grille mise à jour si elle n'a pas été modifiée, sinon proposée.
+- **Kivaou** (course d'orientation) : groupes + parcours + GO (ou départ groupé), minuteurs orange / rouge / noir, bandeau « groupes pas rentrés », Arrivé, balises sans clavier, bilan (temps + malus, hors temps derniers), onglet Résultats.
+- **Circuit training** : un outil, trois onglets. Chrono avec cadenas (5 min Workout, 8 min Workout, 30 s / 30 s), 24 fiches d'exercices illustrées par couleur (haut du corps rouge, bas du corps bleu, gainage vert, cardio jaune), tirage au hasard, matériel à cocher, circuits nommés affichés dans le chrono.
+- **Mario Kart** V1 / V2 / V3 : chrono 12 min, malus, objectifs (cases à remplir dans les réglages), pièces, cadeau tiré au hasard avec animation, total automatique.
+- **Tables & Rings** : glisser-déposer, « Séance suivante », plan de salle (tables 1-3 à droite, 4-8 à gauche).
+- **Rôles** en un toucher ; **Basket** lisible en table de marque ; **favoris** Chronomètre et Tournoi d'office.
+- **Préréglages de l'équipe EPS** (Réglages) : par activité, valeurs de départ de Kivaou, Mario Kart, Circuit training et Tournoi.
+- **Fiches Duathlon** (en travaux) : affichage des fiches et barèmes.
+
 ### Nouveautés de la version 1.9
 
 - **Bibliothèque « Projet EPS »** : les grilles de l'équipe sont livrées avec l'application (Mario Kart 5e, Duathlon 4e et 3e, Circuit training 3e, Acrosport 5e, Danse 5e et 4e, Gymnastique 6e, Basket 5e et 3e, Ultimate 6e et 4e, Tennis de table 6e à 3e, Boxe française 3e, Lutte 6e, Vélo 5e). Modifiables ; « Remettre la version d'origine » dans le menu ⋮ du modèle ; Réglages › Modèles › Bibliothèque Projet EPS rajoute un modèle supprimé. En 6e, les barèmes proposés sont indicatifs.
@@ -169,7 +183,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/*.test.mjs                               # 126 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
+node --test tests/*.test.mjs                               # 128 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
@@ -181,6 +195,7 @@ node tests/e2e7.mjs       # v1.6-1.7 : équipes, clubs, confort
 node tests/e2e8.mjs       # v1.7 : tournois, suivi, Résultats
 node tests/e2e9.mjs       # v1.8 : PEPS, réglages d'affichage, vibration
 node tests/e2e10.mjs      # v1.9 : bibliothèque, note calculée, rôles, Tables & Rings, Mario Kart, Circuit training
+node tests/e2e11.mjs      # v1.10 : Kivaou, exercices et circuits, Mario Kart V2, préréglages, sans note, séance suivante
 ```
 
 ## 6. Organisation du code

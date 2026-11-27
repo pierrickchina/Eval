@@ -7,6 +7,7 @@ import { studentLabel } from '../data/schema.js';
 import { activitiesOf, touchTool } from '../logic/activities.js';
 import * as LD from '../logic/ladder.js';
 import { helpItem } from './help.js';
+import { attachDrag } from './drag.js';
 
 const saveClass = (cls) => app.repo.save('classes', cls);
 const V = { rank: false, tab: 'sessions' };
@@ -34,6 +35,7 @@ for (const kind of Object.keys(LD.KINDS)) registerView(kind, (r) => view(r, kind
 function view(r, kind) {
   const c = ctxFor(r, kind);
   if (!c) { queueMicrotask(() => go('home')); return h('div'); }
+  if (r.latest) { delete r.latest; const last = LD.lastSession(c.L); if (last) r.sid = last.id; }
   if (r.sid) { const s = c.L.sessions.find((x) => x.id === r.sid); if (s) return sessionView(r, c, s); }
   return listView(r, c);
 }
@@ -92,13 +94,14 @@ function setupDialog(r, c) {
     const units = f.unit === 'duo' ? Math.ceil(present.length / 2) : present.length;
     const auto = LD.tableSizes(units, { min: f.min, max: f.max }).length;
     const k = st.count || auto;
-    body.replaceChildren(
+    const w = (txt) => (c.kind === 'rings' ? txt.replace(/Tables/g, 'Rings').replace(/tables/g, 'rings').replace(/table/g, 'ring') : txt);
+    body.replaceChildren(...[
       h('label', { class: 'field' }, 'Date', h('input', { type: 'date', value: st.date, onChange: (e) => { st.date = e.target.value || todayISO(); } })),
       c.K.duos ? h('div', { class: 'field' }, 'Forme', seg('format', Object.entries(LD.FORMATS).map(([k2, x]) => [k2, x.label])), h('span', { class: 'muted small' }, f.hint)) : null,
       f.unit === 'duo' ? h('div', { class: 'field' }, 'Duos', h('div', { class: 'radios' }, Object.entries(LD.DUO_MODES).map(([k2, l]) => h('label', { class: 'radio' },
         h('input', { type: 'radio', name: 'duomode', checked: st.duoMode === k2, disabled: k2 === 'keep' && !c.L.duos.length, onChange: () => { st.duoMode = k2; paint(); } }), ' ', l)))) : null,
       h('div', { class: 'field' }, 'Placement', h('div', { class: 'radios' }, Object.entries(LD.PLACES).map(([k2, l]) => h('label', { class: 'radio' },
-        h('input', { type: 'radio', name: 'place', checked: st.place === k2, disabled: k2 === 'resultats' && !comparable, onChange: () => { st.place = k2; paint(); } }), ' ', l,
+        h('input', { type: 'radio', name: 'place', checked: st.place === k2, disabled: k2 === 'resultats' && !comparable, onChange: () => { st.place = k2; paint(); } }), ' ', w(l),
         k2 === 'resultats' && !comparable ? h('span', { class: 'muted small' }, last ? ' — pas de séance précédente de cette forme' : ' — pas encore de séance') : null)))),
       h('div', { class: 'field' }, `Nombre de ${c.K.ones}`, h('div', { class: 'row' },
         h('div', { class: 'stepper' },
@@ -109,7 +112,7 @@ function setupDialog(r, c) {
         h('span', { class: 'muted small' }, `${present.length} élèves présents · ${units ? Math.round(units / k * 10) / 10 : 0} ${f.unit === 'duo' ? 'duos' : 'joueurs'} par ${c.K.one.toLowerCase()}`))),
       h('details', { class: 'ld-abs' }, h('summary', null, `Absents à cette séance (${st.absent.size})`),
         h('div', { class: 'chips' }, c.students.map((s) => h('button', { type: 'button', class: `chipbtn ${st.absent.has(s.id) ? 'on' : ''}`, onClick: () => { st.absent.has(s.id) ? st.absent.delete(s.id) : st.absent.add(s.id); paint(); } }, studentLabel(s))))),
-    );
+    ].filter(Boolean)); // (un « null » passé tel quel s'afficherait en texte)
     if (st._open) body.querySelector('details').open = true;
     body.querySelector('details').addEventListener('toggle', (e) => { st._open = e.target.open; });
   };
@@ -133,45 +136,67 @@ function sessionView(r, c, s) {
   const prevMove = new Map(); // ↑ ↓ annoncés pour la séance suivante
   const full = s.tables.filter((x) => x.units.length);
   for (const t of full) { const { first, last } = LD.movers(s, t); if (first && t !== full[0]) prevMove.set(first, 'up'); if (last && t !== full.at(-1)) prevMove.set(last, 'down'); }
+  const plan = c.kind === 'tables' && (c.L.view || 'plan') === 'plan';
   const chip = (u, t) => {
     const ms = LD.membersOf(c.L, u);
     const r2 = t ? (s.ranking[t.n] || []) : [];
     const rank = t ? r2.indexOf(u) + 1 : 0;
-    const label = ms.length ? ms.map((sid) => h('span', { class: `ldn ${s.inapte.includes(sid) ? 'out' : ''}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)) : 'Duo vide';
     const kids = [];
-    ms.forEach((x, i) => { if (i) kids.push(h('span', { class: 'plus' }, '+')); kids.push(label[i]); });
-    const el = h('button', { type: 'button', class: `ldchip ${rank ? 'ranked' : ''} ${V.rank && t ? 'rankable' : ''}`, 'data-u': u,
-      onClick: () => (V.rank && t ? apply(() => LD.rankTap(s, t.n, u)) : unitMenu(el, c, s, u, apply)) },
-      rank ? h('b', { class: 'rk' }, String(rank)) : null, ...(ms.length ? kids : [label]),
+    ms.forEach((sid, i) => { if (i) kids.push(h('span', { class: 'plus' }, '+')); kids.push(h('span', { class: `ldn ${s.inapte.includes(sid) ? 'out' : ''}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)); });
+    return h('div', { class: `ldchip ${rank ? 'ranked' : ''} ${V.rank && t ? 'rankable' : ''}`, 'data-u': u, 'data-t': t ? String(t.n) : '', role: 'button', tabindex: 0 },
+      rank ? h('b', { class: 'rk' }, String(rank)) : null, ...(ms.length ? kids : ['Duo vide']),
       rank && prevMove.get(u) ? h('span', { class: `mv ${prevMove.get(u)}`, title: prevMove.get(u) === 'up' ? 'Montera à la séance suivante' : 'Descendra à la séance suivante' }, prevMove.get(u) === 'up' ? '↑' : '↓') : null);
-    return el;
   };
-  const card = (t) => h('section', { class: `ldcard ${V.rank ? 'ranking' : ''}` },
-    h('header', null, h('b', null, `${c.K.one} ${t.n}`), h('span', { class: 'muted small' }, t.units.length > (LD.FORMATS[s.format].max) ? `${t.units.length} · beaucoup` : String(t.units.length)),
+  const order = (t) => t.units.slice().sort((a, b) => { const rk = s.ranking[t.n] || []; const ia = rk.indexOf(a), ib = rk.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+  const card = (t) => h('section', { class: `ldcard ${V.rank ? 'ranking' : ''}`, 'data-zone': String(t.n) },
+    h('header', null, h('b', null, `${c.K.one} ${t.n}`), h('span', { class: 'muted small' }, String(t.units.length)),
       V.rank && (s.ranking[t.n] || []).length ? btn('Effacer', { cls: 'small soft', onClick: () => apply(() => { delete s.ranking[t.n]; }) }) : null),
-    h('div', { class: 'ldunits' }, t.units.length ? t.units.slice().sort((a, b) => { const rk = s.ranking[t.n] || []; const ia = rk.indexOf(a), ib = rk.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); }).map((u) => chip(u, t)) : h('span', { class: 'muted small' }, V.rank ? '' : 'Vide · touchez un élève pour le placer ici')));
+    h('div', { class: 'ldunits' }, t.units.length ? order(t).map((u) => chip(u, t)) : h('span', { class: 'muted small' }, V.rank ? '' : 'Vide · glissez un élève ici')));
   const tables = s.tables;
   const pool = s.pool || [];
   const side = h('aside', { class: 'ldside' },
-    pool.length || s.place === 'libre' ? h('div', { class: 'ldbox pool' }, h('b', null, `À placer (${pool.length})`), h('div', { class: 'ldunits' }, pool.map((u) => chip(u, null)))) : null,
-    h('div', { class: 'ldbox inapte' }, h('b', null, `Inapte / absent (${s.inapte.length})`),
-      h('div', { class: 'ldunits' }, s.inapte.length ? s.inapte.map((sid) => h('button', { type: 'button', class: 'ldchip out', onClick: (e) => popMenu(e.currentTarget, [{ label: `${c.name(sid)} : de retour`, onClick: () => apply(() => LD.setInapte(c.L, s, sid, false)) }]) }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)) : h('span', { class: 'muted small' }, 'Personne'))));
+    pool.length || s.place === 'libre' ? h('div', { class: 'ldbox pool', 'data-zone': 'pool' }, h('b', null, `À placer (${pool.length})`), h('div', { class: 'ldunits' }, pool.map((u) => chip(u, null)))) : null,
+    h('div', { class: 'ldbox inapte', 'data-zone': 'inapte' }, h('b', null, `Inapte / absent (${s.inapte.length})`),
+      h('div', { class: 'ldunits' }, s.inapte.length ? s.inapte.map((sid) => h('div', { class: 'ldchip out', role: 'button', tabindex: 0, 'data-u': `x:${sid}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)) : h('span', { class: 'muted small' }, 'Personne'))));
+  // classement complet : toutes les tables d'au moins 2 sont rangées
+  const ranked = full.filter((t) => t.units.length > 1);
+  const allRanked = ranked.length && ranked.every((t) => (s.ranking[t.n] || []).length === t.units.length);
+  const anyRanked = ranked.some((t) => (s.ranking[t.n] || []).length);
+  const isLast = LD.lastSession(c.L)?.id === s.id;
   const m = iconBtn('more', 'Options', () => popMenu(m, [
     c.K.duos && s.unit === 'duo' ? { label: 'Duos…', onClick: () => duosDialog(c) } : null,
     { label: `Ajouter ${c.kind === 'rings' ? 'un ring' : 'une table'}`, disabled: tables.length >= LD.MAX_TABLES, onClick: () => apply(() => { s.tables.push({ n: (Math.max(0, ...s.tables.map((t) => t.n)) + 1), units: [] }); }) },
-    { label: 'Retirer les tables vides', onClick: () => apply(() => { s.tables = s.tables.filter((t) => t.units.length); s.tables.forEach((t, i) => { if (t.n !== i + 1) { if (s.ranking[t.n]) { s.ranking[i + 1] = s.ranking[t.n]; delete s.ranking[t.n]; } t.n = i + 1; } }); }) },
+    { label: `Retirer les ${c.K.ones} vides`, onClick: () => apply(() => { s.tables = s.tables.filter((t) => t.units.length); s.tables.forEach((t, i) => { if (t.n !== i + 1) { if (s.ranking[t.n]) { s.ranking[i + 1] = s.ranking[t.n]; delete s.ranking[t.n]; } t.n = i + 1; } }); }) },
+    c.kind === 'tables' ? { label: plan ? 'Affichage : grille' : 'Affichage : plan de salle', onClick: () => apply(() => { c.L.view = plan ? 'grid' : 'plan'; }) } : null,
     { label: 'Date de la séance…', onClick: () => dateDialog(s, apply) },
     helpItem(c.kind),
     '-',
     { label: 'Supprimer la séance', danger: true, onClick: () => { deleteSession(c, s); go(c.kind, { ...r, sid: undefined }); } },
   ].filter(Boolean)), 'boxed');
-  return h('div', { class: 'main ladder' },
+  // plan de salle (tennis de table) : tables 1 à 3 à droite (de haut en bas), 4 à 8 à gauche (de bas en haut)
+  const board = plan
+    ? h('div', { class: 'ldplan scroll', 'data-keep': 'ldgrid' },
+      h('div', { class: 'ldcol left' }, tables.filter((t) => t.n >= 4).sort((a, b) => b.n - a.n).map(card)),
+      h('div', { class: 'ldcol right' }, tables.filter((t) => t.n < 4).sort((a, b) => a.n - b.n).map(card)))
+    : h('div', { class: 'ldgrid scroll', 'data-keep': 'ldgrid' }, tables.map(card));
+  const root = h('div', { class: `main ladder ${plan ? 'plan' : ''}` },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => go(c.kind, { ...r, sid: undefined }), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, `${c.K.label} · ${fmtDate(s.date)}`), h('div', { class: 'sub' }, `${c.act.name} · ${c.cls.name} · ${LD.FORMATS[s.format].label}`)),
-      btn(V.rank ? 'Terminé' : 'Classement final', { icon: V.rank ? 'check' : 'trophy', cls: V.rank ? 'primary' : '', onClick: () => { V.rank = !V.rank; render(); } }),
+      btn(V.rank ? 'Terminé' : 'Classement final', { icon: V.rank ? 'check' : 'trophy', cls: V.rank && !allRanked ? 'primary' : '', onClick: () => { V.rank = !V.rank; render(); } }),
+      isLast && anyRanked ? btn('Séance suivante', { icon: 'next', cls: allRanked ? 'primary' : '', onClick: () => { V.rank = false; setupDialog({ ...r, sid: undefined }, c); } }) : null,
       m),
     V.rank ? h('div', { class: 'ldhint' }, `Touchez les joueurs de chaque ${c.K.one.toLowerCase()} dans l'ordre du classement final (1er, 2e…) ; le dernier se range tout seul. Rien ne bouge aujourd'hui : à la séance suivante, ↑ le 1er monte, ↓ le dernier descend.`) : null,
-    h('div', { class: 'ldlayout' }, h('div', { class: 'ldgrid scroll', 'data-keep': 'ldgrid' }, tables.map(card)), side));
+    h('div', { class: 'ldlayout' }, board, side));
+  attachDrag(root, (u, zone) => apply(() => {
+    if (u.startsWith('x:')) { const sid = u.slice(2); if (zone !== 'inapte') { LD.setInapte(c.L, s, sid, false); if (zone !== 'pool') { const back = LD.unitOfStudent(c.L, s, sid); if (back) LD.moveUnit(s, back, Number(zone)); } } return; }
+    if (zone === 'inapte') { for (const sid of LD.membersOf(c.L, u)) LD.setInapte(c.L, s, sid, true); return; }
+    LD.moveUnit(s, u, zone === 'pool' ? 'pool' : Number(zone));
+  }), (u, el) => {
+    if (u.startsWith('x:')) { const sid = u.slice(2); popMenu(el, [{ label: `${c.name(sid)} : de retour`, onClick: () => apply(() => LD.setInapte(c.L, s, sid, false)) }]); return; }
+    const t = el.dataset.t ? Number(el.dataset.t) : null;
+    if (V.rank && t) apply(() => LD.rankTap(s, t, u)); else unitMenu(el, c, s, u, apply);
+  }, { chip: '.ldchip[data-u]', key: 'u' });
+  return root;
 }
 
 function unitMenu(anchor, c, s, u, apply) {
@@ -212,7 +237,7 @@ function duosDialog(c) {
       h('p', { class: 'muted small', style: { margin: 0 } }, 'Les duos sont gardés d\'une séance à l\'autre. Choisir un élève déjà en duo échange les deux élèves.'),
       ...c.L.duos.map((d, i) => h('div', { class: 'listrow' }, h('b', { style: { width: '2.2em' } }, `${i + 1}.`), sel(d, 'a'), h('span', null, '+'), sel(d, 'b'),
         iconBtn('trash', 'Séparer ce duo', () => { c.L.duos = c.L.duos.filter((x) => x !== d); save(); }, 'sm'))),
-      loose.length ? h('p', { class: 'small' }, h('b', null, 'Sans duo : '), loose.map((s) => studentLabel(s)).join(', ')) : null,
+      loose.length ? h('p', { class: 'small' }, h('b', null, 'Sans duo : '), loose.map((s) => studentLabel(s)).join(', ')) : '',
       btn('Nouveau duo', { icon: 'plus', cls: 'small soft', disabled: !loose.length, onClick: () => { c.L.duos.push({ id: uid(), a: loose[0].id, b: loose[1]?.id || null }); save(); } }));
   };
   paint();
