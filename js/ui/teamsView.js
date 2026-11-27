@@ -441,6 +441,7 @@ function attachDrag(root, onDrop, onTap) {
       ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px';
       const z = zoneAt(ev.clientX, ev.clientY);
       if (z !== over) { over?.classList.remove('over'); over = z; over?.classList.add('over'); }
+      if (z && z.scrollWidth > z.clientWidth) { const zb = z.getBoundingClientRect(); if (ev.clientX < zb.left + 40) z.scrollLeft -= 14; else if (ev.clientX > zb.right - 40) z.scrollLeft += 14; } // zones à une seule ligne : défilement latéral
       const sc = z?.closest('.scroll'); // défilement automatique près des bords
       if (sc) { const b = sc.getBoundingClientRect(); if (ev.clientY < b.top + 50) sc.scrollTop -= 14; else if (ev.clientY > b.bottom - 50) sc.scrollTop += 14; }
     };

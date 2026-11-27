@@ -25,6 +25,9 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.6.2
+- Écran Équipes : « non placés / dispensés / absents » forment une bande compacte au-dessus ; la zone « à répartir » d'un club tient toujours sur une seule ligne (défilement latéral), pour laisser toute la place aux équipes.
+
 ### Nouveautés de la version 1.6.1
 - Évaluation ↔ Équipes : dans « Équipes et groupes de niveau », les équipes viennent de l'outil Équipes de l'activité (choix de la composition) et suivent ses modifications.
 - Aide dans les menus ⋮ ; « Générer » dans le ⋮ de l'écran Équipes ; rôles en pastilles colorées (capitaine rouge, officiel jaune, matériel bleu, préparateur vert, manager orange).

@@ -489,3 +489,17 @@ html[data-contrast="high"] .btn, html[data-contrast="high"] .card, html[data-con
 .card.big .d { font-size: 14px; }
 .lasttask { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent-ink); border-radius: 99px; min-height: 36px; padding: 0 12px; font-size: 13px; cursor: pointer; }
 .lasttask span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== 1.6.2 : zones « non placés / dispensés / absents » et « à répartir » sur UNE seule ligne (défilement latéral invisible) ===== */
+.teams .tlayout { flex-direction: column; gap: 8px; }
+.tside { width: auto; flex-direction: row; gap: 8px; overflow: visible; }
+.tside .zone { flex: 1 1 0; min-height: 52px; max-height: 56px; }
+.tside .zone:first-child { flex: 2 1 0; }
+.tside .zone.zdisp:empty, .tside .zone:has(.zlabel:only-child) { flex: 0 0 auto; }
+.tside .zone:has(.zlabel:only-child) { min-width: 150px; }
+.zone.oneline, .tside .zone, .cluboard .clubpool { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; align-items: center; scrollbar-width: none; }
+.zone.oneline::-webkit-scrollbar, .tside .zone::-webkit-scrollbar, .cluboard .clubpool::-webkit-scrollbar { display: none; }
+.tside .zone .zlabel, .cluboard .clubpool .zlabel { width: auto; flex: none; white-space: nowrap; }
+.tside .schip, .cluboard .clubpool .schip { flex: none; min-height: 36px; font-size: 14px; padding: 0 10px; }
+.cluboard .clubpool { min-height: 52px; max-height: 52px; }
+.tside .muted.small { white-space: nowrap; }

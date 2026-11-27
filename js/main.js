@@ -20,7 +20,7 @@ import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
 
-window.__APP_VERSION = '1.6.1';
+window.__APP_VERSION = '1.6.2';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
