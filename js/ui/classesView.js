@@ -1,61 +1,39 @@
-// Menu « Classes » : liste des classes, puis page d'une classe avec 3 onglets : Notes · Oublis de matériel · Infos.
-import { app, registerView, go, render, syncChip } from '../app.js';
-import { h, btn, iconBtn, classBadge, popMenu, toast } from './dom.js';
+// Page d'une classe : 3 onglets — Carnet de bord · Oublis de matériel · Notes.
+import { app, registerView, go, render } from '../app.js';
+import { h, btn, iconBtn, popMenu, toast } from './dom.js';
+import { hubTab, repairActivities } from './carnet.js';
 import { fmt, fmtDate, collator, todayISO, schoolYear } from '../util.js';
 import { studentLabel } from '../data/schema.js';
 import {
-  forgetsOf, forgetCount, addForget, removeForget, forgetColor, infoOf, setInfo, getTrimesters, classNotes,
+  forgetsOf, forgetCount, addForget, removeForget, forgetColor, getTrimesters, classNotes,
 } from '../logic/classes.js';
 import { studentSummaryDialog } from './summaryView.js';
 import { printNode } from './printView.js';
 
-const P = { tab: 'notes', trim: 'all', onlyMany: false }; // état de la page (conservé entre deux visites)
+const P = { tab: 'hub', trim: 'all', onlyMany: false }; // état de la page (conservé entre deux visites)
 const settings = () => app.repo.getMeta('settings', {}) || {};
 const activeStudents = (cls) => cls.students.filter((s) => s.active !== false);
 const saveClass = (cls) => app.repo.save('classes', cls);
-
-// ---------- Liste des classes ----------
-
-registerView('classes', () => {
-  const classes = app.repo.list('classes').sort((a, b) => collator.compare(b.year || '', a.year || '') || collator.compare(a.name, b.name));
-  const evals = app.repo.list('evaluations');
-  return h('div', { class: 'main' },
-    h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, 'Classes'), h('div', { class: 'sub' }, 'Notes, oublis de matériel et infos par élève')),
-      syncChip()),
-    classes.length
-      ? h('div', { class: 'home-grid scroll grow', 'data-keep': 'classes' }, classes.map((c) => {
-        const n = evals.filter((e) => !e.deleted && e.classId === c.id).length;
-        return h('div', { class: 'card', role: 'button', tabindex: 0, onClick: () => go('classPage', { id: c.id }),
-          onKeydown: (e) => { if (e.key === 'Enter') go('classPage', { id: c.id }); } },
-        classBadge(c.color, 48),
-        h('div', { class: 'body' }, h('div', { class: 't' }, c.name),
-          h('div', { class: 'a' }, `${c.level}${c.year ? ' · ' + c.year : ''}`),
-          h('div', { class: 'd' }, `${activeStudents(c).length} élèves · ${n} évaluation${n > 1 ? 's' : ''}`)));
-      }))
-      : h('div', { class: 'empty' }, h('h2', null, 'Aucune classe'), h('p', null, 'Créez une classe et ses élèves dans les réglages.'),
-        btn('Ouvrir les réglages', { cls: 'primary', onClick: () => go('settings', { tab: 'classes' }) })));
-});
 
 // ---------- Page d'une classe ----------
 
 registerView('classPage', ({ id }) => {
   const cls = app.repo.get('classes', id);
-  if (!cls || cls.deleted) { queueMicrotask(() => go('classes')); return h('div'); }
+  if (!cls || cls.deleted) { queueMicrotask(() => go('home')); return h('div'); }
   const more = iconBtn('more', 'Options de la classe', () => popMenu(more, [
     { label: 'Modifier la classe et ses élèves…', onClick: () => go('classEdit', { id: cls.id, from: 'classPage' }) },
   ]), 'boxed');
-  const tabs = [['notes', 'Notes'], ['forgets', 'Oublis de matériel'], ['infos', 'Infos élèves']];
+  repairActivities(cls);
+  const tabs = [['hub', 'Carnet de bord'], ['forgets', 'Oublis de matériel'], ['notes', 'Notes']];
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour aux classes', () => go('classes'), '', { 'data-back': '1' }),
+      iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, cls.name),
         h('div', { class: 'sub' }, `${cls.level}${cls.year ? ' · ' + cls.year : ''} — ${activeStudents(cls).length} élèves`)),
       more),
     h('div', { class: 'toolbar' }, h('div', { class: 'seg' }, tabs.map(([k, l]) => h('button', { class: P.tab === k ? 'on' : '', onClick: () => { P.tab = k; render(); } }, l))),
       P.tab === 'notes' ? notesToolbar(cls) : null),
-    P.tab === 'notes' ? notesTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : infosTab(cls));
+    P.tab === 'hub' ? hubTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : notesTab(cls));
 });
 
 // ---------- Onglet Notes ----------
@@ -148,16 +126,4 @@ function forgetsTab(cls) {
       h('span', { class: 'legend' }, h('span', { class: 'xmark y' }, '✕'), '1-2 ', h('span', { class: 'xmark o' }, '✕'), '3 ', h('span', { class: 'xmark r' }, '✕'), '4 et +'),
       h('button', { type: 'button', class: `toplace ${P.onlyMany ? 'on' : ''}`, onClick: () => { P.onlyMany = !P.onlyMany; render(); } }, '3 croix et +')),
     shown.length ? shown.map(row) : h('div', { class: 'empty' }, list.length ? 'Aucun élève à 3 croix ou plus.' : 'Cette classe n\'a pas encore d\'élèves.'));
-}
-
-// ---------- Onglet Infos élèves ----------
-
-function infosTab(cls) {
-  const list = activeStudents(cls);
-  return h('div', { class: 'forgets scroll', 'data-keep': 'infos' },
-    h('p', { class: 'muted small', style: { margin: '0 0 8px' } }, 'Notes libres sur chaque élève (écriture au stylet possible). Enregistrées automatiquement dans la sauvegarde. Évitez les informations de santé.'),
-    list.map((s) => h('div', { class: 'inforow' },
-      h('span', { class: 'fname' }, studentLabel(s)),
-      h('textarea', { rows: 1, 'data-fid': 'info-' + s.id, 'aria-label': `Infos sur ${studentLabel(s)}`, placeholder: 'Infos…',
-        onChange: async (e) => { if (setInfo(cls, s.id, e.target.value)) { await saveClass(cls); } } }, infoOf(cls, s.id)))));
 }

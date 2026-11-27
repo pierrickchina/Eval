@@ -1,59 +1,78 @@
-// Accueil : navigateur d'évaluations, tri/filtre, nouvelle évaluation, duplication.
+// Accueil : deux onglets « Classes » (tuiles) et « Outils » (outils libres), tri/filtre des classes.
 import { app, registerView, go, render, syncChip } from '../app.js';
-import { h, btn, icon, iconBtn, classBadge, openDialog, popMenu, toast } from './dom.js';
+import { h, btn, classBadge, openDialog } from './dom.js';
 import { fmtDate, todayISO, collator } from '../util.js';
-import { createEvaluation, duplicateEvaluation } from '../logic/evaluation.js';
-import { studentTotals } from '../logic/scoring.js';
+import { duplicateEvaluation } from '../logic/evaluation.js';
+import { SCHOOL_LEVELS } from '../data/schema.js';
+import { FREE_TOOLS, TOOLS, activitiesOf } from '../logic/activities.js';
 import { shareBackup, backupText, backupNeedsAttention, changesSinceBackup } from './backup.js';
 
-const F = { cls: '', act: '', sort: 'date' };
+const F = { tab: 'classes', sort: 'level', level: '' }; // état conservé entre deux visites
+const lvIdx = (l) => { const i = SCHOOL_LEVELS.indexOf(l); return i < 0 ? 99 : i; };
 
 registerView('home', () => {
   const repo = app.repo;
-  const all = repo.list('evaluations');
-  const classNames = [...new Set(all.map((e) => e.classInfo.name))].sort(collator.compare);
-  const acts = [...new Set(all.map((e) => e.model.activity))].sort(collator.compare);
-  if (F.cls && !classNames.includes(F.cls)) F.cls = '';
-  if (F.act && !acts.includes(F.act)) F.act = '';
+  const classes = repo.list('classes');
+  const evals = repo.list('evaluations').filter((e) => !e.deleted);
+  const levels = SCHOOL_LEVELS.filter((l) => classes.some((c) => c.level === l));
+  if (F.level && !levels.includes(F.level)) F.level = '';
+  const list = classes.filter((c) => !F.level || c.level === F.level).sort(F.sort === 'name'
+    ? (a, b) => collator.compare(a.name, b.name)
+    : (a, b) => lvIdx(a.level) - lvIdx(b.level) || collator.compare(a.name, b.name));
 
-  let list = all.filter((e) => (!F.cls || e.classInfo.name === F.cls) && (!F.act || e.model.activity === F.act));
-  const cmp = {
-    date: (a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt),
-    class: (a, b) => collator.compare(a.classInfo.name, b.classInfo.name) || (a.date < b.date ? 1 : -1),
-    activity: (a, b) => collator.compare(a.model.activity, b.model.activity) || (a.date < b.date ? 1 : -1),
-  }[F.sort];
-  list = list.sort(cmp);
-
-  const sel = (opts, value, onChange, firstLabel) =>
-    h('select', { onChange: (e) => { onChange(e.target.value); render(); }, value }, firstLabel != null ? h('option', { value: '' }, firstLabel) : null,
-      opts.map((o) => h('option', { value: o }, o)));
-
-  const hasSetup = repo.list('classes').length && repo.list('models').length;
+  const tabs = h('div', { class: 'seg' }, [['classes', 'Classes'], ['tools', 'Outils']].map(([k, l]) =>
+    h('button', { class: F.tab === k ? 'on' : '', onClick: () => { F.tab = k; render(); } }, l)));
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      h('div', { class: 'grow evtitle' }, h('h1', null, 'EPS'), h('div', { class: 'sub' }, 'Évaluations')),
+      h('div', { class: 'grow evtitle' }, h('h1', null, 'EPS'), h('div', { class: 'sub' }, F.tab === 'classes' ? 'Mes classes' : 'Outils')),
       syncChip(),
-      btn('Classes', { icon: 'users', onClick: () => go('classes') }),
-      btn('Réglages', { icon: 'gear', onClick: () => go('settings') }),
-      btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })),
-    all.length || repo.list('classes').length ? backupBar() : null,
-    all.length ? h('div', { class: 'toolbar' },
-      sel(classNames, F.cls, (v) => (F.cls = v), 'Toutes les classes'),
-      sel(acts, F.act, (v) => (F.act = v), 'Toutes les activités'),
-      h('div', { class: 'seg' }, [['date', 'Date'], ['class', 'Classe'], ['activity', 'Activité']].map(([k, l]) =>
-        h('button', { class: F.sort === k ? 'on' : '', onClick: () => { F.sort = k; render(); } }, l))),
-      h('span', { class: 'muted small' }, `${list.length} évaluation${list.length > 1 ? 's' : ''}`)) : null,
-    all.length
-      ? h('div', { class: 'home-grid scroll grow', 'data-keep': 'home' }, list.map(evCard))
-      : h('div', { class: 'empty' },
-          h('h2', null, hasSetup ? 'Aucune évaluation pour l\'instant' : 'Bienvenue 👋'),
-          h('p', null, hasSetup
-            ? 'Touchez « Nouvelle évaluation » pour commencer.'
-            : 'Pour commencer, créez une classe et un modèle d\'évaluation dans les réglages.'),
-          hasSetup ? btn('Nouvelle évaluation', { icon: 'plus', cls: 'primary', onClick: () => newEvaluationDialog() })
-            : btn('Ouvrir les réglages', { icon: 'gear', cls: 'primary', onClick: () => go('settings') })));
+      btn('Réglages', { icon: 'gear', onClick: () => go('settings') })),
+    classes.length || evals.length ? backupBar() : null,
+    h('div', { class: 'toolbar' }, tabs,
+      F.tab === 'classes' && classes.length ? [
+        h('select', { 'aria-label': 'Niveau', value: F.level, onChange: (e) => { F.level = e.target.value; render(); } },
+          h('option', { value: '' }, 'Tous les niveaux'), levels.map((l) => h('option', { value: l }, l))),
+        h('div', { class: 'seg' }, [['level', 'Niveau'], ['name', 'Nom']].map(([k, l]) =>
+          h('button', { class: F.sort === k ? 'on' : '', onClick: () => { F.sort = k; render(); } }, l))),
+      ] : null),
+    F.tab === 'classes' ? classesTab(list, classes, evals) : toolsTab());
 });
+
+function classesTab(list, classes, evals) {
+  if (!classes.length) {
+    return h('div', { class: 'empty' }, h('h2', null, 'Bienvenue 👋'),
+      h('p', null, 'Pour commencer, créez vos classes et vos modèles d\'évaluation dans les réglages.'),
+      btn('Ouvrir les réglages', { icon: 'gear', cls: 'primary', onClick: () => go('settings') }));
+  }
+  return h('div', { class: 'home-grid scroll grow', 'data-keep': 'home' }, list.map((c) => {
+    const n = evals.filter((e) => e.classId === c.id).length;
+    const na = activitiesOf(c).length;
+    const open = () => go('classPage', { id: c.id });
+    return h('div', { class: 'card', role: 'button', tabindex: 0, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
+      classBadge(c.color, 48),
+      h('div', { class: 'body' }, h('div', { class: 't' }, c.name),
+        h('div', { class: 'a' }, `${c.level}${c.year ? ' · ' + c.year : ''}`),
+        h('div', { class: 'd' }, `${c.students.filter((s) => s.active !== false).length} élèves · ${na} activité${na > 1 ? 's' : ''} · ${n} évaluation${n > 1 ? 's' : ''}`)));
+  }));
+}
+
+/** Outils libres : pas encore d'outil disponible ; le « + » ouvre la liste des outils (structure prête). */
+function toolsTab() {
+  const add = () => openDialog({
+    title: 'Ajouter un outil',
+    body: [
+      FREE_TOOLS.length ? null : h('p', { class: 'dlg-msg' }, 'Aucun outil libre n\'est disponible pour le moment. Ils arriveront dans les prochaines versions.'),
+      h('p', { class: 'muted small', style: { margin: 0 } }, 'Prévus :'),
+      Object.entries(TOOLS).filter(([, t]) => !t.available).map(([, t]) => h('div', { class: 'row', style: { opacity: .6 } }, h('span', null, t.label), h('span', { class: 'muted small' }, 'bientôt'))),
+    ],
+    actions: [{ label: 'Fermer', primary: true }],
+  });
+  return h('div', { class: 'scroll grow' },
+    h('div', { class: 'empty' }, h('h2', null, 'Pas encore d\'outil libre'),
+      h('p', null, 'Les outils utilisables sans classe (chronomètre, tirage au sort…) apparaîtront ici. Les outils liés à une classe se trouvent dans son carnet de bord.'),
+      btn('Ajouter un outil', { icon: 'plus', cls: 'primary', onClick: add })));
+}
 
 /** Rappel discret de la dernière sauvegarde, avec bouton de partage (Drive…) en une touche. */
 function backupBar() {
@@ -61,91 +80,6 @@ function backupBar() {
   return h('div', { class: `backupbar ${warn ? 'warn' : ''}` },
     h('span', { class: 'grow' }, `${warn ? '⚠ ' : '✓ '}${backupText()}`, n && warn ? ` · ${n} élément(s) modifié(s) depuis` : ''),
     btn('Sauvegarder', { icon: 'cloud', cls: 'small', onClick: async () => { await shareBackup(); render(); } }));
-}
-
-function evCard(ev) {
-  const more = iconBtn('more', 'Actions', (e) => {
-    e.stopPropagation();
-    popMenu(more, [
-      { label: 'Dupliquer…', onClick: () => duplicateDialog(ev) },
-      { label: 'Supprimer', danger: true, onClick: () => deleteEvaluation(ev) },
-    ]);
-  }, 'sm');
-  return h('div', { class: 'card', role: 'button', tabindex: 0, onClick: () => go('eval', { id: ev.id }),
-    onKeydown: (e) => { if (e.key === 'Enter') go('eval', { id: ev.id }); } },
-  classBadge(ev.classInfo.color, 48),
-  h('div', { class: 'body' },
-    h('div', { class: 't' }, ev.classInfo.name),
-    h('div', { class: 'a' }, ev.model.activity),
-    h('div', { class: 'd' }, `${fmtDate(ev.date)} · ${progress(ev)}`)),
-  more);
-}
-
-/** Avancement : élèves dont la note finale est complète / élèves présents. */
-function progress(ev) {
-  const t = ev.students.map((s) => studentTotals(ev, s.id));
-  const present = t.filter((x) => x.usable).length;
-  return `${t.filter((x) => x.final != null).length}/${present} notés`;
-}
-
-async function deleteEvaluation(ev) {
-  await app.repo.remove('evaluations', ev.id);
-  render();
-  toast(`Évaluation « ${ev.classInfo.name} · ${ev.model.activity} » supprimée.`, {
-    action: 'Annuler', ms: 9000,
-    onAction: async () => { await app.repo.restore('evaluations', ev.id); render(); },
-  });
-}
-
-// ---------- Nouvelle évaluation ----------
-
-export function newEvaluationDialog() {
-  const repo = app.repo;
-  const classes = repo.list('classes').sort((a, b) => collator.compare(a.name, b.name));
-  const models = repo.list('models');
-  if (!classes.length || !models.length) {
-    openDialog({
-      title: 'Nouvelle évaluation',
-      body: h('p', { class: 'dlg-msg' }, !classes.length
-        ? 'Créez d\'abord un groupe classe dans les réglages.'
-        : 'Créez d\'abord un modèle d\'évaluation dans les réglages.'),
-      actions: [{ label: 'Annuler' }, { label: 'Ouvrir les réglages', primary: true, onClick: () => go('settings', { tab: !classes.length ? 'classes' : 'models' }) }],
-    });
-    return;
-  }
-  const st = { classId: classes[0].id, modelId: '', date: todayISO() };
-  const body = h('div', { class: 'dlg-body', style: { padding: 0 } });
-  const create = { label: 'Créer', primary: true, disabled: true, keepOpen: true, onClick: async (dlg) => {
-    const cls = repo.get('classes', st.classId), model = repo.get('models', st.modelId);
-    try {
-      const ev = createEvaluation({ cls, model, date: st.date, step: (repo.getMeta('settings', {}) || {}).step || 0.5 });
-      await repo.save('evaluations', ev);
-      dlg.close();
-      go('eval', { id: ev.id });
-    } catch (e) { toast(e.message); }
-    return false;
-  } };
-  const dlg = openDialog({ title: 'Nouvelle évaluation', body, actions: [{ label: 'Annuler' }, create] });
-  const createBtn = () => dlg.foot.lastChild;
-
-  const paint = () => {
-    const cls = repo.get('classes', st.classId);
-    const ok = models.filter((m) => m.levels[cls.level]).sort((a, b) => collator.compare(a.activity + a.name, b.activity + b.name));
-    if (!ok.some((m) => m.id === st.modelId)) st.modelId = ok[0]?.id || '';
-    body.replaceChildren(
-      h('label', { class: 'field' }, 'Groupe classe',
-        h('select', { value: st.classId, onChange: (e) => { st.classId = e.target.value; paint(); } },
-          classes.map((c) => h('option', { value: c.id }, `${c.name} (${c.level}) — ${c.students.filter((s) => s.active !== false).length} élèves`)))),
-      ok.length
-        ? h('label', { class: 'field' }, 'Activité / modèle d\'évaluation',
-            h('select', { value: st.modelId, onChange: (e) => { st.modelId = e.target.value; } },
-              ok.map((m) => h('option', { value: m.id }, `${m.activity} — ${m.name}`))))
-        : h('p', { class: 'dlg-msg', style: { color: 'var(--danger)' } }, `Aucun modèle ne contient de tableau pour le niveau ${cls.level}. Ajoutez ce niveau à un modèle dans les réglages.`),
-      h('label', { class: 'field' }, 'Date', h('input', { type: 'date', value: st.date, onChange: (e) => { st.date = e.target.value || todayISO(); } })),
-      cls.students.some((s) => s.active !== false) ? null : h('p', { class: 'muted small' }, 'Cette classe n\'a pas encore d\'élèves : vous pourrez en ajouter dans l\'évaluation.'));
-    createBtn().disabled = !ok.length;
-  };
-  paint();
 }
 
 // ---------- Duplication ----------
@@ -170,7 +104,7 @@ export function duplicateDialog(ev) {
     actions: [{ label: 'Annuler' }, { label: 'Dupliquer', primary: true, onClick: async () => {
       const copy = duplicateEvaluation(ev, { date: o.date, cls: o.sync ? cls : null, keepGroups: o.groups, keepResults: o.results, syncStudents: o.sync });
       await repo.save('evaluations', copy);
-      go('eval', { id: copy.id });
+      go('eval', { id: copy.id, from: 'classPage', classId: ev.classId });
     } }],
   });
 }

@@ -1,5 +1,5 @@
-// Page classe : tableau des notes finales, oublis de matériel (croix), trimestres, infos élèves.
-// Les oublis et infos sont stockés DANS l'enregistrement de la classe : ils sont donc inclus dans les sauvegardes
+// Page classe : tableau des notes finales, oublis de matériel (croix), trimestres.
+// Les oublis sont stockés DANS l'enregistrement de la classe : ils sont donc inclus dans les sauvegardes
 // et la synchronisation, sans rien changer d'autre.
 import { now, r4, schoolYear } from '../util.js';
 import { studentTotals } from './scoring.js';
@@ -25,17 +25,6 @@ export function removeForget(cls, sid) {
 
 /** Couleur de la croix numéro i (0 = première) : 1 et 2 jaunes, 3 orange, 4 et suivantes rouges. */
 export const forgetColor = (i) => (i < 2 ? 'y' : i === 2 ? 'o' : 'r');
-
-// ---------- Infos libres par élève ----------
-
-export const infoOf = (cls, sid) => cls.infos?.[sid]?.text || '';
-export function setInfo(cls, sid, text, stamp = now()) {
-  cls.infos ??= {};
-  const t = String(text || '').trim() ? String(text) : '';
-  if ((cls.infos[sid]?.text || '') === t) return false;
-  cls.infos[sid] = { text: t, u: stamp };
-  return true;
-}
 
 // ---------- Trimestres (modifiables dans les réglages) ----------
 

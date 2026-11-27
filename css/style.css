@@ -340,7 +340,22 @@ table.grid.notes tbody tr.inactive th, table.grid.notes tbody tr.inactive td { b
 .fcount { width: 34px; text-align: center; font-weight: 800; font-size: 18px; flex: none; }
 .fcount.y { color: #c79a00; } .fcount.o { color: #f07f1a; } .fcount.r { color: #e0343f; }
 .flast { width: 120px; flex: none; text-align: right; }
-.inforow { display: flex; align-items: flex-start; gap: 10px; background: var(--panel); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; box-shadow: var(--shadow); }
-.inforow .fname { padding-top: 10px; }
-.inforow textarea { flex: 1; min-height: 44px; }
 @media print { #print-root table.notes td.na-cell { color: #aaa; } }
+
+/* ---- v1.5 : Carnet de bord (cadres d'activités, tuiles d'outils) ---- */
+.hub { padding: 4px 14px 28px; display: flex; flex-direction: column; gap: 14px; }
+.hubhead { gap: 10px; }
+.actframe { background: var(--panel); border-radius: 18px; box-shadow: var(--shadow); border: 2px solid color-mix(in srgb, var(--ac, #7a6ff0) 45%, white); padding: 10px 12px 12px; }
+.acthead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.acthead h2 { font-size: 20px; margin: 0; }
+.tooltiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tooltile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 84px; padding: 10px 12px; border-radius: 14px; border: 1.5px solid #e1ddf0; background: #f8f7fd; cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
+.tooltile:active, .tooltile.on { border-color: var(--accent); background: #efecff; }
+.tooltile.soon { opacity: .6; }
+.tooltile.plus { align-items: center; justify-content: center; background: transparent; border-style: dashed; }
+.evlist { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.evrow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 6px 8px 12px; border-radius: 12px; background: #f8f7fd; cursor: pointer; }
+.evrow:active { background: #efecff; }
+.evrow .t { font-weight: 650; }
+.dangerlist { margin: 0 0 8px; padding-left: 20px; color: #8a1f1f; }
+.dangerlist li { margin: 4px 0; }

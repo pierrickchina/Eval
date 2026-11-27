@@ -15,8 +15,9 @@ import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
+import { ensureActivities } from './logic/activities.js';
 
-window.__APP_VERSION = '1.4.0';
+window.__APP_VERSION = '1.5.0';
 const rootEl = document.getElementById('app');
 mount(rootEl);
 
@@ -58,6 +59,14 @@ async function boot() {
       await repo.setMeta('appVersion', window.__APP_VERSION);
     }
   } catch (e) { console.warn('Copie de sécurité impossible :', e); }
+
+  // v1.5 : chaque évaluation est rangée dans l'activité de même nom de sa classe ; l'ancien champ « infos » disparaît.
+  // Idempotent (rejoué à chaque lancement : répare aussi les données arrivées par import ou synchronisation).
+  try {
+    const r = ensureActivities(repo.list('classes'), repo.list('evaluations'));
+    for (const c of r.classes) await repo.save('classes', c);
+    for (const e of r.evals) await repo.save('evaluations', e);
+  } catch (e) { console.warn('Rangement des activités impossible :', e); }
 
   // Reprise de l'évaluation en cours après un rechargement
   let first = { name: 'home' };
