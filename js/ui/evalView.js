@@ -1,6 +1,7 @@
 // Écran d'une évaluation : tableau général, saisie rapide, fiche élève, groupes, statuts.
+import { evTitle } from '../logic/activities.js';
 import { app, registerView, go, render, syncChip } from '../app.js';
-import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog } from './dom.js';
+import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog, confirmDialog } from './dom.js';
 import { fmt, fmtDate, parseNum, todayISO } from '../util.js';
 import { LEVELS, STATUSES, levelInfo, studentLabel, newStudent } from '../data/schema.js';
 import {
@@ -66,6 +67,7 @@ function topbar() {
   const ev = V.ev;
   // Options rarement utilisées : regroupées derrière un seul bouton « ⋮ » pour garder la page lisible
   const more = iconBtn('more', 'Options de l\'évaluation', () => popMenu(more, [
+    { label: 'Nom de l\'évaluation…', onClick: titleDialog },
     { label: `Date : ${fmtDate(ev.date)}…`, onClick: dateDialog },
     { label: 'Équipes et groupes de niveau…', onClick: groupsDialog },
     { label: 'Ajouter un élève…', onClick: addStudentDialog },
@@ -73,15 +75,34 @@ function topbar() {
     { label: 'Imprimer / exporter en PDF', onClick: () => printEvaluation(ev) },
     '-',
     { label: 'Auto-évaluation des élèves…', onClick: () => startSelfEval(ev) },
+    '-',
+    { label: 'Supprimer l\'évaluation…', danger: true, onClick: deleteThis },
   ]), 'boxed');
   return h('div', { class: 'topbar' },
     iconBtn('back', 'Retour', () => { V.sel = null; const r = app.route; if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home'); }, '', { 'data-back': '1' }),
     h('div', { class: 'grow evtitle' },
-      h('h1', null, `${ev.classInfo.name} · ${ev.model.activity}`),
+      h('h1', null, `${ev.classInfo.name} · ${evTitle(ev)}`),
       h('div', { class: 'sub' }, `${ev.model.name} — ${ev.students.length} élèves — ${fmtDate(ev.date)}`)),
     iconBtn('undo', V.sess.canUndo ? `Annuler : ${V.sess.undoLabel}` : 'Annuler', undo, 'boxed', { disabled: !V.sess.canUndo }),
     iconBtn('redo', V.sess.canRedo ? `Rétablir : ${V.sess.redoLabel}` : 'Rétablir', redo, 'boxed', { disabled: !V.sess.canRedo }),
     more);
+}
+
+function titleDialog() {
+  let t = V.ev.title || '';
+  openDialog({ title: 'Nom de l\'évaluation',
+    body: h('label', { class: 'field' }, 'Nom (vide = nom de l\'activité)', h('input', { type: 'text', value: t, placeholder: V.ev.model.activity, autofocus: true, onInput: (e) => { t = e.target.value; } })),
+    actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: () => { act('Nom', (x) => { x.title = t.trim(); }); } }] });
+}
+
+async function deleteThis() {
+  const ev = V.ev;
+  const ok = await confirmDialog(`Supprimer l'évaluation « ${evTitle(ev)} » du ${fmtDate(ev.date)} et tous ses résultats ? Cette action est définitive.`, 'Supprimer', { danger: true });
+  if (!ok) return;
+  await app.repo.remove('evaluations', ev.id);
+  V.sel = null;
+  const r = app.route;
+  if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home');
 }
 
 function dateDialog() {

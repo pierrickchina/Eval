@@ -1,5 +1,6 @@
 // Impression / export PDF : on prépare une page A4 dédiée puis on ouvre l'impression du navigateur
 // (sur Android : « Enregistrer au format PDF »).
+import { evTitle } from '../logic/activities.js';
 import { h } from './dom.js';
 import { fmt, fmtDate } from '../util.js';
 import { studentLabel, levelInfo } from '../data/schema.js';
@@ -45,7 +46,7 @@ export function printEvaluation(ev) {
     comps.map((c) => h('th', null, stats.perComp[c.id].n ? fmt(stats.perComp[c.id].mean) : '–')),
     h('th', null, stats.overall.n ? fmt(stats.overall.mean) : '–'), hasNotes ? h('th') : null);
   printNode(h('div', null,
-    h('h1', null, `${ev.classInfo.name} · ${ev.model.activity}`),
+    h('h1', null, `${ev.classInfo.name} · ${evTitle(ev)}`),
     h('div', { class: 'sub' }, `${ev.model.name} — ${fmtDate(ev.date)} — ✕ non acquis · ≈ en cours · ✓ acquis · ★ dépassé`),
     h('table', null, h('thead', null, head), h('tbody', null, rows), h('tfoot', null, foot))), { landscape: true });
 }

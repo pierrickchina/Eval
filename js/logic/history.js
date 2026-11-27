@@ -1,11 +1,11 @@
 // Annuler / rétablir pour une évaluation ouverte (instantanés de la partie modifiable).
 import { clone, now } from '../util.js';
 
-const MUTABLE = ['date', 'students', 'groups', 'membership', 'status', 'statusU', 'results', 'notes'];
+const MUTABLE = ['date', 'students', 'groups', 'membership', 'status', 'statusU', 'results', 'notes', 'title'];
 
 const snap = (ev) => {
   const o = {};
-  for (const k of MUTABLE) o[k] = clone(ev[k] ?? (k === 'date' ? '' : {}));
+  for (const k of MUTABLE) o[k] = clone(ev[k] ?? (k === 'date' || k === 'title' ? '' : {}));
   return o;
 };
 

@@ -9,6 +9,8 @@ export const TOOLS = {
   tournoi: { label: 'Suivi de tournoi', icon: 'users', available: false, hint: 'Bientôt' },
   tables: { label: 'Suivi des tables', icon: 'users', available: false, hint: 'Bientôt (tennis de table)' },
 };
+/** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
+export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';
 export const toolLabel = (type) => (TOOLS[type] ? TOOLS[type].label : type);
 
 const key = (s) => String(s || '').trim().toLowerCase();

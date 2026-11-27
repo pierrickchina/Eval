@@ -6,7 +6,7 @@ import { fmtDate, todayISO, collator } from '../util.js';
 import { createEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
 import {
-  TOOLS, toolLabel, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
+  TOOLS, toolLabel, evTitle, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
 } from '../logic/activities.js';
 import { duplicateDialog } from './home.js';
 
@@ -26,9 +26,6 @@ export function repairActivities(cls) {
 export function hubTab(cls) {
   const acts = activitiesOf(cls);
   return h('div', { class: 'hub scroll grow', 'data-keep': 'hub' },
-    h('div', { class: 'row wrap hubhead' },
-      btn('Nouvelle activité', { icon: 'plus', cls: 'primary', onClick: () => newActivityDialog(cls) }),
-      btn('Nouvelle évaluation', { icon: 'plus', onClick: () => newEvaluationDialog({ cls }) })),
     acts.length ? acts.map((a) => activityFrame(cls, a))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucune activité'),
         h('p', null, 'Une activité, c\'est une APSA travaillée avec cette classe (handball, badminton…). Elle contient les outils : évaluation, puis d\'autres.'),
@@ -40,8 +37,15 @@ function activityFrame(cls, act) {
   const { shown, hidden } = visibleTools(act.tools);
   const showAll = E.all.has(act.id);
   const tools = showAll ? [...shown, ...hidden] : shown;
+  const add = iconBtn('plus', 'Ajouter un outil', () => popMenu(add, [
+    ...Object.entries(TOOLS).map(([type, t]) => ({
+      label: type === 'evaluation' ? 'Nouvelle évaluation…' : `${t.label} (bientôt)`,
+      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : toast(`${t.label} : bientôt disponible.`)),
+    })),
+    '-',
+    { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
+  ]), 'boxed');
   const more = iconBtn('more', 'Options de l\'activité', () => popMenu(more, [
-    { label: 'Nouvelle évaluation…', onClick: () => newEvaluationDialog({ cls, activity: act }) },
     { label: 'Renommer…', onClick: () => renameDialog(cls, act) },
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
     '-',
@@ -49,28 +53,36 @@ function activityFrame(cls, act) {
   ]), 'boxed');
   const tile = (t) => {
     if (t.type === 'evaluation') {
-      const n = activityEvals(evals, cls, act).length, open = E.open.has(act.id);
-      return h('button', { type: 'button', class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': open, onClick: () => {
-        open ? E.open.delete(act.id) : E.open.add(act.id); render();
-      } }, icon(TOOLS.evaluation.icon), h('b', null, 'Évaluation'), h('span', { class: 'muted small' }, `${n} évaluation${n > 1 ? 's' : ''}`));
+      const list = activityEvals(evals, cls, act), n = list.length, open = E.open.has(act.id) && n > 1;
+      // 0 évaluation : création ; 1 seule : ouverture directe ; plusieurs : la liste se déplie pour choisir
+      const press = () => {
+        if (n === 0) return addEvaluation(cls, act);
+        if (n === 1) return openEval(cls, list[0]);
+        E.open.has(act.id) ? E.open.delete(act.id) : E.open.add(act.id);
+        render();
+      };
+      return h('button', { type: 'button', class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': n > 1 ? open : null, onClick: press },
+        icon(TOOLS.evaluation.icon), h('b', null, 'Évaluation'),
+        h('span', { class: 'muted small' }, n === 0 ? 'Aucune · toucher pour créer' : n === 1 ? '1 évaluation · toucher pour ouvrir' : `${n} évaluations`));
     }
     return h('button', { type: 'button', class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'bientôt'));
   };
   return h('section', { class: 'actframe', style: { '--ac': cls.color } },
-    h('div', { class: 'acthead' }, h('h2', { class: 'grow' }, `${act.name} · ${cls.name}`), more),
+    h('div', { class: 'acthead' }, h('h2', { class: 'grow' }, `${act.name} · ${cls.name}`), add, more),
     h('div', { class: 'tooltiles' }, tools.map(tile),
-      hidden.length ? h('button', { type: 'button', class: 'tooltile plus', 'aria-label': showAll ? 'Masquer les outils peu utilisés' : `Afficher ${hidden.length} outil(s) peu utilisé(s)`,
-        onClick: () => { showAll ? E.all.delete(act.id) : E.all.add(act.id); render(); } }, icon(showAll ? 'minus' : 'plus'), h('span', { class: 'muted small' }, showAll ? 'Moins' : `${hidden.length} de plus`)) : null),
-    E.open.has(act.id) && hasTool(act, 'evaluation') ? evalList(cls, act) : null);
+      null),
+    hidden.length ? h('button', { type: 'button', class: 'linkbtn', onClick: () => { showAll ? E.all.delete(act.id) : E.all.add(act.id); render(); } },
+      showAll ? 'Masquer les outils peu utilisés' : `Afficher ${hidden.length} outil${hidden.length > 1 ? 's' : ''} peu utilisé${hidden.length > 1 ? 's' : ''}`) : null,
+    E.open.has(act.id) && hasTool(act, 'evaluation') && activityEvals(evals, cls, act).length > 1 ? evalList(cls, act) : null);
 }
 
 function evalList(cls, act) {
   const list = activityEvals(app.repo.list('evaluations'), cls, act);
-  return h('div', { class: 'evlist' },
-    list.length ? list.map((ev) => evRow(cls, ev)) : h('div', { class: 'muted', style: { padding: '8px 4px' } }, 'Aucune évaluation pour cette activité.'),
-    btn('Nouvelle évaluation', { icon: 'plus', cls: 'small', onClick: () => newEvaluationDialog({ cls, activity: act }) }));
+  return h('div', { class: 'evlist' }, list.map((ev) => evRow(cls, ev)));
 }
+
+const openEval = (cls, ev) => go('eval', { id: ev.id, from: 'classPage', classId: cls.id });
 
 function progress(ev) {
   const t = ev.students.map((s) => studentTotals(ev, s.id));
@@ -78,29 +90,42 @@ function progress(ev) {
 }
 
 function evRow(cls, ev) {
-  const open = () => go('eval', { id: ev.id, from: 'classPage', classId: cls.id });
+  const open = () => openEval(cls, ev);
   const more = iconBtn('more', 'Actions', (e) => {
     e.stopPropagation();
     popMenu(more, [
+      { label: 'Renommer…', onClick: () => renameEvaluation(ev) },
       { label: 'Dupliquer…', onClick: () => duplicateDialog(ev) },
       { label: 'Supprimer', danger: true, onClick: () => deleteEvaluation(ev) },
     ]);
   }, 'sm');
   return h('div', { class: 'evrow', role: 'button', tabindex: 0, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
-    h('div', { class: 'grow' }, h('div', { class: 't' }, ev.model.name || ev.model.activity), h('div', { class: 'muted small' }, `${fmtDate(ev.date)} · ${progress(ev)}`)), more);
+    h('div', { class: 'grow' }, h('div', { class: 't' }, evTitle(ev, true)), h('div', { class: 'muted small' }, `${fmtDate(ev.date)} · ${progress(ev)}`)), more);
+}
+
+function renameEvaluation(ev) {
+  let title = ev.title || '';
+  const dlg = openDialog({
+    title: 'Nom de l\'évaluation',
+    body: h('label', { class: 'field' }, 'Nom (laisser vide pour reprendre celui du modèle)',
+      h('input', { type: 'text', value: title, placeholder: evTitle({ model: ev.model }, true), autofocus: true, onInput: (e) => { title = e.target.value; } })),
+    actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, keepOpen: true, onClick: async () => {
+      ev.title = title.trim(); dlg.close(); render(); await app.repo.save('evaluations', ev); return false;
+    } }],
+  });
 }
 
 async function deleteEvaluation(ev) {
   await app.repo.remove('evaluations', ev.id);
   render();
-  toast(`Évaluation du ${fmtDate(ev.date)} supprimée.`, {
+  toast(`Évaluation « ${evTitle(ev)} » supprimée.`, {
     action: 'Annuler', ms: 9000, onAction: async () => { await app.repo.restore('evaluations', ev.id); render(); },
   });
 }
 
 // ---------- Nouvelle activité / renommer ----------
 
-function newActivityDialog(cls) {
+export function newActivityDialog(cls) {
   const names = [...new Set([...app.repo.list('models').map((m) => m.activity), ...app.repo.list('classes').flatMap((c) => activitiesOf(c).map((a) => a.name))])]
     .filter(Boolean).sort(collator.compare);
   const st = { name: '', tools: new Set(['evaluation']) };
@@ -123,7 +148,6 @@ function newActivityDialog(cls) {
       if (dup(name)) { toast('Cette classe a déjà une activité de ce nom.'); return false; }
       const act = newActivity(name, [...st.tools]);
       activitiesOf(cls).push(act);
-      if (st.tools.has('evaluation')) E.open.add(act.id);
       dlg.close();
       render();
       await saveClass(cls);
@@ -239,15 +263,15 @@ export function newEvaluationDialog({ cls, activity = null }) {
       actions: [{ label: 'Annuler' }, { label: 'Ouvrir les réglages', primary: true, onClick: () => go('settings', { tab: 'models' }) }] });
     return;
   }
-  const st = { actId: (activity || acts[0]).id, modelId: '', date: todayISO() };
+  const st = { actId: (activity || acts[0]).id, modelId: '', date: todayISO(), title: '' };
   const body = h('div', { class: 'dlg-body', style: { padding: 0 } });
   const dlg = openDialog({ title: `Nouvelle évaluation · ${cls.name}`, body, actions: [{ label: 'Annuler' }, { label: 'Créer', primary: true, keepOpen: true, onClick: async () => {
     const act = acts.find((a) => a.id === st.actId), model = repo.get('models', st.modelId);
     try {
       const ev = createEvaluation({ cls, model, date: st.date, step: (repo.getMeta('settings', {}) || {}).step || 0.5 });
       ev.activityId = act.id;
+      if (st.title.trim()) ev.title = st.title.trim();
       touchTool(act, 'evaluation');
-      E.open.add(act.id);
       await repo.save('evaluations', ev);
       saveClass(cls);
       dlg.close();
@@ -260,13 +284,21 @@ export function newEvaluationDialog({ cls, activity = null }) {
     const same = (m) => m.activity.trim().toLowerCase() === act.name.trim().toLowerCase();
     const ok = [...models].sort((a, b) => (same(b) - same(a)) || collator.compare(a.activity + a.name, b.activity + b.name));
     if (!ok.some((m) => m.id === st.modelId)) st.modelId = ok[0].id;
-    body.replaceChildren(
+    body.replaceChildren(...[
       h('label', { class: 'field' }, 'Activité', h('select', { value: st.actId, onChange: (e) => { st.actId = e.target.value; paint(); } },
         acts.map((a) => h('option', { value: a.id }, a.name)))),
       h('label', { class: 'field' }, 'Modèle d\'évaluation', h('select', { value: st.modelId, onChange: (e) => { st.modelId = e.target.value; } },
         ok.map((m) => h('option', { value: m.id }, `${m.activity} — ${m.name}`)))),
+      h('label', { class: 'field' }, 'Nom de l\'évaluation (facultatif)', h('input', { type: 'text', value: st.title, placeholder: 'ex. Match de poule, Bilan de cycle…', onInput: (e) => { st.title = e.target.value; } })),
       h('label', { class: 'field' }, 'Date', h('input', { type: 'date', value: st.date, onChange: (e) => { st.date = e.target.value || todayISO(); } })),
-      cls.students.some((s) => s.active !== false) ? null : h('p', { class: 'muted small' }, 'Cette classe n\'a pas encore d\'élèves : vous pourrez en ajouter dans l\'évaluation.'));
+      cls.students.some((s) => s.active !== false) ? null : h('p', { class: 'muted small' }, 'Cette classe n\'a pas encore d\'élèves : vous pourrez en ajouter dans l\'évaluation.'),
+    ].filter(Boolean)); // (un « null » passé tel quel s'afficherait en texte)
   };
   paint();
+}
+
+/** Ajoute l'outil Évaluation à l'activité si besoin, puis ouvre la fenêtre de création. */
+export async function addEvaluation(cls, act) {
+  if (!hasTool(act, 'evaluation')) { const t = Date.now(); act.tools.push({ type: 'evaluation', addedAt: t, lastUsed: t }); render(); await saveClass(cls); }
+  newEvaluationDialog({ cls, activity: act });
 }
