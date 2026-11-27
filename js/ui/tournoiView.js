@@ -32,6 +32,17 @@ function ctxFor(r) {
       save: () => { touchTool(act, 'tournoi'); return saveClass(cls); },
     };
   }
+  if (r.scope === 'ic') { // Interclasses : les deux tournois sont rangés dans l'événement
+    const rec = repo.get('freetools', r.icId);
+    if (!rec || rec.deleted) return null;
+    return {
+      kind: 'ic', rec, title: rec.ic.name,
+      list: () => rec.ts,
+      add: (t) => rec.ts.push(t),
+      remove: () => () => {},
+      save: () => repo.save('freetools', rec),
+    };
+  }
   const recs = () => repo.list('freetools').filter((x) => x.type === 'tournoi');
   return {
     kind: 'free', title: 'Tournois',
@@ -228,7 +239,7 @@ function setupView(r, ctx) {
       S.parallel ? `${nA} + ${nB} équipes` : `${nA} équipes`,
       `${cA.perTeam} match${cA.perTeam > 1 ? 's' : ''} par équipe`,
       `${matchMin} min par match + ${S.changeover} min de changement`,
-      S.parallel ? '1 terrain par tournoi' : `${courts} terrain${courts > 1 ? 's' : ''}`,
+      S.parallel ? (S.shared ? '1 seul terrain, matchs en alternance' : '1 terrain par tournoi') : `${courts} terrain${courts > 1 ? 's' : ''}`,
     ].join(' · ')),
     valid ? null : h('div', { class: 'bad small' }, 'Chaque tournoi doit avoir de 2 à 12 équipes.'),
     h('div', { class: 'tn-plan' },
@@ -249,7 +260,10 @@ function setupView(r, ctx) {
     opt(S.halves === 2 ? 'Durée d\'une mi-temps' : 'Durée du match', stepper(S.halfMin, (v) => set('halfMin', v), { min: 1, max: 60, unit: ' min', label: 'Durée' })),
     S.halves === 2 ? opt('Pause', stepper(S.pauseMin, (v) => set('pauseMin', v), { min: 0, max: 15, unit: ' min', label: 'Pause' })) : null,
     opt('Changement entre matchs', seg([[1, '1 min'], [2, '2 min'], [3, '3 min']], S.changeover, (k) => set('changeover', k))),
-    opt('Terrains', S.parallel ? h('span', { class: 'muted small' }, '1 par tournoi') : seg([[1, '1'], [2, '2']], S.courts, (k) => set('courts', k)), !S.parallel && S.courts === 2 && nA < 6 ? 'moins de 6 équipes : certains matchs sans arbitre' : null),
+    opt('Terrains', S.parallel ? seg([[false, '1 par tournoi'], [true, '1 seul, en alternance']], !!S.shared, (k) => set('shared', k), 'wrap') : seg([[1, '1'], [2, '2']], S.courts, (k) => set('courts', k)), !S.parallel && S.courts === 2 && nA < 6 ? 'moins de 6 équipes : certains matchs sans arbitre' : S.parallel && S.shared ? 'un match du tournoi 1, un match du tournoi 2… ; chaque tournoi arbitre ses propres matchs' : null),
+    S.parallel && S.shared ? h('div', { class: 'opt' }, h('label', { class: 'row' }, h('input', { type: 'checkbox', class: 'bigchk', checked: !!S.equalize, onChange: (e) => { S.equalize = e.target.checked; re(); } }),
+      h('span', null, 'Égaliser le temps', h('small', { class: 'muted' }, cA.total !== cB.total ? ` — le tournoi qui a le plus de matchs joue ${TN.equalizedMinutes(S.halfMin, Math.min(cA.total, cB.total), Math.max(cA.total, cB.total))} min au lieu de ${S.halfMin}` : ' — même nombre de matchs : rien à changer')))) : null,
+    opt('Affichage', seg([['table', 'Table de marque'], ['suivi', 'Suivi simple des scores']], S.board || 'table', (k) => set('board', k), 'wrap'), (S.board || 'table') === 'suivi' ? 'pas de chrono ni de gros boutons : score + « Match suivant »' : null),
     opt('Format', seg([['single', 'Chacun contre chacun'], ['double', 'Aller-retour']], S.format, (k) => set('format', k), 'wrap')),
     opt('Finale', seg([['none', 'Aucune'], ['final', 'Finale'], ['both', '+ petite finale']], S.finals, (k) => set('finals', k), 'wrap')));
   const more = h('details', { class: 'panel tn-more', open: S.moreOpen || null, onToggle: (e) => { S.moreOpen = e.target.open; } },
@@ -262,9 +276,17 @@ function setupView(r, ctx) {
   const create = () => {
     if (!valid) return toast('Chaque tournoi doit avoir de 2 à 12 équipes.');
     const pairId = S.parallel ? uid() : null;
-    const settingsOut = { sport: S.sport, halves: S.halves, halfMin: S.halfMin, pauseMin: S.pauseMin, pts: S.pts, courts, format: S.format, finals: S.finals, perTeam: S.perTeam, changeover: S.changeover, change: S.change, customButtons: S.customButtons };
+    const settingsOut = { sport: S.sport, halves: S.halves, halfMin: S.halfMin, pauseMin: S.pauseMin, pts: S.pts, courts, format: S.format, finals: S.finals, perTeam: S.perTeam, changeover: S.changeover, change: S.change, customButtons: S.customButtons, board: S.board || 'table' };
     const base = ctx.kind === 'act' ? { classId: ctx.cls.id, actId: ctx.act.id, setId: S.setId } : {};
     const made = sides.map((side) => TN.newTournament({ name: S.parallel ? `${S.name} · Tournoi ${side === 'A' ? 1 : 2}` : S.name, date: S.date, teams: teamsOfSide(S, side, ctx).map((x) => JSON.parse(JSON.stringify(x))), settings: settingsOut, scope: ctx.kind, pairId, side: S.parallel ? side : null, ctx: base }));
+    if (S.parallel && S.shared) {
+      for (const t of made) t.shared = true;
+      if (S.equalize) { // le tournoi qui a le plus de matchs joue des matchs plus courts
+        const [a, b] = made; const na = a.matches.length, nb = b.matches.length;
+        const many = na > nb ? a : nb > na ? b : null;
+        if (many) many.halfMin = TN.equalizedMinutes(S.halfMin, Math.min(na, nb), Math.max(na, nb));
+      }
+    }
     made.forEach((t) => ctx.add(t)); persist(ctx, ...made);
     K.setup = null;
     go('tournoi', { ...r, setup: undefined, tid: made[0].id });
@@ -307,7 +329,8 @@ function playView(r, ctx, t) {
   for (const x of ts) if (TN.resolveFinals(x)) persist(ctx, x);
   const leave = async () => {
     for (const x of ts) for (const c of courtsOf(x)) if (TN.liveRunning(x.live?.[c])) x.live[c] = TN.livePause(x.live[c]);
-    persist(ctx, ...ts); stopTicker(); go('tournoi', { ...r, tid: undefined });
+    persist(ctx, ...ts); stopTicker();
+    if (r.scope === 'ic') go('interclasses', { icId: r.icId, from: r.from }); else go('tournoi', { ...r, tid: undefined });
   };
   const more = iconBtn('more', 'Options', () => popMenu(more, [
     ...ts.map((x, i) => ({ label: ts.length > 1 ? `Classement du tournoi ${i + 1}…` : 'Classement détaillé…', onClick: () => rankDialog(x) })),
@@ -318,12 +341,27 @@ function playView(r, ctx, t) {
   ].filter(Boolean)), 'boxed');
   const played = ts.map((x) => `${x.matches.filter((m) => m.done).length}/${x.matches.length}`).join(' + ');
   const left = Math.max(...ts.map(remainingMin));
-  return h('div', { class: `main tplay ${partner ? 'tn-split' : ''}` },
+  return h('div', { class: `main tplay ${partner && !t.shared ? 'tn-split' : ''}` },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', leave, '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, partner ? `${t.name.replace(/\s*·\s*Tournoi [12]$/, '')} · 2 tournois en parallèle` : t.name),
         h('div', { class: 'sub' }, `${TN.SPORTS[t.sport]?.label} · ${played} matchs joués${left ? ` · reste ≈ ${left} min` : ''}`)),
       more),
-    h('div', { class: 'tn-body' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
+    t.shared && partner ? sharedPanel(ctx, ts) : h('div', { class: 'tn-body' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
+}
+
+/** Deux tournois sur un seul terrain : une table de marque (le tournoi dont c'est le tour), les deux listes de matchs à côté. */
+function sharedPanel(ctx, ts) {
+  const turn = TN.sharedTurn(ts);
+  const other = turn ? ts.find((x) => x !== turn) : null;
+  const nextOther = other ? pending(other, 0)[0] : null;
+  const allDone = ts.every((x) => x.matches.every((m) => m.done));
+  return h('div', { class: 'tn-body tn-shared' },
+    h('section', { class: 'tn-panel' },
+      turn ? h('div', { class: `tn-turn side-${turn.side}` }, `En jeu : ${turn.label || turn.name}`) : null,
+      h('div', { class: 'tn-stage n1' }, allDone ? h('div', { class: 'tn-twopod' }, ts.map((x) => podium(x))) : turn ? board(ctx, turn, 0, nextOther ? { t: other, m: nextOther } : null) : null),
+      h('div', { class: 'tn-aside' }, ts.map((x) => h('div', { class: `tn-card tn-matches side-${x.side}` },
+        h('div', { class: 'tn-cardhead' }, h('b', null, x.label || x.name.replace(/^.*·\s*/, '')), h('span', { class: 'muted small' }, `${x.matches.filter((m) => m.done).length}/${x.matches.length} joués · ${TN.matchMinutes(x)} min`)),
+        matchList(ctx, x, [0]))))));
 }
 
 function tournamentPanel(ctx, t, split) {
@@ -339,7 +377,7 @@ function tournamentPanel(ctx, t, split) {
       split ? null : rankCard(t)));
 }
 
-function board(ctx, t, court) {
+function board(ctx, t, court, nextOverride = null) {
   const m = currentOf(t, court);
   if (!m) {
     return h('div', { class: 'tn-board idle' }, h('div', { class: 'tn-wait' }, icon('chrono', 30),
@@ -376,11 +414,13 @@ function board(ctx, t, court) {
   icon(running ? 'pause' : 'play', 24), h('span', null, over ? 'Temps écoulé' : running ? 'Pause' : elapsed > 0 ? 'Reprendre' : 'Démarrer'));
   const validate = h('button', { type: 'button', class: `tn-validate ${over ? 'hot' : ''}`, onClick: async () => {
     if (!over && !(await confirmDialog('Le temps n\'est pas écoulé. Valider quand même ce match ?', 'Valider', { danger: false }))) return;
-    m.done = true; if (t.live) delete t.live[court];
+    m.done = true; m.doneAt = Date.now(); if (t.live) delete t.live[court];
     TN.resolveFinals(t); save();
     if (t.matches.every((x) => x.done)) toast('Tournoi terminé.');
   } }, icon('check', 20), h('span', null, 'Valider le match'));
-  const nx = pending(t, court)[1];
+  const nx = nextOverride ? nextOverride.m : pending(t, court)[1];
+  const nxT = nextOverride ? nextOverride.t : t;
+  if (t.board === 'suivi') return simpleBoard(ctx, t, court, m, save, nx, nxT);
   return h('div', { class: 'tn-board', 'data-st': over ? 'over' : running ? 'run' : 'idle', style: { '--ref': ref ? ref.hex : '#3a3f55' } },
     h('div', { class: 'tn-top' },
       h('span', { class: 'tn-title' }, `${matchTitle(t, m)}${t.courts === 2 ? ` · Terrain ${court + 1}` : ''}`),
@@ -395,8 +435,28 @@ function board(ctx, t, court) {
     h('div', { class: 'tn-foot' },
       h('button', { type: 'button', class: 'tn-mini', 'aria-label': 'Annuler le dernier point', disabled: !(m.log || []).length, onClick: () => { if (TN.undoPoint(m)) save(); } }, icon('undo', 18), h('span', null, 'Annuler le dernier point')),
       h('button', { type: 'button', class: 'tn-mini', 'aria-label': 'Chrono à zéro', disabled: !elapsed, onClick: () => { if (t.live) delete t.live[court]; save(); } }, icon('reset', 18), h('span', null, 'Zéro')),
-      h('span', { class: 'tn-next' }, nx ? ['Ensuite : ', dot(vest(t, nx.a).hex), nameOf(t, nx.a), ' – ', dot(vest(t, nx.b).hex), nameOf(t, nx.b)] : ''),
+      h('span', { class: 'tn-next' }, nx ? ['Ensuite : ', nxT !== t ? `${nxT.name.replace(/^.*·\s*/, '')} · ` : '', dot(vest(nxT, nx.a).hex), nameOf(nxT, nx.a), ' – ', dot(vest(nxT, nx.b).hex), nameOf(nxT, nx.b)] : ''),
       validate));
+}
+
+/** Suivi simple (sans table de marque) : les deux équipes, le score réglé avec + et −, puis « Match suivant ». */
+function simpleBoard(ctx, t, court, m, save, nx, nxT) {
+  const side = (sd, id) => {
+    const v = vest(t, id);
+    return h('div', { class: 'tn-sside', style: { '--v': v.hex } },
+      h('div', { class: 'tn-tname' }, h('span', { class: 'vdot' }), h('span', null, nameOf(t, id))),
+      h('div', { class: 'tn-sscore' },
+        h('button', { type: 'button', class: 'tn-sbtn', 'aria-label': `−1 ${nameOf(t, id)}`, onClick: () => { if (TN.addPoint(m, sd, -1)) { buzz('undo'); save(); } } }, '−'),
+        h('b', null, sd === 'a' ? m.sa : m.sb),
+        h('button', { type: 'button', class: 'tn-sbtn plus', 'aria-label': `+1 ${nameOf(t, id)}`, onClick: () => { if (TN.addPoint(m, sd, 1)) { buzz('tap'); save(); } } }, '+')));
+  };
+  return h('div', { class: 'tn-board tn-simple' },
+    h('div', { class: 'tn-top' }, h('span', { class: 'tn-title' }, `${matchTitle(t, m)}${t.courts === 2 ? ` · Terrain ${court + 1}` : ''}`),
+      m.ref ? h('span', { class: 'tn-ref' }, 'Arbitre : ', h('b', null, nameOf(t, m.ref))) : null),
+    h('div', { class: 'tn-smid' }, side('a', m.a), h('span', { class: 'tn-svs' }, '–'), side('b', m.b)),
+    h('div', { class: 'tn-foot' },
+      h('span', { class: 'tn-next' }, nx ? ['Ensuite : ', dot(vest(nxT, nx.a).hex), nameOf(nxT, nx.a), ' – ', dot(vest(nxT, nx.b).hex), nameOf(nxT, nx.b)] : ''),
+      h('button', { type: 'button', class: 'tn-validate hot', onClick: () => { m.done = true; m.doneAt = Date.now(); TN.resolveFinals(t); save(); if (t.matches.every((x) => x.done)) toast('Tournoi terminé.'); } }, icon('next', 20), h('span', null, 'Match suivant'))));
 }
 
 /** Fin du tournoi : podium à la place de la table de marque. */

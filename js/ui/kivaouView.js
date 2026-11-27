@@ -52,9 +52,11 @@ registerView('kivaou', (r) => {
   const c = ctxFor(r);
   if (!c) { queueMicrotask(() => go('home')); return h('div'); }
   const today = todayISO();
-  let s = c.K.sessions.find((x) => x.id === V.sessionId);
-  if (!s || (V.tab === 'course' && s.date !== today)) s = KV.todaySession(c.K, today);
-  V.sessionId = s.id;
+  // séance en cours (« ⋮ › Nouvelle séance » en ouvre une autre, la précédente reste dans le bilan)
+  let s = c.K.sessions.find((x) => x.id === c.K.currentId);
+  if (!s || s.date !== today) { s = KV.todaySession(c.K, today); c.K.currentId = s.id; }
+  if (V.tab === 'course' || !c.K.sessions.some((x) => x.id === V.sessionId)) V.sessionId = s.id;
+  const shown = c.K.sessions.find((x) => x.id === V.sessionId) || s;
   if (!V.ticker) V.ticker = setInterval(tick, 500);
   const apply = (fn) => { fn(); render(); c.save(); };
   const t = Date.now();
@@ -68,6 +70,13 @@ registerView('kivaou', (r) => {
   const m = iconBtn('more', 'Options', () => popMenu(m, [
     { label: 'Réglages (temps, malus, parcours)…', onClick: () => settingsDialog(c) },
     { label: c.K.settings.grouped ? 'Départ groupé : activé' : 'Départ groupé : désactivé', active: c.K.settings.grouped, onClick: () => apply(() => { c.K.settings.grouped = !c.K.settings.grouped; }) },
+    { label: 'Nouvelle séance (tout repart à zéro)', disabled: !s.groups.length, onClick: async () => {
+      if (out.length && !(await confirmDialog(`${out.length} groupe(s) ne sont pas rentrés. Ouvrir quand même une nouvelle séance ?`, 'Nouvelle séance', { danger: true }))) return;
+      const prevId = c.K.currentId;
+      const ns = { id: uid(), date: today, groups: [], createdAt: Date.now() };
+      apply(() => { c.K.sessions.push(ns); c.K.currentId = ns.id; V.sessionId = ns.id; });
+      toast('Nouvelle séance : la précédente est gardée dans le bilan.', { action: 'Annuler', ms: 9000, onAction: () => apply(() => { c.K.sessions = c.K.sessions.filter((x) => x !== ns || x.groups.length); c.K.currentId = prevId; V.sessionId = prevId; }) });
+    } },
     helpItem('kivaou'),
   ]), 'boxed');
   const tabs = h('div', { class: 'seg' }, [['course', 'Course'], ['bilan', 'Bilan']].map(([k, l]) => h('button', { type: 'button', class: V.tab === k ? 'on' : '', onClick: () => { V.tab = k; render(); } }, l)));
@@ -77,13 +86,13 @@ registerView('kivaou', (r) => {
     V.tab === 'course' && c.K.settings.grouped && ready.length ? btn(`GO pour tous (${ready.length})`, { icon: 'play', cls: 'primary kvgoall', onClick: () => apply(() => { const t0 = Date.now(); for (const g of ready) KV.go(g, t0); buzz('change'); }) }) : null,
     V.tab === 'course' ? btn('Nouveau groupe', { icon: 'plus', cls: c.K.settings.grouped && ready.length ? '' : 'primary', onClick: () => groupDialog(c, s, apply) }) : null,
     m);
-  if (V.tab === 'bilan') return h('div', { class: 'main kivaou' }, top, h('div', { class: 'scroll grow listpad', 'data-keep': 'kv-bilan' }, bilanNode(c, s, true)));
+  if (V.tab === 'bilan') return h('div', { class: 'main kivaou' }, top, h('div', { class: 'scroll grow listpad', 'data-keep': 'kv-bilan' }, bilanNode(c, shown, true)));
 
   // bandeau de sécurité, toujours en haut
   const late = out.filter((g) => KV.stateOf(c.K, g, t) === 'over');
   const banner = s.groups.some((g) => g.start)
     ? h('div', { class: `kvbanner ${late.length ? 'late' : out.length ? 'out' : 'ok'}` },
-      out.length ? [h('b', null, `${out.length} groupe${out.length > 1 ? 's' : ''} pas rentré${out.length > 1 ? 's' : ''}`), late.length ? h('span', null, ` · ${late.length} en retard : ${late.map((g) => `groupe ${g.n}`).join(', ')}`) : null]
+      out.length ? [h('b', null, `${out.length} groupe${out.length > 1 ? 's' : ''} pas rentré${out.length > 1 ? 's' : ''}`), late.length ? h('span', null, ` · en retard : ${late.map((g) => g.sids.map(c.name).join(', ')).join(' / ')}`) : null]
         : h('b', null, 'Tout le monde est rentré'))
     : null;
   const order = { over: 0, warn1: 1, warn2: 2, run: 3, ready: 4 };
@@ -97,7 +106,7 @@ registerView('kivaou', (r) => {
         iconBtn('more', `Groupe ${g.n}`, (e) => popMenu(e.currentTarget, [
           { label: 'Modifier les élèves / le parcours…', onClick: () => groupDialog(c, s, apply, g) },
           g.start ? { label: 'Annuler le départ', onClick: () => apply(() => { g.start = null; V.alarmed.delete(g.id); }) } : null,
-          { label: 'Supprimer le groupe', danger: true, onClick: () => apply(() => { s.groups = s.groups.filter((x) => x !== g); }) },
+          { label: 'Supprimer le groupe', danger: true, onClick: () => { const i = s.groups.indexOf(g); apply(() => { s.groups.splice(i, 1); }); toast('Groupe supprimé.', { action: 'Annuler', ms: 8000, onAction: () => apply(() => { s.groups.splice(i, 0, g); }) }); } },
         ].filter(Boolean)), 'sm')),
       h('div', { class: 'kvnames' }, g.sids.map(c.name).join(' · ')),
       g.start ? [
@@ -112,14 +121,15 @@ registerView('kivaou', (r) => {
   const small = (g) => {
     const res = KV.resultOf(c.K, g);
     return h('button', { type: 'button', class: `kvsmall ${res.late ? 'late' : ''}`, onClick: () => resultDialog(c, g, apply) },
-      h('b', null, `Groupe ${g.n}`), h('span', null, KV.courseOf(c.K, g.course).name),
+      h('b', null, g.sids.map(c.name).join(' · ')), h('span', null, KV.courseOf(c.K, g.course).name),
       h('span', null, `${mmss(res.time)}${res.late ? ' (hors temps)' : ''}`),
       h('span', { class: g.found == null ? 'todo' : '' }, g.found == null ? 'balises à saisir' : `${g.found}/${g.sought} balises`));
   };
   return h('div', { class: 'main kivaou' }, top, banner,
     h('div', { class: 'scroll grow kvbody', 'data-keep': 'kv' },
-      active.length ? h('div', { class: 'kvgrid' }, active.map(card))
-        : h('div', { class: 'empty' }, h('h2', null, s.groups.length ? 'Aucun groupe dehors' : 'Aucun groupe'), h('p', null, 'Touchez « Nouveau groupe » : les élèves, le parcours, puis GO.'), btn('Nouveau groupe', { icon: 'plus', cls: 'primary', onClick: () => groupDialog(c, s, apply) })),
+      // beaucoup de groupes : cartes resserrées pour tout voir sur un écran
+      active.length ? h('div', { class: `kvgrid ${active.length > 9 ? 'd3' : active.length > 6 ? 'd2' : ''}` }, active.map(card))
+        : h('div', { class: 'empty' }, h('h2', null, s.groups.length ? 'Aucun groupe dehors' : 'Aucun groupe'), h('p', null, 'Touchez « Nouveau groupe » : les élèves, le parcours, « Prêt », puis GO sur la carte.'), btn('Nouveau groupe', { icon: 'plus', cls: 'primary', onClick: () => groupDialog(c, s, apply) })),
       backs.length ? h('div', { class: 'kvbacks' },
         h('button', { type: 'button', class: 'kvbackhead', onClick: () => { V.showBack = !V.showBack; render(); } }, icon(V.showBack ? 'up' : 'plus', 18), `Rentrés (${backs.length})`, backs.some((g) => g.found == null) ? h('span', { class: 'muted small' }, ' · touchez un groupe pour saisir ses balises') : null),
         V.showBack ? h('div', { class: 'kvsmalls' }, backs.map(small)) : null) : null));
@@ -146,8 +156,7 @@ function groupDialog(c, s, apply, g = null) {
     });
   };
   openDialog({ title: g ? `Groupe ${g.n}` : 'Nouveau groupe', body, wide: true, actions: g ? [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: save(false) }]
-    : c.K.settings.grouped ? [{ label: 'Annuler' }, { label: 'Ajouter le groupe', primary: true, onClick: save(false) }]
-      : [{ label: 'Annuler' }, { label: 'Prêt (GO plus tard)', onClick: save(false) }, { label: 'GO', primary: true, onClick: save(true) }] });
+    : [{ label: 'Annuler' }, { label: 'Prêt', primary: true, onClick: save(false) }] }); // le départ se fait par le GO de la carte
 }
 
 const stepper = (val, set, { min = 0, max = 99, unit = '' } = {}) => h('div', { class: 'stepper big' },
@@ -199,19 +208,34 @@ export function kivaouSettingsDialog(initial, onSave, activityName = null, { pre
 // ---------- Bilan ----------
 
 export function bilanNode(c, s, interactive = false) {
+  const mode = interactive ? V.sortBy : 'rank';
+  const seg = interactive ? h('div', { class: 'seg' }, [['rank', 'Classement'], ['group', 'Par groupe'], ['course', 'Par parcours'], ['all', 'Depuis le début']].map(([k, l]) => h('button', { type: 'button', class: mode === k ? 'on' : '', onClick: () => { V.sortBy = k; render(); } }, l))) : null;
+  const sessions = [...c.K.sessions].filter((x) => x.groups.length).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.createdAt || 0) - (a.createdAt || 0)));
+  const label = (x) => { const same = sessions.filter((y) => y.date === x.date); return `Séance du ${fmtDate(x.date)}${same.length > 1 ? ` (${same.length - same.indexOf(x)})` : ''}`; };
+  if (mode === 'all') {
+    const rows = KV.overall(c.K, c.students.map((x) => x.id));
+    return h('div', null, h('div', { class: 'row wrap', style: { marginBottom: '10px' } }, seg, h('span', { class: 'muted small' }, `${sessions.length} séance(s) · une ligne par élève`)),
+      h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'edit restab kvtab' },
+        h('thead', null, h('tr', null, ['Élève', 'Sorties', 'Parcours faits', 'Balises', 'Meilleur temps', 'Hors temps'].map((x) => h('th', null, x)))),
+        h('tbody', null, rows.map((x) => h('tr', null, h('td', null, c.name(x.sid)), h('td', null, String(x.runs || '–')), h('td', null, x.courses || '–'),
+          h('td', null, x.sought ? `${x.found}/${x.sought}` : '–'), h('td', null, x.best != null ? mmss(x.best) : '–'), h('td', null, x.late ? String(x.late) : '–')))))));
+  }
   const rows = KV.bilan(c.K, s);
-  if (!rows.length) return h('p', { class: 'muted' }, 'Pas encore de groupe pour cette séance.');
-  if (V.sortBy === 'group') rows.sort((a, b) => a.group - b.group || collator.compare(c.name(a.sid), c.name(b.sid)));
-  const sessions = [...c.K.sessions].filter((x) => x.groups.length).sort((a, b) => (a.date < b.date ? 1 : -1));
+  if (!rows.length) return h('div', null, interactive ? h('div', { class: 'row wrap', style: { marginBottom: '10px' } }, seg) : null, h('p', { class: 'muted' }, 'Pas encore de groupe pour cette séance.'));
+  if (mode === 'group') rows.sort((a, b) => a.group - b.group || collator.compare(c.name(a.sid), c.name(b.sid)));
+  if (mode === 'course') rows.sort((a, b) => collator.compare(a.course, b.course) || (a.done - b.done) * -1 || (a.late - b.late) || (a.total - b.total));
+  // par parcours : rang recalculé dans chaque parcours
+  if (mode === 'course') { const by = {}; for (const x of rows) { if (!x.done) continue; by[x.course] ??= []; by[x.course].push(x); } for (const list of Object.values(by)) list.forEach((x, i) => { x.crank = i > 0 && list[i - 1].total === x.total && list[i - 1].late === x.late ? list[i - 1].crank : i + 1; }); }
+  const names = (gid) => s.groups.find((g) => g.id === gid)?.sids.map(c.name).join(', ');
   return h('div', null,
     interactive ? h('div', { class: 'row wrap', style: { marginBottom: '10px' } },
-      sessions.length > 1 ? h('select', { 'aria-label': 'Séance', onChange: (e) => { V.sessionId = e.target.value; render(); } }, sessions.map((x) => h('option', { value: x.id, selected: x.id === s.id }, `Séance du ${fmtDate(x.date)}`))) : null,
-      h('div', { class: 'seg' }, [['rank', 'Classement'], ['group', 'Par groupe']].map(([k, l]) => h('button', { type: 'button', class: V.sortBy === k ? 'on' : '', onClick: () => { V.sortBy = k; render(); } }, l))),
-      h('span', { class: 'muted small' }, `Total = temps + ${c.K.settings.malusMin} min par balise manquée · hors temps : toujours derniers`)) : null,
+      sessions.length > 1 ? h('select', { 'aria-label': 'Séance', onChange: (e) => { V.sessionId = e.target.value; render(); } }, sessions.map((x) => h('option', { value: x.id, selected: x.id === s.id }, label(x)))) : null,
+      seg, h('span', { class: 'muted small' }, `Total = temps + ${c.K.settings.malusMin} min par balise manquée · hors temps : toujours derniers`)) : null,
     h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'edit restab kvtab' },
-      h('thead', null, h('tr', null, ['Rang', 'Élève', 'Groupe', 'Parcours', 'Temps', 'Balises', 'Total'].map((x) => h('th', null, x)))),
-      h('tbody', null, rows.map((x) => h('tr', { class: x.late ? 'late' : '' },
-        h('td', null, x.done ? (x.late ? 'H.T.' : String(x.rank)) : '–'), h('td', null, c.name(x.sid)), h('td', null, String(x.group)), h('td', null, x.course),
+      h('thead', null, h('tr', null, ['Rang', 'Élève', 'Avec', 'Parcours', 'Temps', 'Balises', 'Total'].map((x) => h('th', null, x)))),
+      h('tbody', null, rows.map((x, i) => h('tr', { class: `${x.late ? 'late' : ''} ${(mode === 'group' && i && rows[i - 1].group !== x.group) || (mode === 'course' && i && rows[i - 1].course !== x.course) ? 'sep' : ''}` },
+        h('td', null, x.done ? (x.late ? 'H.T.' : String(mode === 'course' ? x.crank : x.rank)) : '–'), h('td', null, h('b', null, c.name(x.sid))),
+        h('td', { class: 'muted' }, (names(x.gid) || '').split(', ').filter((n) => n !== c.name(x.sid)).join(', ') || '–'), h('td', null, x.course),
         h('td', null, x.done ? mmss(x.time) : 'dehors'), h('td', null, x.found != null ? `${x.found}/${x.sought}` : '–'),
         h('td', null, x.done ? h('b', null, mmss(x.total)) : '–')))))));
 }

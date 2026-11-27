@@ -138,6 +138,8 @@ function forgetsTab(cls) {
       iconBtn('plus', `Ajouter un oubli à ${s.first}`, () => change(s, 1), 'boxed fbtn primaryish'),
       h('span', { class: 'muted small flast' }, l.length ? `dernier : ${fmtDate(l.at(-1))}` : ''));
   };
-  return h('div', { class: 'forgets scroll', 'data-keep': 'forgets' },
+  // toute la classe sur une page : plusieurs colonnes et lignes resserrées quand il y a beaucoup d'élèves
+  const density = shown.length > 24 ? 'dense2' : shown.length > 12 ? 'dense' : '';
+  return h('div', { class: `forgets scroll ${density}`, 'data-keep': 'forgets' },
     shown.length ? shown.map(row) : h('div', { class: 'empty' }, list.length ? 'Aucun élève à 3 croix ou plus.' : 'Cette classe n\'a pas encore d\'élèves.'));
 }

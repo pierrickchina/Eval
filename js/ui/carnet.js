@@ -25,7 +25,10 @@ export function repairActivities(cls) {
 // ---------- Vue principale ----------
 
 export function hubTab(cls) {
-  const acts = activitiesOf(cls);
+  // l'activité modifiée le plus récemment en haut (outil utilisé, évaluation modifiée…)
+  const evals = app.repo.list('evaluations').filter((e) => e.classId === cls.id);
+  const recent = (a) => Math.max(a.createdAt || 0, ...a.tools.map((t) => t.lastUsed || t.addedAt || 0), ...evals.filter((e) => e.activityId === a.id).map((e) => e.updatedAt || e.createdAt || 0));
+  const acts = [...activitiesOf(cls)].sort((a, b) => recent(b) - recent(a));
   return h('div', { class: 'hub scroll grow', 'data-keep': 'hub' },
     acts.length ? acts.map((a) => activityFrame(cls, a))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucune activité'),
@@ -39,7 +42,7 @@ function activityFrame(cls, act) {
   const showAll = E.all.has(act.id);
   const tools = showAll ? [...shown, ...hidden] : shown;
   const add = iconBtn('plus', 'Ajouter un outil', () => popMenu(add, [
-    ...Object.entries(TOOLS).filter(([, t]) => t.available).map(([type, t]) => ({
+    ...Object.entries(TOOLS).filter(([, t]) => t.available && !t.freeOnly).map(([type, t]) => ({
       label: type === 'evaluation' ? 'Nouvelle évaluation…' : `${t.label}${hasTool(act, type) ? ' (ouvrir)' : ''}`,
       onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : useTool(cls, act, type)),
     })),
@@ -151,7 +154,7 @@ export function newActivityDialog(cls) {
     .filter(Boolean).sort(collator.compare);
   const st = { name: '', tools: new Set(['evaluation']), touched: false, color: ACTIVITY_COLORS[activitiesOf(cls).length % ACTIVITY_COLORS.length] };
   const toolBox = h('div', { class: 'toolchecks' });
-  const paintTools = () => toolBox.replaceChildren(...Object.entries(TOOLS).filter(([, t]) => t.available).map(([type, t]) => h('label', { class: 'row' },
+  const paintTools = () => toolBox.replaceChildren(...Object.entries(TOOLS).filter(([, t]) => t.available && !t.freeOnly).map(([type, t]) => h('label', { class: 'row' },
     h('input', { type: 'checkbox', checked: st.tools.has(type), style: { width: '22px', height: '22px' },
       onChange: (e) => { st.touched = true; e.target.checked ? st.tools.add(type) : st.tools.delete(type); } }),
     h('span', null, t.label))));
@@ -252,7 +255,7 @@ function manageToolsDialog(cls, act) {
   const sel = new Set(act.tools.map((t) => t.type));
   openDialog({
     title: `Outils · ${act.name}`,
-    body: Object.entries(TOOLS).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available || sel.has(type) ? 1 : .55 } },
+    body: Object.entries(TOOLS).filter(([, t]) => !t.freeOnly).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available || sel.has(type) ? 1 : .55 } },
       h('input', { type: 'checkbox', checked: sel.has(type), disabled: !t.available && !sel.has(type), style: { width: '22px', height: '22px' },
         onChange: (e) => { e.target.checked ? sel.add(type) : sel.delete(type); } }),
       h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — plus tard')))),

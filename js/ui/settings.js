@@ -73,12 +73,19 @@ function presetsTab() {
   const all = allPresets();
   const keys = Object.keys(all).sort((a, b) => collator.compare(all[a].label || a, all[b].label || b));
   const addDlg = () => {
-    let name = '';
-    const dlg = openDialog({ title: 'Préréglage pour une activité', body: [
-      h('label', { class: 'field' }, 'Activité (nom tel qu\'il apparaît dans le carnet)', h('input', { type: 'text', list: 'preset-acts', autofocus: true, placeholder: 'ex. Course d\'orientation, Mario Kart, Basket…', onInput: (e) => { name = e.target.value; } }),
-        h('datalist', { id: 'preset-acts' }, [...new Set(app.repo.list('classes').flatMap((c) => (c.activities || []).map((a) => a.name)))].map((n) => h('option', { value: n })))),
-      h('div', { class: 'row wrap' }, Object.entries(PRESET_TOOLS).filter(([k]) => k !== 'tournoi').map(([k, l]) => btn(l, { onClick: () => { if (!name.trim()) return toast('Donnez le nom de l\'activité.'); dlg.close(); editPreset(name.trim(), k); } })))],
-    actions: [{ label: 'Annuler' }] });
+    // choix par boutons : activités des classes + APSA courantes (le clavier reste possible)
+    const names = [...new Set([...app.repo.list('classes').flatMap((c) => (c.activities || []).map((a) => a.name)), 'Course d\'orientation', 'Mario Kart', 'Circuit training', 'Basket', 'Handball', 'Ultimate', 'Futsal'])].sort(collator.compare);
+    const st = { name: '' };
+    const body = h('div', { class: 'dlg-body kvdlg' });
+    const toolFor = (n) => { const x = norm(n); return /orientation|\bco\b|kivaou/.test(x) ? ['kivaou'] : /mario|\bmk\b/.test(x) ? ['mariokart'] : /circuit|\bct\b/.test(x) ? ['circuit'] : ['kivaou', 'mariokart', 'circuit']; };
+    const paint = () => body.replaceChildren(
+      h('div', { class: 'field' }, '1. L\'activité', h('div', { class: 'kvpick' }, names.map((n) => h('button', { type: 'button', class: `kvchip ${st.name === n ? 'on' : ''}`, onClick: () => { st.name = n; paint(); } }, n))),
+        h('input', { type: 'text', value: names.includes(st.name) ? '' : st.name, placeholder: 'ou un autre nom…', onInput: (e) => { st.name = e.target.value; } })),
+      h('div', { class: 'field' }, '2. L\'outil', h('div', { class: 'kvpick' }, (st.name ? toolFor(st.name) : ['kivaou', 'mariokart', 'circuit']).map((k) => h('button', { type: 'button', class: 'kvchip course',
+        onClick: () => { if (!st.name.trim()) return toast('Choisissez d\'abord l\'activité.'); dlg.close(); editPreset(st.name.trim(), k); } }, PRESET_TOOLS[k])))),
+      h('p', { class: 'muted small' }, 'Le préréglage Tournoi s\'enregistre depuis un tournoi (⋮).'));
+    paint();
+    const dlg = openDialog({ title: 'Nouveau préréglage', body, wide: true, actions: [{ label: 'Annuler' }] });
   };
   return [
     h('div', { class: 'row wrap', style: { marginBottom: '12px' } }, btn('Nouveau préréglage', { icon: 'plus', cls: 'primary', onClick: addDlg }),
@@ -275,13 +282,13 @@ function dataTab(which = 'data') {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.10.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.11.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];
   // P : 0 affichage, 1 découverte, 2 sauvegarde, 3 Drive, 4 notation, 5 auto-évaluation, 6 application
   return which === 'general'
-    ? [trimestersPanel(app.repo.list('classes')), P[4], P[5], P[0], P[1], P[6]]
+    ? [P[4], P[5], P[0], P[1], trimestersPanel(app.repo.list('classes')), P[6]] // trimestres en avant-dernier
     : [P[2], P[3]];
 }
 

@@ -29,7 +29,6 @@ registerView('home', () => {
       syncChip(),
       classes.length || evals.length ? backupChip() : null,
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') })),
-    pinnedRow(),
     h('div', { class: 'toolbar' }, tabs,
       F.tab === 'classes' && classes.length ? h('select', { 'aria-label': 'Niveau', value: F.level, onChange: (e) => { F.level = e.target.value; render(); } },
         h('option', { value: '' }, 'Tous les niveaux'), levels.map((l) => h('option', { value: l }, l))) : null,
@@ -68,7 +67,7 @@ function toolsTab() {
   const pins = pinnedTools();
   const tile = ([type, t]) => {
     const pinned = pins.includes(type);
-    const star = t.available && t.free ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer de l\'accueil' : 'Épingler en haut de l\'accueil', 'aria-pressed': pinned,
+    const star = t.available && t.free ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer des favoris' : 'Mettre en favori (en tête des outils)', 'aria-pressed': pinned,
       onClick: async (e) => { e.stopPropagation(); await togglePin(type); render(); } }, icon('star', 20)) : null;
     return h('div', { class: `tooltile big ${t.available ? '' : 'soon'}`, role: 'button', tabindex: 0, style: { '--tc': toolColor(type) },
       onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil se trouve dans le carnet de bord d\'une classe.' : `${t.label} : prévu pour plus tard.`)),
@@ -76,9 +75,14 @@ function toolsTab() {
     h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
   };
   return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
-    ...[['Pour toutes les activités', ([k, t]) => t.available && ['chrono', 'equipes', 'tournoi'].includes(k)],
-      ['Par activité', ([k, t]) => t.available && k !== 'evaluation' && !['chrono', 'equipes', 'tournoi'].includes(k)],
-      ['Plus tard', ([, t]) => !t.available]].map(([title, f]) => [h('h3', { class: 'toolsec' }, title), h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(f).map(tile))]).flat(),
+    ...[['Favoris', ([k]) => pins.includes(k), 'fav'],
+      ['Pour toutes les activités', ([k, t]) => t.available && !pins.includes(k) && ['chrono', 'equipes', 'tournoi'].includes(k)],
+      ['Par activité', ([k, t]) => t.available && !pins.includes(k) && k !== 'evaluation' && !['chrono', 'equipes', 'tournoi'].includes(k)],
+      ['Plus tard', ([, t]) => !t.available]].map(([title, f, cls]) => {
+      // outils utilisables sans classe en premier
+      const items = Object.entries(TOOLS).filter(f).sort((a, b) => (!!b[1].free - !!a[1].free));
+      return items.length ? [h('h3', { class: `toolsec ${cls || ''}` }, title), h('div', { class: `tooltiles big ${cls || ''}` }, items.map(tile))] : [];
+    }).flat(),
     h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));
 }
 

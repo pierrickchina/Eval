@@ -74,7 +74,7 @@ registerView('mariokart', (r) => {
       ver !== 'v1' ? h('div', { class: 'mkline' },
         btn(ver === 'v3' ? (g.gifts ? `Tirer un cadeau (${g.gifts})` : 'Tirer un cadeau') : 'Tirer un cadeau', { icon: 'star', cls: `mkgift ${ver === 'v3' && g.gifts ? 'primary' : ''}`, disabled: ver === 'v3' && !g.gifts,
           onClick: () => giftDraw(st, g, () => { if (ver === 'v3') g.gifts = Math.max(0, g.gifts - 1); save(); render(); }) })) : null,
-      h('div', { class: 'mkbonus' }, st.bonus.map((b) => h('button', { type: 'button', class: `mkb ${g.bonus[b] ? 'on' : ''}`, title: MK.MK_BONUS_DESC[b] || '', onClick: () => apply(() => MK.addBonus(g, b, d())) },
+      ver === 'v1' ? null : h('div', { class: 'mkbonus' }, st.bonus.map((b) => h('button', { type: 'button', class: `mkb ${g.bonus[b] ? 'on' : ''}`, title: MK.MK_BONUS_DESC[b] || '', onClick: () => apply(() => MK.addBonus(g, b, d())) },
         h('span', null, b), h('b', null, String(g.bonus[b] || 0))))),
       h('div', { class: 'mktotal' }, h('span', { class: 'muted small' }, `Groupe performant : ${levelInfo(MK.lapsLevel(g.laps)).label.toLowerCase()}`), h('b', null, `${MK.totalOf(st, g)} pts`)));
   };
@@ -86,9 +86,9 @@ registerView('mariokart', (r) => {
   ]), 'boxed');
   return h('div', { class: 'main mk' },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, `Mario Kart ${MK.MK_VERSIONS[ver].label}`), h('div', { class: 'sub' }, act ? act.name : 'Total = tours × 2 − malus + objectif validé')),
+      h('div', { class: 'grow evtitle' }, h('h1', null, `Mario Kart ${MK.MK_VERSIONS[ver].label}`), h('div', { class: 'sub' }, act ? act.name : 'Compteur de course')),
       h('div', { class: `mkclock ${left <= 60000 ? 'warn' : ''} ${left <= 0 ? 'done' : ''}` }, h('b', null, clockText(Math.max(0, left), false)),
-        btn(running ? 'Pause' : left <= 0 ? 'Terminé' : MK.elapsedMs(st) ? 'Reprendre' : 'Départ', { icon: running ? 'pause' : 'play', cls: running ? '' : 'primary', disabled: left <= 0,
+        btn(running ? 'Pause' : left <= 0 ? 'Terminé' : MK.elapsedMs(st) ? 'Reprendre' : 'Départ', { icon: running ? 'pause' : 'play', cls: `mkgo ${running ? '' : 'primary'}`, disabled: left <= 0,
           onClick: () => apply(() => { if (running) { st.clock.base = MK.elapsedMs(st); st.clock.startedAt = null; } else st.clock.startedAt = Date.now(); }, 'change') }),
         MK.elapsedMs(st) && !running ? iconBtn('reset', 'Remettre le chrono à zéro', () => apply(() => { st.clock = { base: 0, startedAt: null }; })) : null),
       h('div', { class: 'stepper', role: 'group', 'aria-label': 'Nombre de groupes' },
@@ -101,22 +101,25 @@ registerView('mariokart', (r) => {
     h('div', { class: `mkgrid scroll n${st.groups.length}`, 'data-keep': 'mkgrid' }, st.groups.map(card)));
 });
 
-/** Tirage d'un cadeau avec une petite animation façon « boîte à objets ». */
+/** Tirage d'un cadeau avec une petite animation façon « boîte à objets » (images de la fiche MK bonus). */
 function giftDraw(st, g, done) {
   const final = MK.drawGift(st);
   if (!final) return toast('Aucun bonus dans la liste (⋮ › Réglages).');
   MK.addBonus(g, final, 1);
+  const pic = h('div', { class: 'mkpic' });
   const name = h('div', { class: 'mkroll' }, st.bonus[0]);
   const desc = h('p', { class: 'mkdesc' });
+  const show = (b) => { name.textContent = b; const src = MK.bonusImg(b); pic.replaceChildren(src ? h('img', { src, alt: b }) : h('span', { class: 'mkq' }, '?')); };
   const ok = btn('OK', { cls: 'primary bigbtn', onClick: () => { ov.remove(); done(); } });
   ok.style.visibility = 'hidden';
-  const ov = h('div', { class: 'mkoverlay', role: 'dialog', 'aria-label': 'Cadeau' }, h('div', { class: 'mkbox', style: { '--v': vestOf(g.color).hex } }, h('div', { class: 'mkboxt' }, `${g.name} · cadeau`), name, desc, ok));
+  const ov = h('div', { class: 'mkoverlay', role: 'dialog', 'aria-label': 'Cadeau' }, h('div', { class: 'mkbox', style: { '--v': vestOf(g.color).hex } }, h('div', { class: 'mkboxt' }, `${g.name} · cadeau`), pic, name, desc, ok));
   document.body.append(ov);
-  const finish = () => { name.textContent = final; name.classList.add('final'); desc.textContent = MK.MK_BONUS_DESC[final] || ''; ok.style.visibility = 'visible'; buzz('change'); };
+  show(st.bonus[0]);
+  const finish = () => { show(final); name.classList.add('final'); pic.classList.add('final'); desc.textContent = MK.MK_BONUS_DESC[final] || ''; ok.style.visibility = 'visible'; buzz('change'); };
   if (getDisplay().motion === 'reduced') return finish();
   let i = 0, delay = 60;
   const spin = () => {
-    name.textContent = st.bonus[i++ % st.bonus.length];
+    show(st.bonus[i++ % st.bonus.length]);
     buzz('tap');
     delay *= 1.16;
     if (delay > 320) return setTimeout(finish, 260);

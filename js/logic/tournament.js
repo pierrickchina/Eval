@@ -30,7 +30,7 @@ export function sportFromActivity(name, level = '') {
 export const DEFAULT_SETTINGS = {
   sport: 'handball', halves: 1, halfMin: 5, pauseMin: 2, pts: { w: 3, d: 2, l: 1 }, courts: 1,
   format: 'single', finals: 'none', perTeam: null, changeover: 2,
-  change: { on: true, mode: 'mid', custom: '' }, customButtons: '1,2,3',
+  change: { on: true, mode: 'mid', custom: '' }, customButtons: '1,2,3', board: 'table',
 };
 
 /** Nom proposé : « Tournoi » + date. */
@@ -45,10 +45,28 @@ export function newTournament({ name, date, teams, settings = {}, scope = 'free'
 }
 
 /** Réglages à reprendre du dernier tournoi (pour pré-remplir le suivant). */
-export const SETTING_KEYS = ['sport', 'halves', 'halfMin', 'pauseMin', 'pts', 'courts', 'format', 'finals', 'perTeam', 'changeover', 'change', 'customButtons'];
+export const SETTING_KEYS = ['sport', 'halves', 'halfMin', 'pauseMin', 'pts', 'courts', 'format', 'finals', 'perTeam', 'changeover', 'change', 'customButtons', 'board'];
 export const settingsOf = (t) => JSON.parse(JSON.stringify(Object.fromEntries(SETTING_KEYS.filter((k) => k in t).map((k) => [k, t[k]]))));
 /** Composition la plus récente : date de la leçon, puis dernière modification. */
 export const latestSet = (sets) => [...(sets || [])].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0] || null;
+
+/**
+ * Deux tournois sur un seul terrain : à qui le tour ? Un match commencé reste prioritaire ; sinon le tournoi qui a joué
+ * le moins de matchs (égalité : le tournoi 1). Renvoie le tournoi (ou null si tout est joué).
+ */
+export function sharedTurn(ts) {
+  const cur = (t) => t.matches.filter((m) => m.court === 0 && !m.done && m.a && m.b).sort((x, y) => x.slot - y.slot)[0] || null;
+  const started = ts.find((t) => { const m = cur(t); return m && (m.sa || m.sb || t.live?.[0]?.matchId === m.id); });
+  if (started) return started;
+  const open = ts.filter((t) => cur(t));
+  if (!open.length) return null;
+  return open.sort((a, b) => a.matches.filter((m) => m.done).length - b.matches.filter((m) => m.done).length || String(a.side).localeCompare(String(b.side)))[0];
+}
+/** Égaliser le temps : le tournoi qui a plus de matchs a des matchs plus courts (durée totale identique), au ½ min près. */
+export function equalizedMinutes(baseMin, nFew, nMany) {
+  if (!nMany || nMany <= nFew) return baseMin;
+  return Math.max(1, Math.round((baseMin * nFew / nMany) * 2) / 2);
+}
 
 export const matchMinutes = (t) => (t.halves === 2 ? 2 * t.halfMin + t.pauseMin : t.halfMin);
 export const scoreButtons = (t) => (t.sport === 'autre'
@@ -241,6 +259,8 @@ export function standings(t, { includeFinals = false } = {}) {
     return r;
   };
   const table = row(done);
+  // points bonus (ex. sponsor des interclasses) : ajoutés au total de tournoi
+  for (const [id, b] of Object.entries(t.bonus || {})) if (table[id]) { table[id].bonus = b; table[id].pts += b; }
   const rows = Object.values(table);
   rows.sort((x, y) => y.pts - x.pts || y.diff - x.diff || y.pf - x.pf);
   const key = (x) => `${x.pts}|${x.diff}|${x.pf}`;

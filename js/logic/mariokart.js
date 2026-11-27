@@ -15,6 +15,9 @@ export const MK_BONUS_DESC = {
   'Champi Roi': 'Permis de prendre le super raccourci.',
   Goomba: 'Pas d\'élève de votre groupe au stand pendant 1 tour.',
 };
+/** Images des bonus (fiche « MK bonus » de l'enseignant). */
+export const MK_BONUS_IMG = { 'Bill Ball': 'bill-ball', Champi: 'champi', Banane: 'banane', 'Triple champi': 'triple-champi', Étoile: 'etoile', Boo: 'boo', 'Plante piranha': 'plante-piranha', 'Champi Roi': 'champi-roi', Goomba: 'goomba' };
+export const bonusImg = (b) => (MK_BONUS_IMG[b] ? `img/mk/${MK_BONUS_IMG[b]}.png` : null);
 export const MK_VERSIONS = {
   v1: { label: 'V1', hint: 'Tours, malus, objectif' },
   v2: { label: 'V2', hint: '+ cadeaux (bonus tirés au hasard)' },

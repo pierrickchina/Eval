@@ -35,7 +35,7 @@ for (const kind of Object.keys(LD.KINDS)) registerView(kind, (r) => view(r, kind
 function view(r, kind) {
   const c = ctxFor(r, kind);
   if (!c) { queueMicrotask(() => go('home')); return h('div'); }
-  if (r.latest) { delete r.latest; const last = LD.lastSession(c.L); if (last) r.sid = last.id; }
+  if (r.latest) { delete r.latest; const last = LD.lastSession(c.L); if (last) { r.sid = last.id; r.direct = 1; } }
   if (r.sid) { const s = c.L.sessions.find((x) => x.id === r.sid); if (s) return sessionView(r, c, s); }
   return listView(r, c);
 }
@@ -124,6 +124,7 @@ function setupDialog(r, c) {
     s.inapte = [...st.absent];
     c.save(); V.rank = false;
     go(c.kind, { ...r, sid: s.id });
+    if (f.unit === 'duo' && st.duoMode === 'libre') setTimeout(() => duosDialog(c, s), 0); // duos libres : on les forme tout de suite
   } }] });
 }
 
@@ -151,7 +152,7 @@ function sessionView(r, c, s) {
   const card = (t) => h('section', { class: `ldcard ${V.rank ? 'ranking' : ''}`, 'data-zone': String(t.n) },
     h('header', null, h('b', null, `${c.K.one} ${t.n}`), h('span', { class: 'muted small' }, String(t.units.length)),
       V.rank && (s.ranking[t.n] || []).length ? btn('Effacer', { cls: 'small soft', onClick: () => apply(() => { delete s.ranking[t.n]; }) }) : null),
-    h('div', { class: 'ldunits' }, t.units.length ? order(t).map((u) => chip(u, t)) : h('span', { class: 'muted small' }, V.rank ? '' : 'Vide · glissez un élève ici')));
+    h('div', { class: 'ldunits' }, t.units.length ? t.units.map((u) => chip(u, t)) /* l'ordre ne bouge pas pendant le classement */ : h('span', { class: 'muted small' }, V.rank ? '' : 'Vide · glissez un élève ici')));
   const tables = s.tables;
   const pool = s.pool || [];
   const side = h('aside', { class: 'ldside' },
@@ -169,6 +170,7 @@ function sessionView(r, c, s) {
     { label: `Retirer les ${c.K.ones} vides`, onClick: () => apply(() => { s.tables = s.tables.filter((t) => t.units.length); s.tables.forEach((t, i) => { if (t.n !== i + 1) { if (s.ranking[t.n]) { s.ranking[i + 1] = s.ranking[t.n]; delete s.ranking[t.n]; } t.n = i + 1; } }); }) },
     c.kind === 'tables' ? { label: plan ? 'Affichage : grille' : 'Affichage : plan de salle', onClick: () => apply(() => { c.L.view = plan ? 'grid' : 'plan'; }) } : null,
     { label: 'Date de la séance…', onClick: () => dateDialog(s, apply) },
+    { label: 'Toutes les séances et tableau général', onClick: () => go(c.kind, { ...r, sid: undefined, direct: undefined }) },
     helpItem(c.kind),
     '-',
     { label: 'Supprimer la séance', danger: true, onClick: () => { deleteSession(c, s); go(c.kind, { ...r, sid: undefined }); } },
@@ -180,7 +182,7 @@ function sessionView(r, c, s) {
       h('div', { class: 'ldcol right' }, tables.filter((t) => t.n < 4).sort((a, b) => a.n - b.n).map(card)))
     : h('div', { class: 'ldgrid scroll', 'data-keep': 'ldgrid' }, tables.map(card));
   const root = h('div', { class: `main ladder ${plan ? 'plan' : ''}` },
-    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => go(c.kind, { ...r, sid: undefined }), '', { 'data-back': '1' }),
+    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => (r.direct ? backTo(r) : go(c.kind, { ...r, sid: undefined })), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, `${c.K.label} · ${fmtDate(s.date)}`), h('div', { class: 'sub' }, `${c.act.name} · ${c.cls.name} · ${LD.FORMATS[s.format].label}`)),
       btn(V.rank ? 'Terminé' : 'Classement final', { icon: V.rank ? 'check' : 'trophy', cls: V.rank && !allRanked ? 'primary' : '', onClick: () => { V.rank = !V.rank; render(); } }),
       isLast && anyRanked ? btn('Séance suivante', { icon: 'next', cls: allRanked ? 'primary' : '', onClick: () => { V.rank = false; setupDialog({ ...r, sid: undefined }, c); } }) : null,
@@ -248,12 +250,12 @@ function duosDialog(c) {
 export function overviewNode(c) {
   const { sessions, rows } = LD.overview(c.L, c.students.map((s) => s.id));
   if (!sessions.length) return h('p', { class: 'muted' }, 'Pas encore de séance.');
-  const tierLabel = { haut: 'hauts', milieu: 'intermédiaires', bas: 'derniers' };
+  const tierLabel = c.kind === 'tables' ? { haut: 'Tables hautes', milieu: 'Tables intermédiaires', bas: 'Tables basses' } : { haut: 'Rings hauts', milieu: 'Rings intermédiaires', bas: 'Rings bas' };
   return h('div', { style: { overflowX: 'auto' } }, h('table', { class: 'edit restab ldover' },
     h('thead', null, h('tr', null, h('th', null, 'Élève'), sessions.map((s) => h('th', null, h('div', { class: 'rh' }, fmtDate(s.date)), h('div', { class: 'rs' }, LD.FORMATS[s.format]?.label))), h('th', null, 'Niveau moyen'))),
     h('tbody', null, rows.sort((a, b) => (a.level ?? 2) - (b.level ?? 2)).map((r) => h('tr', null, h('td', null, c.name(r.sid), c.forbidden(r.sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null),
       r.cells.map((x) => h('td', { class: x ? '' : 'none' }, !x ? '–' : x.inapte ? h('span', { class: 'muted small' }, 'inapte') : [h('b', null, `${c.K.one} ${x.n}`), x.rank ? h('span', { class: 'muted small' }, ` · ${x.rank}/${x.of}`) : null])),
-      h('td', null, r.level == null ? '–' : `${c.K.ones} ${tierLabel[LD.tierOf(r.level)]}`))))));
+      h('td', null, r.level == null ? '–' : tierLabel[LD.tierOf(r.level)]))))));
 }
 
 /** Pour l'onglet « Résultats » de la classe : un tableau par outil utilisé dans l'activité. */

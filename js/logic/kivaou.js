@@ -77,3 +77,21 @@ export function bilan(K, s) {
   done.forEach((x, i) => { x.rank = i > 0 && done[i - 1].total === x.total && done[i - 1].late === x.late ? done[i - 1].rank : i + 1; });
   return [...done, ...rows.filter((x) => !x.done)];
 }
+
+/** Bilan depuis le début, par élève : sorties, parcours faits, balises trouvées / cherchées, meilleur temps, hors temps. */
+export function overall(K, sids) {
+  return sids.map((sid) => {
+    const out = { sid, runs: 0, found: 0, sought: 0, best: null, late: 0, byCourse: {} };
+    for (const s of K.sessions) for (const g of s.groups) {
+      if (!g.sids.includes(sid)) continue;
+      const r = resultOf(K, g); if (!r) continue;
+      out.runs++;
+      const name = courseOf(K, g.course).name;
+      out.byCourse[name] = (out.byCourse[name] || 0) + 1;
+      if (g.found != null) { out.found += g.found; out.sought += g.sought || 0; }
+      if (r.late) out.late++; else if (out.best == null || r.time < out.best) out.best = r.time;
+    }
+    out.courses = Object.entries(out.byCourse).map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).join(', ');
+    return out;
+  });
+}

@@ -19,6 +19,10 @@ import './ui/mkView.js';
 import './ui/circuitView.js';
 import './ui/kivaouView.js';
 import './ui/duathlonView.js';
+import './ui/kabaddiView.js';
+import './ui/boxeView.js';
+import './ui/monteeView.js';
+import './ui/interclassesView.js';
 import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
@@ -29,7 +33,7 @@ import { installLibrary, upgradeLibrary, originalOf } from './data/library.js';
 import { defaultLevels } from './data/schema.js';
 import { uid } from './util.js';
 
-window.__APP_VERSION = '1.10.0';
+window.__APP_VERSION = '1.11.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);

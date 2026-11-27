@@ -23,7 +23,7 @@ export const TOOLS = {
     help: ['Choisissez les équipes, le sport et la durée : l\'outil prépare un calendrier où chacun joue et arbitre autant, avec des repos bien répartis.', 'Table de marque lisible de loin (paysage ou portrait) : gros boutons +1 aux couleurs des maillots, chrono, « Ensuite : » pour préparer le match suivant. Toucher un match de la liste pour l\'échanger, changer l\'arbitre ou corriger un score.', 'Dans une activité, les équipes viennent de l\'outil Équipes et les résultats sont conservés.'] },
   tables: { label: 'Tables', icon: 'paddle', color: '#d3e8d4', available: true, route: 'tables', hint: 'Montante-descendante, duos, ronde',
     help: ['Répartit les élèves sur les tables (8 au plus) : libre, par niveau moyen, ou d\'après les résultats de la séance précédente ; aussi en duos ou en ronde à l\'italienne.', 'Pendant la séance, rangez le classement final de chaque table : il ne change rien tout de suite. À la séance suivante, le 1er monte, le dernier descend, les autres restent.', 'Un élève inapte ou absent va dans la case « Inapte » et sa table se réorganise. Les feuilles de poule restent sur papier : la tablette garde seulement qui gagne et qui perd.'] },
-  rings: { label: 'Rings', icon: 'ring', color: '#f3d3d8', available: true, route: 'rings', hint: 'Groupes de combat, montée et descente',
+  rings: { label: 'Rings', icon: 'glove', color: '#f3d3d8', available: true, route: 'rings', hint: 'Groupes de combat, montée et descente',
     help: ['Répartit les élèves en groupes sur les rings (8 au plus) : libre, par niveau moyen, ou d\'après les résultats de la séance précédente.', 'Rangez le classement final de chaque ring pendant la séance : il prend effet à la séance suivante (le 1er monte, le dernier descend).', 'Le niveau atteint (rings hauts, intermédiaires, derniers) est proposé dans l\'évaluation, pour la compétence « Performance ».'] },
   mariokart: { label: 'Mario Kart', icon: 'flag', color: '#f6d6e6', available: true, free: true, route: 'mariokart', hint: 'Chrono, tours, malus, cadeaux',
     help: ['Règle V1, V2 ou V3 (⋮ › Réglages) : chrono de course (12 min), tours, malus, objectif en cc, pièces en V3 (10 pièces = 1 cadeau).', '« Tirer un cadeau » tire un bonus au hasard et affiche son effet. Total = tours × 2 − malus + points de l\'objectif validé.', 'Les compteurs restent en mémoire jusqu\'à « Remettre à zéro » ; « Corriger » fait retirer 1 à chaque toucher.'] },
@@ -33,9 +33,15 @@ export const TOOLS = {
     help: ['Un groupe = des élèves + un parcours, puis GO : son minuteur part (orange à 2 min, rouge à 1 min, noir quand le temps est dépassé).', 'Le bandeau du haut dit toujours combien de groupes ne sont pas rentrés ; les retards passent en tête. « Arrivé » note l\'heure de retour.', 'Touchez un groupe rentré pour saisir ses balises. L\'onglet Bilan classe les élèves : temps + malus par balise manquée, hors temps toujours derniers. Départ groupé : ⋮.'] },
   duathlon: { label: 'Fiches Duathlon', icon: 'file', color: '#efe3c8', available: true, free: true, route: 'duathlon', hint: 'En travaux : fiches et barèmes',
     help: ['Affiche les fiches d\'observation 4e et 3e et leurs barèmes.', 'En travaux : rien à remplir pour l\'instant, les élèves utilisent les fiches papier.', 'La note se calcule dans l\'évaluation (fiche de l\'élève › Saisir).'] },
+  kabaddi: { label: 'Kabaddi', icon: 'users', color: '#f7d4c0', available: true, free: true, route: 'kabaddi', hint: 'Attaques de 2 min, +100 / +10, Ace',
+    help: ['Chaque équipe attaque chacune des autres pendant 2 minutes (chrono). Seuls les attaquants marquent.', 'Chaque joueur de l\'équipe qui attaque a son bouton : +100 pour sa 1re élimination, puis +10. Boutons d\'équipe : Ace +1000, Faute −1.', 'Tableau Attaque × Défense et total ; « Projection » pour l\'afficher en grand.'] },
+  boxefps: { label: 'Boxe française · rotation', icon: 'glove', color: '#f6dcd0', available: true, free: true, route: 'boxefps', hint: 'Horloge des 6 ateliers, groupes A à F',
+    help: ['Forme de pratique scolaire (3e) : 6 ateliers (assaut en 1 touche, assaut normal, coaching, deux fois), groupes A à F.', 'Le chrono de 6 minutes s\'arrête et sonne à la fin ; « Rotation suivante » fait avancer chaque groupe d\'un atelier et relance le chrono.', 'Les fiches d\'observation restent sur papier.'] },
+  montee: { label: 'Montée de niveau', icon: 'stairs', color: '#dcd8fb', available: true, route: 'montee', hint: '10 niveaux de défis, glisser-déposer',
+    help: ['Trois fiches de 10 défis (et une vierge), modifiables (⋮). Glissez le prénom de l\'élève sur son niveau.', 'Les niveaux vides restent petits (numéro + défi) : toute l\'échelle tient sur l\'écran.', 'Toucher un prénom : monter, descendre ou choisir le niveau.'] },
+  interclasses: { label: 'Interclasses', icon: 'trophy', color: '#e8d9f6', available: true, free: true, freeOnly: true, route: 'interclasses', hint: 'Deux tournois par classe, projection',
+    help: ['Ultimate (6e, 4e) ou basket (5e, 3e) : chaque classe a deux équipes (Frisbee / Disque, ou filles / garçons) ; un seul terrain possible, les tournois alternent.', 'Scores saisis comme dans le Tournoi (suivi simple ou table de marque) ; sponsor = bonus réglable.', '« Projection » : match en cours, à suivre, derniers résultats, classements secs ou titres à gagner.'] },
   arbitre: { label: 'Certification d\'arbitre', icon: 'medal', color: '#e6e6ec', available: false, hint: 'Plus tard' },
-  interclasses: { label: 'Interclasses', icon: 'users', color: '#e6e6ec', available: false, hint: 'Plus tard' },
-  montee: { label: 'Montée de niveau', icon: 'stairs', color: '#e6e6ec', available: false, hint: 'Plus tard' },
 };
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
 export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';
@@ -45,8 +51,10 @@ export function toolsForActivity(name) {
   const n = String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const t = ['evaluation'];
   if (/circuit|\bct\b|renfo/.test(n)) t.push('circuit');
-  if (/tennis de table|ping|\btt\b/.test(n)) t.push('tables');
-  if (/boxe|\bbf\b|lutte|judo|combat/.test(n)) t.push('rings', 'chrono');
+  if (/tennis de table|ping|\btt\b/.test(n)) t.push('tables', 'montee');
+  if (/boxe|\bbf\b/.test(n)) t.push('rings', 'boxefps');
+  if (/lutte|judo|combat/.test(n)) t.push('rings', 'chrono');
+  if (/kabaddi/.test(n)) t.push('kabaddi');
   if (/mario|\bmk\b/.test(n)) t.push('mariokart');
   if (/duathlon/.test(n)) t.push('duathlon', 'chrono');
   if (/orientation|\bco\b|kivaou/.test(n)) t.push('kivaou');

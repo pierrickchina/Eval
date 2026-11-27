@@ -23,6 +23,7 @@ export const PLACES = {
 };
 export const DUO_MODES = {
   keep: 'Garder les duos actuels (modifiables)',
+  libre: 'Duos libres (je les forme moi-même)',
   mixte: 'Duos mixtes (un plus fort + un moins fort), duos de même niveau entre eux',
   homogene: 'Duos homogènes (deux joueurs de même niveau)',
 };
@@ -138,7 +139,7 @@ export function newSession(L, opts, rnd = Math.random) {
   let units;
   if (f.unit === 'duo') {
     const set = new Set(present);
-    if (opts.duoMode && opts.duoMode !== 'keep') L.duos = makeDuos(present, map, opts.duoMode, rnd);
+    if (opts.duoMode && opts.duoMode !== 'keep' && opts.duoMode !== 'libre') L.duos = makeDuos(present, map, opts.duoMode, rnd);
     else {
       // garder les duos : retirer les élèves partis, former des duos avec ceux qui n'en ont pas
       L.duos = L.duos.map((d) => ({ ...d, a: set.has(d.a) ? d.a : null, b: set.has(d.b) ? d.b : null })).map((d) => (d.a ? d : { ...d, a: d.b, b: null })).filter((d) => d.a);
@@ -258,7 +259,7 @@ export function tierOf(level) {
   return level <= 0.34 ? 'haut' : level < 0.67 ? 'milieu' : 'bas';
 }
 const TIER_LEVEL = { haut: 'ac', milieu: 'ec', bas: 'na' };
-const TIER_TEXT = { haut: 'tables / rings hauts', milieu: 'tables / rings intermédiaires', bas: 'derniers tables / rings' };
+const TIER_TEXT = { tables: { haut: 'tables hautes', milieu: 'tables intermédiaires', bas: 'tables basses' }, rings: { haut: 'rings hauts', milieu: 'rings intermédiaires', bas: 'rings bas' } };
 
 /** Suggestion pour la compétence « Performance » d'une évaluation (activité de l'évaluation, Rings puis Tables). */
 export function ladderSuggestion(repo, ev, sid) {
@@ -272,7 +273,7 @@ export function ladderSuggestion(repo, ev, sid) {
     if (!m.has(sid)) continue;
     const tier = tierOf(m.get(sid));
     const n = L.sessions.filter((s) => s.tables.some((t) => t.units.some((u) => membersOf(L, u).includes(sid)))).length;
-    return { level: TIER_LEVEL[tier], tier, why: `${TIER_TEXT[tier]} sur ${n} séance${n > 1 ? 's' : ''} (${KINDS[kind].label}).` };
+    return { level: TIER_LEVEL[tier], tier, why: `${TIER_TEXT[kind][tier]} sur ${n} séance${n > 1 ? 's' : ''} (${KINDS[kind].label}).` };
   }
   return null;
 }

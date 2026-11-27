@@ -25,6 +25,14 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.11
+
+- **Nouveaux outils** : Kabaddi (attaques de 2 min, +100 puis +10 par attaquant, Ace +1000, faute −1, tableau Attaque × Défense, projection) ; Boxe française · rotation (horloge des 6 ateliers, groupes A à F, rotation relancée par l'enseignant) ; Montée de niveau en tennis de table (3 fiches de 10 défis + vierge, glisser-déposer, niveaux vides réduits) ; Interclasses (outil libre : une classe = deux équipes, tournois Frisbee / Disque ou Filles / Garçons sur un terrain en alternance, sponsor, titres, projection « classements » ou « titres »).
+- **Tournoi** : table de marque ou suivi simple des scores ; deux tournois sur un seul terrain (alternance, arbitres de son tournoi, « Égaliser le temps ») ; option Club Basket dans Équipes (noms NBA, équipe 1 = FIBA, équipe 2 = NBA, 4 rôles).
+- **Kivaou** : « Prêt » puis GO sur la carte ; cartes resserrées quand il y a beaucoup de groupes ; groupes rentrés et retards affichés avec les prénoms ; bilan par classement, groupe, parcours et depuis le début ; ⋮ › Nouvelle séance.
+- **Confort** : Retour ramène d'où l'on vient ; favoris en tête de l'onglet Outils (aucun au départ) ; activité la plus récente en haut du carnet ; oublis de matériel sur une page ; classement des tables / rings sans déplacer les élèves ; « Duos libres » ; tables / rings hauts, intermédiaires, bas ; Annuler après les actions importantes.
+- **Mario Kart** : V1 sans bonus, cadeaux en image (V2, V3), icône drapeau à damier. **Rings** : icône gant. **Fiches Duathlon** : fiches élèves en image. **Exercices** : « Un autre » toujours au même endroit.
+
 ### Nouveautés de la version 1.10
 
 - **Navigation** : un seul choix = pas de page intermédiaire. Équipes, Tables et Rings ouvrent directement la composition / la séance la plus récente (titre = menu déroulant ; ⋮ › Menu équipes, Suivi des résultats).
@@ -183,7 +191,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/*.test.mjs                               # 128 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
+node --test tests/*.test.mjs                               # 135 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
@@ -195,6 +203,7 @@ node tests/e2e7.mjs       # v1.6-1.7 : équipes, clubs, confort
 node tests/e2e8.mjs       # v1.7 : tournois, suivi, Résultats
 node tests/e2e9.mjs       # v1.8 : PEPS, réglages d'affichage, vibration
 node tests/e2e10.mjs      # v1.9 : bibliothèque, note calculée, rôles, Tables & Rings, Mario Kart, Circuit training
+node tests/e2e12.mjs      # v1.11 : Kabaddi, Boxe rotation, Montée de niveau, Interclasses, tournoi en alternance, retours
 node tests/e2e11.mjs      # v1.10 : Kivaou, exercices et circuits, Mario Kart V2, préréglages, sans note, séance suivante
 ```
 

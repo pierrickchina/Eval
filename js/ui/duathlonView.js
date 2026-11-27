@@ -39,5 +39,7 @@ registerView('duathlon', (r) => {
       h('div', { class: 'grow evtitle' }, h('h1', null, 'Fiches Duathlon'), h('div', { class: 'sub' }, 'En travaux : affichage seul')),
       h('div', { class: 'seg' }, ['4e', '3e'].map((g) => h('button', { type: 'button', class: V.grade === g ? 'on' : '', onClick: () => { V.grade = g; render(); } }, g))), m),
     h('div', { class: 'ldhint warnbg' }, 'Outil en travaux : rien à remplir ici pour l\'instant. Les élèves utilisent les fiches papier ; la note se calcule dans l\'évaluation (fiche de l\'élève › Saisir).'),
-    h('div', { class: 'scroll grow dulayout', 'data-keep': 'du' }, fiche, bareme));
+    h('div', { class: 'scroll grow dulayout', 'data-keep': 'du' }, fiche, bareme,
+      h('div', { class: 'duimgs' }, [1, 2].map((p) => h('figure', null, h('figcaption', null, p === 1 ? `Fiche élève ${V.grade} (recto)` : `Fiche élève ${V.grade} (barème)`),
+        h('img', { src: `img/duathlon/fiche-${V.grade}-${p}.jpg`, alt: `Fiche duathlon ${V.grade}, page ${p}`, loading: 'lazy' }))))));
 });

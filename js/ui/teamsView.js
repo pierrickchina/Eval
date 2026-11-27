@@ -8,7 +8,7 @@ import { activitiesOf, activityEvals, touchTool, hasTool } from '../logic/activi
 import {
   VEST_COLORS, vestOf, DEFAULT_ROLES, newSet, addTeam, addClub, removeTeam, removeClub, teamsOnly, teamColorId, teamLabel,
   studentsOf, syncStudents, unplaced, moveStudent, setStatus, statusOf, toggleRole, visibleRole, toggleLock, duplicateSet, rotateRoles,
-  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor,
+  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor, setBasketClubs, BASKET_ROLES,
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
 import { helpItem } from './help.js';
@@ -17,7 +17,7 @@ import { latestSet } from '../logic/tournament.js';
 import { suiviPanel } from './suiviView.js';
 
 const T = { full: false, tab: 'comp', open: new Set() }; // open : zones « une ligne » dépliées (double-tap)
-const roleDefs = () => app.repo.getMeta('teamRoles', null) || DEFAULT_ROLES;
+const roleDefs = (set = null) => (set?.flavor === 'nba' ? BASKET_ROLES : app.repo.getMeta('teamRoles', null) || DEFAULT_ROLES);
 const saveClass = (cls) => app.repo.save('classes', cls);
 
 // ---------- Contexte : activité ou outil libre ----------
@@ -66,7 +66,7 @@ registerView('equipes', (r) => {
   const ctx = ctxFor(r);
   if (!ctx) { queueMicrotask(() => go('home')); return h('div'); }
   // ouverture depuis le carnet : directement la composition la plus récente (la liste reste accessible par le titre)
-  if (r.latest) { delete r.latest; const last = latestSet(ctx.sets()); if (last) r.setId = last.id; }
+  if (r.latest) { delete r.latest; const last = latestSet(ctx.sets()); if (last) { r.setId = last.id; r.direct = 1; } } // ouverte en direct : Retour = d'où l'on vient
   if (r.setId) { const set = ctx.sets().find((s) => s.id === r.setId); if (set) return editor(r, ctx, set); }
   const sets = ctx.sets();
   /** Petits maillots aux couleurs des chasubles (un par club, ou par équipe). */
@@ -155,6 +155,7 @@ function newSetDialog(r, ctx) {
     ],
     actions: [{ label: 'Annuler' }, { label: 'Créer', primary: true, keepOpen: true, onClick: () => {
       const set = newSet({ name: st.name.trim() || 'Composition', date: todayISO(), mode: st.mode });
+      if (st.mode === 'clubs' && ctx.kind === 'act' && /basket/i.test(ctx.act.name)) set.flavor = 'nba'; // clubs en basket : noms NBA, FIBA / NBA
       if (ctx.kind === 'free') {
         const picked = classes.filter((c) => st.classes.has(c.id));
         set.classIds = picked.map((c) => c.id);
@@ -173,10 +174,10 @@ function editor(r, ctx, set) {
   syncStudents(set, students.map((s) => s.id)); // élèves partis retirés ; nouveaux élèves = « non placés »
   const byId = new Map(students.map((s) => [s.id, s]));
   const nameOf = (id) => (byId.get(id) ? studentLabel(byId.get(id)) : '?');
-  const roles = roleDefs();
+  const roles = roleDefs(set);
   const save = () => ctx.save(set);
   const apply = (fn) => { fn(); render(); save(); }; // affichage immédiat, enregistrement ensuite
-  const back = () => { if (T.full) { T.full = false; render(); } else go('equipes', { ...r, setId: undefined }); };
+  const back = () => { if (T.full) { T.full = false; render(); } else if (r.direct) backTo(r); else go('equipes', { ...r, setId: undefined }); };
 
   if (T.full) return fullScreen(set, nameOf, roles, back);
 
@@ -243,9 +244,9 @@ function editor(r, ctx, set) {
   const more = iconBtn('more', 'Options', () => popMenu(more, [
     { label: set.mode === 'clubs' ? 'Générer les clubs…' : 'Générer les équipes…', onClick: () => generateDialog(r, ctx, set, students, apply, undoable) },
     '-',
-    { label: 'Menu équipes (toutes les compositions)', onClick: () => { T.tab = 'comp'; go('equipes', { ...r, setId: undefined }); } },
-    ctx.kind === 'act' ? { label: 'Suivi des résultats', onClick: () => { T.tab = 'suivi'; go('equipes', { ...r, setId: undefined }); } } : null,
+    ctx.kind === 'act' ? { label: 'Suivi des résultats', onClick: () => { T.tab = 'suivi'; go('equipes', { ...r, setId: undefined, direct: undefined }); } } : null,
     { label: 'Renommer la composition…', onClick: () => renameSetDialog(set, apply) },
+    set.mode === 'clubs' ? { label: set.flavor === 'nba' ? 'Club Basket (NBA / FIBA) : activé' : 'Club Basket (noms NBA, championnats FIBA et NBA)', active: set.flavor === 'nba', onClick: () => undoable(ctx, set, set.flavor === 'nba' ? 'Option Club Basket retirée.' : 'Clubs Basket : FIBA (équipe 1) et NBA (équipe 2).', () => setBasketClubs(set, set.flavor !== 'nba')) } : null,
     { label: 'Contraintes (ensemble / séparés)…', onClick: () => constraintsDialog(set, students, nameOf, apply) },
     { label: 'Rôles…', onClick: () => rolesHub(ctx, set, nameOf, apply) },
     ctx.kind === 'free' ? { label: 'Ajouter des élèves…', onClick: () => addStudentsDialog(set, apply) } : null,
@@ -282,9 +283,9 @@ function titleMenu(r, ctx, set) {
   b.addEventListener('click', () => {
     const others = [...ctx.sets()].sort((x, y) => String(y.date || '').localeCompare(String(x.date || '')) || (y.createdAt || 0) - (x.createdAt || 0));
     popMenu(b, [
-      ...others.map((x) => ({ label: `${x.name || 'Sans nom'}${x.date ? ' · ' + fmtDate(x.date) : ''}`, active: x.id === set.id, onClick: () => go('equipes', { ...r, setId: x.id }) })),
+      ...others.map((x) => ({ label: `${x.name || 'Sans nom'}${x.date ? ' · ' + fmtDate(x.date) : ''}`, active: x.id === set.id, onClick: () => go('equipes', { ...r, setId: x.id }) })), // garde « direct » : Retour = d'où l'on vient
       '-',
-      { label: 'Menu équipes (toutes les compositions)', onClick: () => go('equipes', { ...r, setId: undefined }) },
+      { label: 'Toutes les compositions (et suivi des résultats)', onClick: () => { T.tab = 'comp'; go('equipes', { ...r, setId: undefined, direct: undefined }); } },
       { label: 'Nouvelle composition…', onClick: () => newSetDialog({ ...r, setId: undefined }, ctx) },
     ]);
   });
@@ -407,7 +408,7 @@ function rolesHub(ctx, set, nameOf, apply) {
     return others[0]?.roles || {};
   };
   const paint = () => {
-    const roles = roleDefs();
+    const roles = roleDefs(set);
     const teams = teamsOnly(set).filter((t) => t.members.length);
     const cell = (t, roId) => t.members.filter((sid) => (set.roles[sid] || [])[0] === roId).map(nameOf).join(', ');
     dlg.content.replaceChildren(
@@ -423,12 +424,14 @@ function rolesHub(ctx, set, nameOf, apply) {
       h('div', { class: 'row wrap', style: { marginTop: '12px', gap: '8px' } },
         btn('Faire tourner les rôles', { icon: 'shuffle', cls: 'primary', disabled: !teams.length || !roles.length, onClick: () => {
           const prev = previous();
+          const snap = clone(set.roles);
           let kept = 0;
           apply(() => { kept = rotateRoles(set, roles.map((r) => r.id), prev); });
-          toast(kept ? `Rôles attribués : ${kept} élève(s) gardent le même rôle (équipe plus grande que la liste des rôles).` : 'Rôles attribués : chacun change de rôle par rapport à la dernière leçon.');
+          toast(kept ? `Rôles attribués : ${kept} élève(s) gardent le même rôle (équipe plus grande que la liste des rôles).` : 'Rôles attribués : chacun change de rôle par rapport à la dernière leçon.',
+            { action: 'Annuler', ms: 8000, onAction: () => { apply(() => { set.roles = snap; }); paint(); } });
           paint();
         } }),
-        btn('Effacer les rôles', { cls: 'soft', disabled: !Object.keys(set.roles).length, onClick: () => { apply(() => { set.roles = {}; }); paint(); } }),
+        btn('Effacer les rôles', { cls: 'soft', disabled: !Object.keys(set.roles).length, onClick: () => { const snap = clone(set.roles); apply(() => { set.roles = {}; }); paint(); toast('Rôles effacés.', { action: 'Annuler', ms: 8000, onAction: () => { apply(() => { set.roles = snap; }); paint(); } }); } }),
         btn('Gérer la liste des rôles…', { icon: 'edit', cls: 'soft', onClick: () => rolesDialog(() => { render(); paint(); }) })),
       h('p', { class: 'muted small' }, 'La rotation part des rôles de cette composition, ou de la dernière leçon qui en avait : personne ne garde le même rôle quand l\'équipe n\'est pas plus grande que la liste.'));
   };

@@ -55,6 +55,23 @@ export function addTeam(set) {
 }
 
 /** Ajoute un club (couleur propre) et ses 3 zones : « à répartir » dans le club, équipe 1, équipe 2. */
+/** Option « Club Basket » (fiche « Équipes NBA ») : clubs aux noms des franchises NBA, équipe 1 = championnat FIBA, équipe 2 = championnat NBA. */
+export const NBA_TEAMS = ['Atlanta Hawks', 'Boston Celtics', 'Brooklyn Nets', 'Charlotte Hornets', 'Chicago Bulls', 'Cleveland Cavaliers', 'Dallas Mavericks', 'Denver Nuggets', 'Detroit Pistons', 'Golden State Warriors', 'Houston Rockets', 'Indiana Pacers', 'LA Clippers', 'Los Angeles Lakers', 'Memphis Grizzlies', 'Miami Heat', 'Milwaukee Bucks', 'Minnesota Timberwolves', 'New Orleans Pelicans', 'New York Knicks', 'Oklahoma City Thunder', 'Orlando Magic', 'Philadelphia 76ers', 'Phoenix Suns', 'Portland Trail Blazers', 'Sacramento Kings', 'San Antonio Spurs', 'Toronto Raptors', 'Utah Jazz', 'Washington Wizards'];
+export const BASKET_ROLES = [
+  { id: 'capitaine', label: 'Capitaine', short: 'C', color: '#e03a3e' },
+  { id: 'prepa', label: 'Préparateur·trice physique', short: 'P', color: '#2e9b4f' },
+  { id: 'manager', label: 'Manager', short: 'Mg', color: '#ef7d1a' },
+  { id: 'materiel', label: 'Responsable matériel', short: 'M', color: '#2f6fe0' },
+];
+/** Applique (ou retire) l'option Club Basket. Les noms déjà NBA sont gardés ; les autres sont tirés au hasard sans doublon. */
+export function setBasketClubs(set, on = true, rnd = Math.random) {
+  if (!on) { delete set.flavor; set.clubs.forEach((c, i) => { if (NBA_TEAMS.includes(c.name)) c.name = `Club ${i + 1}`; }); for (const t of teamsOnly(set)) if (t.kind === 'team') t.name = `Équipe ${t.rank}`; return; }
+  set.flavor = 'nba';
+  const used = new Set(set.clubs.map((c) => c.name).filter((n) => NBA_TEAMS.includes(n)));
+  for (const c of set.clubs) if (!NBA_TEAMS.includes(c.name)) { const free = NBA_TEAMS.filter((n) => !used.has(n)); const n = free[Math.floor(rnd() * free.length)] || c.name; used.add(n); c.name = n; }
+  for (const t of set.teams) if (t.kind === 'team') t.name = t.rank === 1 ? 'FIBA' : 'NBA';
+}
+
 export function addClub(set) {
   const used = new Set(set.clubs.map((c) => c.color));
   const color = (VEST_COLORS.find((c) => !used.has(c.id) && c.id !== 'sans') || VEST_COLORS[0]).id;
@@ -63,6 +80,7 @@ export function addClub(set) {
   set.teams.push(newTeam({ name: 'Club', color, kind: 'pool', clubId: club.id, rank: 0 }));
   set.teams.push(newTeam({ name: 'Équipe 1', color, kind: 'team', clubId: club.id, rank: 1 }));
   set.teams.push(newTeam({ name: 'Équipe 2', color, kind: 'team', clubId: club.id, rank: 2 }));
+  if (set.flavor === 'nba') setBasketClubs(set, true);
   return club;
 }
 

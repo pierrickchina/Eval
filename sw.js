@@ -1,7 +1,7 @@
 // Service worker : l'application fonctionne entièrement hors connexion après le 1er chargement.
 // Les données (IndexedDB) ne sont jamais touchées par une mise à jour.
 // À CHAQUE nouvelle version de l'application : incrémenter VERSION.
-const VERSION = 'eps-eval-v1.10.0';
+const VERSION = 'eps-eval-v1.11.0';
 
 const ASSETS = [
   './',
@@ -60,6 +60,27 @@ const ASSETS = [
   'js/ui/ladderView.js',
   'js/ui/mkView.js',
   'js/ui/circuitView.js',
+  'js/ui/projection.js',
+  'js/ui/kabaddiView.js',
+  'js/ui/boxeView.js',
+  'js/ui/monteeView.js',
+  'js/ui/interclassesView.js',
+  'js/logic/kabaddi.js',
+  'js/logic/montee.js',
+  'js/logic/interclasses.js',
+  'img/mk/banane.png',
+  'img/mk/bill-ball.png',
+  'img/mk/boo.png',
+  'img/mk/champi-roi.png',
+  'img/mk/champi.png',
+  'img/mk/etoile.png',
+  'img/mk/goomba.png',
+  'img/mk/plante-piranha.png',
+  'img/mk/triple-champi.png',
+  'img/duathlon/fiche-3e-1.jpg',
+  'img/duathlon/fiche-3e-2.jpg',
+  'img/duathlon/fiche-4e-1.jpg',
+  'img/duathlon/fiche-4e-2.jpg',
   'js/ui/drag.js',
   'js/ui/presets.js',
   'js/ui/kivaouView.js',

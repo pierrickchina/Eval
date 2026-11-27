@@ -134,7 +134,7 @@ export function lastTask(cls) {
 
 // ---------- Outils épinglés ----------
 
-export const pinnedTools = () => (app.repo.getMeta('pinnedTools', null) || ['chrono', 'tournoi']) // favoris proposés tant que rien n'a été choisi
+export const pinnedTools = () => (app.repo.getMeta('pinnedTools', null) || []) // aucun favori au départ
   .filter((t) => TOOLS[t]?.available && TOOLS[t].free);
 export function togglePin(type) {
   const cur = pinnedTools();
