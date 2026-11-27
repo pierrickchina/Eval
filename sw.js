@@ -1,7 +1,7 @@
 // Service worker : l'application fonctionne entièrement hors connexion après le 1er chargement.
 // Les données (IndexedDB) ne sont jamais touchées par une mise à jour.
 // À CHAQUE nouvelle version de l'application : incrémenter VERSION.
-const VERSION = 'eps-eval-v1.7.1';
+const VERSION = 'eps-eval-v1.8.0';
 
 const ASSETS = [
   './',
@@ -11,6 +11,10 @@ const ASSETS = [
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png',
+  'icons/logo.svg',
+  'fonts/DejaVuSans.woff',
+  'fonts/DejaVuSans-Bold.woff',
   'js/main.js',
   'js/app.js',
   'js/util.js',

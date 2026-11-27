@@ -24,7 +24,8 @@ registerView('home', () => {
 
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      h('div', { class: 'grow evtitle' }, h('h1', null, 'EPS'), h('div', { class: 'sub' }, F.tab === 'classes' ? 'Mes classes' : 'Outils')),
+      h('div', { class: 'brand', 'aria-label': 'PEPS' }, h('img', { src: 'icons/logo.svg', alt: '', width: 34, height: 34 }), h('span', null, 'PEPS')),
+      h('div', { class: 'grow evtitle' }, h('h1', null, F.tab === 'classes' ? 'Mes classes' : 'Outils')),
       syncChip(),
       classes.length || evals.length ? backupChip() : null,
       btn('Réglages', { icon: 'gear', onClick: () => go('settings') })),

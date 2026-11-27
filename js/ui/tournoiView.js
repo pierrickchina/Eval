@@ -9,8 +9,9 @@ import * as TN from '../logic/tournament.js';
 import { clockText } from './chronoView.js';
 import { helpItem } from './help.js';
 import { printNode } from './printView.js';
+import { buzz } from './foundations.js';
 
-const K = { ticker: null, lock: null, active: [], setup: null, lastCur: {} };
+const K = { ticker: null, lock: null, active: [], setup: null, lastCur: {}, chgSig: {} };
 const saveClass = (cls) => app.repo.save('classes', cls);
 
 // ---------- Contexte : activité ou outil libre ----------
@@ -348,13 +349,13 @@ function board(ctx, t, court) {
   const team = (sd, id) => {
     const v = vest(t, id);
     return h('div', { class: `tn-team ${v.id === 'sans' ? 'novest' : ''}`, style: { '--v': v.hex, '--vi': v.ink } },
-      h('div', { class: 'tn-tname' }, nameOf(t, id)),
+      h('div', { class: 'tn-tname' }, h('span', { class: 'vdot' }), h('span', null, nameOf(t, id))),
       h('div', { class: 'tn-score' }, sd === 'a' ? m.sa : m.sb));
   };
   const pts = (sd, id) => {
     const v = vest(t, id);
     return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, TN.scoreButtons(t).map((d) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
-      onClick: () => { if (TN.addPoint(m, sd, d)) save(); } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`)));
+      onClick: () => { if (TN.addPoint(m, sd, d)) { buzz(d > 0 ? 'tap' : 'undo'); save(); } } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`)));
   };
   const goBtn = h('button', { type: 'button', class: `tn-go ${running ? 'run' : ''}`, disabled: over,
     onClick: () => { t.live ||= {}; t.live[court] = running ? TN.livePause(lv) : TN.liveStart(lv, m.id); keepAwake(); save(); } },
@@ -369,7 +370,7 @@ function board(ctx, t, court) {
   return h('div', { class: 'tn-board', 'data-st': over ? 'over' : running ? 'run' : 'idle', style: { '--ref': ref ? ref.hex : '#3a3f55' } },
     h('div', { class: 'tn-top' },
       h('span', { class: 'tn-title' }, `${matchTitle(t, m)}${t.courts === 2 ? ` · Terrain ${court + 1}` : ''}`),
-      m.ref ? h('span', { class: 'tn-ref', style: { background: ref.hex, color: ref.ink } }, 'Arbitre : ', h('b', null, nameOf(t, m.ref))) : h('span', { class: 'tn-ref none' }, 'Sans arbitre')),
+      m.ref ? h('span', { class: 'tn-ref' }, h('span', { class: 'vdot', style: { '--v': ref.hex } }), 'Arbitre : ', h('b', null, nameOf(t, m.ref))) : h('span', { class: 'tn-ref none' }, 'Sans arbitre')),
     h('div', { class: 'tn-mid' }, team('a', m.a),
       h('div', { class: 'tn-clock' },
         h('div', { class: 'clk', 'data-clk': key }, clockText(total - Math.min(elapsed, total), false)),
@@ -508,7 +509,7 @@ function tick() {
     if (!m || !clk) continue;
     const lv = t.live?.[court]?.matchId === m.id ? t.live[court] : null;
     const total = TN.matchMinutes(t) * 60000, el = TN.liveElapsed(lv);
-    if (TN.liveRunning(lv) && el >= total) { t.live[court] = { matchId: m.id, base: total, since: null }; persist(K.ctx, t); rerender = true; continue; }
+    if (TN.liveRunning(lv) && el >= total) { t.live[court] = { matchId: m.id, base: total, since: null }; persist(K.ctx, t); buzz('end'); rerender = true; continue; }
     const txt = clockText(total - Math.min(el, total), false);
     if (clk.textContent !== txt) clk.textContent = txt;
     const board = clk.closest('.tn-board');
@@ -522,6 +523,9 @@ function tick() {
       const text = cs ? `Changement : ${clockText(total - cs.at, false)}` : '';
       if (chg.textContent !== text) chg.textContent = text;
       chg.classList.toggle('now', !!cs?.now);
+      // signal une seule fois par changement, et seulement si le chrono tourne
+      const sig = `${m.id}:${cs?.at}`;
+      if (cs?.now && TN.liveRunning(lv) && K.chgSig[key] !== sig) { K.chgSig[key] = sig; buzz('change'); }
     }
   }
   if (rerender) render();

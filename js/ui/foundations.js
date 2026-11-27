@@ -5,16 +5,22 @@ import { h, btn, icon, openDialog, toast, download } from './dom.js';
 import { uid, todayISO, schoolYear } from '../util.js';
 import { newActivity, activitiesOf, TOOLS, toolColor, activityEvals } from '../logic/activities.js';
 
-// ---------- Affichage : taille du texte et contraste (réglages généraux uniquement) ----------
+// ---------- Affichage et confort (réglages généraux, mémorisés sur cette tablette) ----------
 
 const DISPLAY_KEY = 'eps-display';
+const DISPLAY_DEFAULTS = { text: 'normal', contrast: false, theme: 'light', font: 'system', motion: 'normal', vibrate: true, sound: true };
 export function getDisplay() {
-  try { return { text: 'normal', contrast: false, ...(JSON.parse(localStorage.getItem(DISPLAY_KEY) || '{}')) }; } catch { return { text: 'normal', contrast: false }; }
+  try { return { ...DISPLAY_DEFAULTS, ...(JSON.parse(localStorage.getItem(DISPLAY_KEY) || '{}')) }; } catch { return { ...DISPLAY_DEFAULTS }; }
 }
 export function applyDisplay(d = getDisplay()) {
   const el = document.documentElement;
   el.dataset.text = d.text;
   el.dataset.contrast = d.contrast ? 'high' : '';
+  el.dataset.theme = d.theme;          // light = clair pastel, dark = sombre doux
+  el.dataset.font = d.font;            // system = habituelle, lisible = DejaVu Sans (embarquée, hors connexion)
+  el.dataset.motion = d.motion;        // reduced = pas de clignotement ni d'animation
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = d.theme === 'dark' ? '#1f2228' : '#f7f5f1';
 }
 export function setDisplay(patch) {
   const d = { ...getDisplay(), ...patch };
@@ -23,11 +29,47 @@ export function setDisplay(patch) {
 }
 export function displayPanel() {
   const d = getDisplay();
-  const sizes = [['normal', 'Normal'], ['large', 'Grand'], ['xlarge', 'Très grand']];
-  return h('div', { class: 'panel' }, h('h3', null, 'Affichage'),
+  const seg = (items, cur, key) => h('div', { class: 'seg', style: { margin: '6px 0 12px' } }, items.map(([k, l]) => h('button', { type: 'button', class: cur === k ? 'on' : '', 'aria-pressed': String(cur === k), onClick: () => { setDisplay({ [key]: k }); render(); } }, l)));
+  // values : [valeur cochée, valeur décochée] quand le réglage n'est pas un simple oui/non
+  const check = (label, key, on, note, values = [true, false]) => h('label', { class: 'row', style: { minHeight: '44px' } },
+    h('input', { type: 'checkbox', class: 'bigchk', checked: on, onChange: (e) => { setDisplay({ [key]: values[e.target.checked ? 0 : 1] }); if (key === 'vibrate' && e.target.checked) buzz('tap'); if (key === 'sound' && e.target.checked) buzz('change'); render(); } }),
+    h('span', null, label, note ? h('small', { class: 'muted', style: { display: 'block' } }, note) : null));
+  return h('div', { class: 'panel' }, h('h3', null, 'Affichage et confort'),
+    h('div', { class: 'muted small' }, 'Thème'),
+    seg([['light', 'Clair pastel'], ['dark', 'Sombre doux']], d.theme, 'theme'),
     h('div', { class: 'muted small' }, 'Taille du texte'),
-    h('div', { class: 'seg', style: { margin: '6px 0 10px' } }, sizes.map(([k, l]) => h('button', { type: 'button', class: d.text === k ? 'on' : '', onClick: () => { setDisplay({ text: k }); render(); } }, l))),
-    h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: d.contrast, style: { width: '22px', height: '22px' }, onChange: (e) => { setDisplay({ contrast: e.target.checked }); render(); } }), 'Contraste renforcé'));
+    seg([['normal', 'Normal'], ['large', 'Grand'], ['xlarge', 'Très grand']], d.text, 'text'),
+    h('div', { class: 'muted small' }, 'Police'),
+    seg([['system', 'Habituelle'], ['lisible', 'Très lisible']], d.font, 'font'),
+    check('Contraste renforcé', 'contrast', d.contrast),
+    check('Réduire les animations', 'motion', d.motion === 'reduced', 'Pas de clignotement ni d\'effet de mouvement.', ['reduced', 'normal']),
+    h('h3', { style: { marginTop: '14px' } }, 'Vibrations et sons'),
+    check('Vibrations', 'vibrate', d.vibrate, 'Petite vibration à chaque point marqué, plus longue au changement et à la fin du temps.'),
+    check('Sons', 'sound', d.sound, 'Bip au moment du changement et à la fin du temps (tournoi, chronomètre).'));
+}
+
+// ---------- Vibrations et sons ----------
+
+let audio = null;
+function tone(freq, ms, at = 0) {
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const t0 = audio.currentTime + at / 1000;
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+    o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + ms / 1000 + 0.05);
+  } catch { /* pas de son disponible */ }
+}
+/** Retour tactile et sonore. kind : tap (point marqué), undo (point retiré), change (moment du changement), end (fin du temps). */
+export function buzz(kind) {
+  const d = getDisplay();
+  const pattern = { tap: 15, undo: [10, 50, 10], change: [80, 90, 80], end: [300, 150, 300] }[kind];
+  if (d.vibrate && pattern && navigator.vibrate) { try { navigator.vibrate(pattern); } catch { /* ignore */ } }
+  if (!d.sound) return;
+  if (kind === 'change') { tone(880, 180); tone(880, 180, 260); }
+  if (kind === 'end') { tone(660, 400); tone(660, 400, 520); tone(520, 700, 1040); }
 }
 
 // ---------- Reprendre où j'en étais ----------
@@ -107,7 +149,7 @@ export function pinnedStrip() {
 // ---------- Visite guidée ----------
 
 const TOUR = [
-  ['Bienvenue', 'EPS fonctionne sans connexion. Vos classes, évaluations et outils restent sur cette tablette ; pensez à la sauvegarde (bouton « Sauvegarder » de l\'accueil).'],
+  ['Bienvenue', 'PEPS fonctionne sans connexion. Vos classes, évaluations et outils restent sur cette tablette ; pensez à la sauvegarde (bouton « Sauvegarder » de l\'accueil).'],
   ['Les classes', 'Chaque classe a un carnet de bord : des activités (handball, badminton…) qui contiennent des outils — Évaluation, Chronomètre, Équipes. Le « + » d\'une activité ajoute un outil.'],
   ['Les outils libres', 'Onglet « Outils » : chronomètre et équipes utilisables sans classe. L\'étoile ☆ épingle un outil en haut de l\'accueil.'],
   ['Aide et retour', 'Le « ? » de chaque outil donne l\'essentiel en 3 lignes. Après une suppression ou un tirage, un bouton « Annuler » apparaît quelques secondes.'],

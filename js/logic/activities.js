@@ -4,21 +4,24 @@
 import { uid, now } from '../util.js';
 
 /** Couleurs pastel proposées pour les cadres d'activité (pas de rouge : le rouge est la couleur de l'outil Évaluation). */
-export const ACTIVITY_COLORS = ['#cfe3ff', '#d6efd2', '#fff0b8', '#e4dbf8', '#cdeeea', '#ffe0c2', '#e6e6ec', '#dfe9c2'];
-export const activityColor = (act) => act.color || ACTIVITY_COLORS[0];
+/** Couleurs d'activité (1.8) : elles encadrent l'activité dans le carnet (cadre + en-tête). */
+export const ACTIVITY_COLORS = ['#9dcfe0', '#a9d3b0', '#ead27a', '#c2b4ec', '#9fd9c8', '#f2b796', '#b7c1d3', '#efb0bc'];
+// anciennes couleurs (≤ 1.7) → nouvelles, même ordre
+const LEGACY_ACT = { '#cfe3ff': '#9dcfe0', '#d6efd2': '#a9d3b0', '#fff0b8': '#ead27a', '#e4dbf8': '#c2b4ec', '#cdeeea': '#9fd9c8', '#ffe0c2': '#f2b796', '#e6e6ec': '#b7c1d3', '#dfe9c2': '#efb0bc' };
+export const activityColor = (act) => LEGACY_ACT[act.color] || act.color || ACTIVITY_COLORS[0];
 
 /** Registre des outils. Chaque outil a SA couleur pastel, toujours la même, pour le repérer d'un coup d'œil.
  *  available:false → affiché « bientôt » (structure prête, outil à venir). */
 export const TOOLS = {
-  evaluation: { label: 'Évaluation', icon: 'file', color: '#f6b8b8', available: true, hint: 'Grilles, notes, bilans',
+  evaluation: { label: 'Évaluation', icon: 'file', color: '#dcd3f3', available: true, hint: 'Grilles, notes, bilans',
     help: ['Une grille d\'évaluation par séance ou par cycle, avec notes sur 20 et niveaux de maîtrise.', 'Touchez la tuile : elle ouvre l\'évaluation (ou la liste s\'il y en a plusieurs).', 'Le « + » du cadre crée une nouvelle évaluation.'] },
-  chrono: { label: 'Chronomètre', icon: 'chrono', color: '#fbe08a', available: true, free: true, route: 'chrono', hint: 'Grand affichage, 1 à 4 panneaux',
+  chrono: { label: 'Chronomètre', icon: 'chrono', color: '#f4e6ae', available: true, free: true, route: 'chrono', hint: 'Grand affichage, 1 à 4 panneaux',
     help: ['Affiche en très gros un chronomètre ou un minuteur, lisible de toute la salle ; jusqu\'à 4 panneaux côte à côte.', 'Chaque panneau est un chronomètre ou un minuteur ; « +1 min » et « Tout démarrer » vont plus vite.', 'Rien n\'est enregistré : tout s\'efface en quittant.'] },
-  equipes: { label: 'Équipes', icon: 'teams', color: '#f5c28a', available: true, free: true, route: 'equipes', hint: 'Compositions, clubs, tirages',
+  equipes: { label: 'Équipes', icon: 'teams', color: '#f8d7c4', available: true, free: true, route: 'equipes', hint: 'Compositions, clubs, tirages',
     help: ['Composez vos équipes en glissant les élèves, ou laissez l\'outil tirer au sort, par niveau ou en duos de tutorat.', 'Chaque équipe a un nom et une couleur de chasuble ; les rôles et les contraintes (ensemble / séparés) restent discrets.', 'Bandeau « non placés » et zones « à répartir » : double-tap (ou toucher leur titre) pour voir tous les noms.', 'Gardez une composition par leçon : dupliquez-la, modifiez-la, l\'ancienne reste consultable.'] },
-  tournoi: { label: 'Tournoi', icon: 'trophy', color: '#b8d4f6', available: true, free: true, route: 'tournoi', hint: 'Calendrier équilibré, table de marque',
+  tournoi: { label: 'Tournoi', icon: 'trophy', color: '#cde7f0', available: true, free: true, route: 'tournoi', hint: 'Calendrier équilibré, table de marque',
     help: ['Choisissez les équipes, le sport et la durée : l\'outil prépare un calendrier où chacun joue et arbitre autant, avec des repos bien répartis.', 'Table de marque lisible de loin (paysage ou portrait) : gros boutons +1 aux couleurs des maillots, chrono, « Ensuite : » pour préparer le match suivant. Toucher un match de la liste pour l\'échanger, changer l\'arbitre ou corriger un score.', 'Dans une activité, les équipes viennent de l\'outil Équipes et les résultats sont conservés.'] },
-  tables: { label: 'Suivi des tables', icon: 'racket', color: '#b8e6bd', available: false, hint: 'Bientôt (tennis de table)' },
+  tables: { label: 'Suivi des tables', icon: 'racket', color: '#d3e8d4', available: false, hint: 'Bientôt (tennis de table)' },
 };
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */
 export const evTitle = (ev, long = false) => (ev.title && ev.title.trim()) || (ev.model && ((long && ev.model.name) || ev.model.activity)) || 'Évaluation';

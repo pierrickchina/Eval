@@ -4,6 +4,7 @@ import { app, registerView, go, render } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, confirmDialog, popMenu } from './dom.js';
 import { uid } from '../util.js';
 import { helpItem } from './help.js';
+import { buzz } from './foundations.js';
 
 const MAX = 4;
 const PRESETS = [1, 2, 3, 5, 10]; // minutes
@@ -58,7 +59,7 @@ function tick() {
     const txt = p.mode === 'timer' ? clockText(remaining(p, t), false) : clockText(elapsed(p, t));
     if (d.textContent !== txt) d.textContent = txt;
     const st = panelState(p, t);
-    if (el.dataset.st !== st) { el.dataset.st = st; el.className = `cpanel ${st}`; }
+    if (el.dataset.st !== st) { if (st === 'done' && (el.dataset.st === 'run' || el.dataset.st === 'warn')) buzz('end'); el.dataset.st = st; el.className = `cpanel ${st}`; }
   }
 }
 

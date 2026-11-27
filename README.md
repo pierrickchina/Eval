@@ -1,6 +1,6 @@
-# EPS — application tablette (PWA)
+# PEPS — application tablette (PWA)
 
-> Anciennement « Évaluation EPS ». Le module **Évaluations** est le premier ; d'autres outils (oublis de matériel, tournois, tennis de table…) pourront s'y ajouter. Les identifiants techniques internes (`eps-eval`, format des sauvegardes) restent inchangés pour ne rien casser.
+> Anciennement « EPS » puis « Évaluation EPS ». Le module **Évaluations** est le premier ; d'autres outils (oublis de matériel, tournois, tennis de table…) pourront s'y ajouter. Les identifiants techniques internes (`eps-eval`, format des sauvegardes) restent inchangés pour ne rien casser.
 
 Application web (HTML / CSS / JavaScript pur, sans build ni dépendance) pour évaluer les élèves en EPS depuis une tablette Android, **hors connexion**, avec sauvegarde locale (IndexedDB), export JSON et synchronisation Google Drive.
 
@@ -24,6 +24,15 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 5. Ouvrir l'application **une première fois avec du réseau** : elle se met en cache, puis fonctionne sans connexion.
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
+
+### Nouveautés de la version 1.8 — PEPS
+
+- L'application s'appelle **PEPS** : nouveau nom, nouvelle icône (deux montagnes qui se croisent, d'après le logo de l'AS), logo discret dans l'accueil. Les données et les sauvegardes ne changent pas.
+- **Harmonie pastel** : fond papier chaud, boutons pastel avec texte foncé. Chaque outil garde toujours sa couleur (Évaluation lilas, Chronomètre sable, Équipes pêche, Tournoi ciel, Tables sauge).
+- **Carnet de bord** : la couleur de l'activité encadre (cadre + en-tête) ; les tuiles restent blanches avec la pastille de l'outil.
+- **Table de marque claire** : fond pastel de chaque équipe, pastille pleine à la vraie couleur du maillot, chiffres foncés, cadre pastel de l'équipe qui arbitre. En-têtes d'équipes et de clubs en pastel aussi.
+- **Réglages › Général › Affichage et confort** : thème clair pastel ou sombre doux, police très lisible (embarquée, marche hors connexion), réduire les animations, vibrations, sons.
+- **Vibration** à chaque point marqué ; vibration et bip au moment du changement et à la fin du temps (tournoi et chronomètre).
 
 ### Nouveautés de la version 1.7.1
 
@@ -179,3 +188,7 @@ Chaque enregistrement porte `id` (UUID), `updatedAt`, `deviceId`. Une évaluatio
 - La synchronisation Google Drive est testée avec un Drive **simulé** (moteur, conflits, reprise après coupure) mais **pas contre le vrai service Google** : la première connexion réelle est à valider par vous.
 - Testé dans Chromium (paysage, portrait, hors connexion) ; pas encore sur une vraie tablette Android.
 - L'identifiant client OAuth et l'hébergement HTTPS sont à votre charge (voir §1 et §2).
+
+## Licences
+
+- Police « très lisible » : DejaVu Sans (sous-ensemble latin, dossier `fonts/`), licence libre Bitstream Vera / DejaVu, texte complet dans `fonts/LICENSE-DejaVu.txt`.

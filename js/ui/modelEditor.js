@@ -60,7 +60,7 @@ registerView('modelEdit', ({ id }) => {
         h('div', { style: { marginTop: '12px' } }, h('div', { class: 'muted small', style: { marginBottom: '6px', fontWeight: 600 } }, 'Niveaux scolaires (chacun a son propre tableau de compétences)'),
           h('div', { class: 'chips' }, SCHOOL_LEVELS.map((l) => h('button', { type: 'button', class: `chip ${m.levels[l] ? 'on' : ''}`, onClick: () => toggleLevel(l) }, l))))),
       levelsOn.length ? levelPanel(levelsOn) : h('div', { class: 'panel muted' }, 'Choisissez au moins un niveau scolaire pour définir les compétences.'),
-      v.ok ? null : h('div', { class: 'panel', id: 'm-errors', style: { background: '#fff7e0' } }, h('b', null, 'À corriger avant d\'enregistrer'), h('ul', { style: { margin: '6px 0 0', paddingLeft: '20px' } }, v.errors.map((e) => h('li', null, e))))));
+      v.ok ? null : h('div', { class: 'panel warnbg', id: 'm-errors' }, h('b', null, 'À corriger avant d\'enregistrer'), h('ul', { style: { margin: '6px 0 0', paddingLeft: '20px' } }, v.errors.map((e) => h('li', null, e))))));
 });
 
 function refreshSave() {

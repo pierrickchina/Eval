@@ -201,7 +201,7 @@ function editor(r, ctx, set) {
   const teamCard = (t) => {
     const hex = vestOf(teamColorId(set, t));
     return h('section', { class: 'tcard' },
-      h('header', { style: { background: hex.hex, color: hex.ink } },
+      h('header', { style: { '--v': hex.hex } },
         nameInput(t, 'Nom de l\'équipe'),
         h('span', { class: 'tcount' }, t.members.length),
         colorBtn(t, false),
@@ -214,7 +214,7 @@ function editor(r, ctx, set) {
     const subs = set.teams.filter((t) => t.kind === 'team' && t.clubId === c.id).sort((a, b) => a.rank - b.rank);
     const total = [pool, ...subs].reduce((a, t) => a + t.members.length, 0);
     return h('section', { class: 'tcard club' },
-      h('header', { style: { background: hex.hex, color: hex.ink } },
+      h('header', { style: { '--v': hex.hex } },
         nameInput(c, 'Nom du club'), h('span', { class: 'tcount' }, total), colorBtn(c, true),
         iconBtn('trash', `Supprimer ${c.name}`, () => undoable(ctx, set, `Club « ${c.name} » supprimé.`, () => removeClub(set, c.id)), 'sm')),
       h('div', { class: 'cluboard' },

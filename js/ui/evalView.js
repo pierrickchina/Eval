@@ -385,7 +385,7 @@ function studentMode() {
       return more;
     })());
 
-  const warn = !t.usable ? h('div', { class: 'totalbar', style: { background: '#fff7e0' } },
+  const warn = !t.usable ? h('div', { class: 'totalbar warnbg' },
     `Élève « ${statusInfo(t.status).label} » : ses notes ne sont pas comptées dans les moyennes.`,
     btn('Repasser en présent', { cls: 'small', onClick: () => act('Statut', (e) => setStatus(e, s.id, 'present')) })) : null;
 
