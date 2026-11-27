@@ -7,7 +7,7 @@ import { studentLabel } from '../data/schema.js';
 import { activitiesOf, activityEvals, touchTool, hasTool } from '../logic/activities.js';
 import {
   VEST_COLORS, vestOf, DEFAULT_ROLES, newSet, addTeam, addClub, removeTeam, removeClub, teamsOnly, teamColorId, teamLabel,
-  studentsOf, syncStudents, unplaced, moveStudent, setStatus, statusOf, toggleRole, visibleRole, toggleLock, duplicateSet,
+  studentsOf, syncStudents, unplaced, moveStudent, setStatus, statusOf, toggleRole, visibleRole, toggleLock, duplicateSet, rotateRoles,
   generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor,
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
@@ -32,7 +32,7 @@ function ctxFor(r) {
       sets: () => act.equipes.sets,
       add: (set) => act.equipes.sets.push(set),
       remove: (id) => { const i = act.equipes.sets.findIndex((s) => s.id === id); const [x] = act.equipes.sets.splice(i, 1); return () => { act.equipes.sets.splice(Math.min(i, act.equipes.sets.length), 0, x); return saveClass(cls); }; },
-      save: () => { touchTool(act, 'equipes'); return saveClass(cls); },
+      save: (set) => { if (set) set.updatedAt = Date.now(); touchTool(act, 'equipes'); return saveClass(cls); },
       students: (set) => studentsOf(set, cls),
     };
   }
@@ -42,7 +42,7 @@ function ctxFor(r) {
     sets: () => recs().map((x) => x.set).sort((a, b) => b.createdAt - a.createdAt),
     add: (set) => repo.save('freetools', { id: uid(), type: 'equipes', set }),
     remove: (id) => { const rec = recs().find((x) => x.set.id === id); repo.remove('freetools', rec.id); return () => repo.restore('freetools', rec.id); },
-    save: (set) => repo.save('freetools', recs().find((x) => x.set.id === set.id)),
+    save: (set) => { set.updatedAt = Date.now(); return repo.save('freetools', recs().find((x) => x.set.id === set.id)); },
     students: (set) => studentsOf(set, null),
   };
 }
@@ -179,7 +179,7 @@ function editor(r, ctx, set) {
   const chip = (s, { zone }) => {
     const role = visibleRole(set, s.id, roles), st = statusOf(set, s.id), locked = !!set.locked[s.id];
     return h('div', { class: `schip ${st !== 'present' ? 'st-' + st : ''}`, 'data-sid': s.id, role: 'button', tabindex: 0, 'aria-label': studentLabel(s) },
-      h('span', { class: 'sn' }, studentLabel(s)),
+      h('span', { class: 'sn' }, studentLabel(s), forbidden(ctx, set).has(s.id) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null),
       role ? h('span', { class: 'sr', title: role.label, style: { '--rc': roleColor(role) } }, role.short) : null,
       st === 'dispense' ? h('span', { class: 'sb', title: 'Dispensé' }, 'D') : null,
       locked ? h('span', { class: 'sl', title: 'Verrouillé' }, icon('lock', 13)) : null);
@@ -241,7 +241,7 @@ function editor(r, ctx, set) {
     '-',
     { label: 'Renommer la composition…', onClick: () => renameSetDialog(set, apply) },
     { label: 'Contraintes (ensemble / séparés)…', onClick: () => constraintsDialog(set, students, nameOf, apply) },
-    { label: 'Rôles (liste)…', onClick: () => rolesDialog(render) },
+    { label: 'Rôles…', onClick: () => rolesHub(ctx, set, nameOf, apply) },
     ctx.kind === 'free' ? { label: 'Ajouter des élèves…', onClick: () => addStudentsDialog(set, apply) } : null,
     { label: 'Imprimer / PDF', onClick: () => printSet(set, nameOf, roles) },
     { label: 'Dupliquer pour la leçon suivante', onClick: () => duplicate(r, ctx, set) },
@@ -265,7 +265,7 @@ function editor(r, ctx, set) {
     else if (zoneId === 'absent') setStatus(set, sid, 'absent');
     else if (zoneId === 'dispense') { moveStudent(set, sid, null); setStatus(set, sid, 'dispense'); }
     else moveStudent(set, sid, zoneId);
-  }), (sid, anchor) => chipMenu(set, sid, anchor, nameOf, roles, apply));
+  }), (sid, anchor) => chipMenu(set, sid, anchor, nameOf, roles, apply, forbidden(ctx, set)));
   attachZoneToggle(root);
   return root;
 }
@@ -293,7 +293,7 @@ function scoresFor(ctx, set, source = 'mean') {
 
 // ---------- Menu d'un élève ----------
 
-function chipMenu(set, sid, anchor, nameOf, roles, apply) {
+function chipMenu(set, sid, anchor, nameOf, roles, apply, forb) {
   const st = statusOf(set, sid), team = teamOfStudent(set, sid);
   popMenu(anchor, [
     { label: 'Placer dans…', onClick: () => placeDialog(set, sid, nameOf, apply) },
@@ -305,6 +305,7 @@ function chipMenu(set, sid, anchor, nameOf, roles, apply) {
     '-',
     { label: `Rôles… ${(set.roles[sid] || []).length ? '(' + (set.roles[sid] || []).length + ')' : ''}`, onClick: () => studentRolesDialog(set, sid, nameOf, roles, apply) },
     { label: set.locked[sid] ? 'Déverrouiller' : 'Verrouiller à sa place', disabled: !team, onClick: () => apply(() => toggleLock(set, sid)) },
+    forb ? { label: forb.has(sid) ? 'Matériel autorisé de nouveau' : 'Matériel interdit (point rouge, jusqu\'à la fin de la séquence)', onClick: () => apply(() => forb.toggle(sid)) } : null,
   ].filter(Boolean));
 }
 
@@ -375,6 +376,47 @@ function constraintsDialog(set, students, nameOf, apply) {
     h('div', { class: 'row wrap' }, sel('a'),
       h('select', { onChange: (e) => { st.type = e.target.value; } }, h('option', { value: 'together' }, 'ensemble'), h('option', { value: 'apart' }, 'séparés')), sel('b'),
       btn('Ajouter', { icon: 'plus', onClick: () => { if (!st.a || !st.b || st.a === st.b) return toast('Choisissez deux élèves différents.'); apply(() => set.constraints.push({ a: st.a, b: st.b, type: st.type })); paint(); } })));
+  paint();
+}
+
+/** Matériel interdit : marqué sur l'activité (toute la séquence, tous ses outils) ; outil libre : sur la composition. */
+export function forbidden(ctx, set) {
+  const store = ctx.kind === 'act' ? (ctx.act.forbidden ??= {}) : (set.forbidden ??= {});
+  return { has: (sid) => !!store[sid], toggle: (sid) => { if (store[sid]) delete store[sid]; else store[sid] = Date.now(); } };
+}
+
+/** ⋮ › Rôles : tableau équipes × rôles, rotation d'une leçon à l'autre, liste des rôles. */
+function rolesHub(ctx, set, nameOf, apply) {
+  const dlg = openDialog({ title: 'Rôles', wide: true, body: h('div'), actions: [{ label: 'Fermer', primary: true }] });
+  const previous = () => {
+    if (Object.keys(set.roles).length) return set.roles;
+    const others = ctx.sets().filter((x) => x.id !== set.id && Object.keys(x.roles || {}).length)
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+    return others[0]?.roles || {};
+  };
+  const paint = () => {
+    const roles = roleDefs();
+    const teams = teamsOnly(set).filter((t) => t.members.length);
+    const cell = (t, roId) => t.members.filter((sid) => (set.roles[sid] || [])[0] === roId).map(nameOf).join(', ');
+    dlg.content.replaceChildren(
+      teams.length ? h('div', { class: 'rtable-wrap' }, h('table', { class: 'rtable' },
+        h('thead', null, h('tr', null, h('th', null, 'Équipe'), roles.map((ro) => h('th', null, h('span', { class: 'sr', style: { '--rc': roleColor(ro) } }, ro.short), ' ', ro.label)), h('th', null, 'Sans rôle'))),
+        h('tbody', null, teams.map((t) => h('tr', null,
+          h('th', null, h('i', { class: 'tdot', style: { background: vestOf(teamColorId(set, t)).hex } }), ' ', teamLabel(set, t)),
+          roles.map((ro) => h('td', null, cell(t, ro.id) || h('span', { class: 'muted' }, '—'))),
+          h('td', { class: 'muted' }, t.members.filter((sid) => !(set.roles[sid] || []).length && statusOf(set, sid) !== 'absent').map(nameOf).join(', ') || '—')))))) : h('p', { class: 'muted' }, 'Placez d\'abord les élèves dans les équipes.'),
+      h('div', { class: 'row wrap', style: { marginTop: '12px', gap: '8px' } },
+        btn('Faire tourner les rôles', { icon: 'shuffle', cls: 'primary', disabled: !teams.length || !roles.length, onClick: () => {
+          const prev = previous();
+          let kept = 0;
+          apply(() => { kept = rotateRoles(set, roles.map((r) => r.id), prev); });
+          toast(kept ? `Rôles attribués : ${kept} élève(s) gardent le même rôle (équipe plus grande que la liste des rôles).` : 'Rôles attribués : chacun change de rôle par rapport à la dernière leçon.');
+          paint();
+        } }),
+        btn('Effacer les rôles', { cls: 'soft', disabled: !Object.keys(set.roles).length, onClick: () => { apply(() => { set.roles = {}; }); paint(); } }),
+        btn('Gérer la liste des rôles…', { icon: 'edit', cls: 'soft', onClick: () => rolesDialog(() => { render(); paint(); }) })),
+      h('p', { class: 'muted small' }, 'La rotation part des rôles de cette composition, ou de la dernière leçon qui en avait : personne ne garde le même rôle quand l\'équipe n\'est pas plus grande que la liste.'));
+  };
   paint();
 }
 

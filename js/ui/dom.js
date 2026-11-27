@@ -23,6 +23,12 @@ export function h(tag, props, ...kids) {
 }
 
 const ICONS = {
+  paddle: 'M16 9a6 6 0 1 1-12 0 6 6 0 0 1 12 0z M7 14l-3.5 6.5 M20.5 18a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0z',
+  ring: 'M3 7h18 M3 12h18 M3 17h18 M5 4v16 M19 4v16',
+  flag: 'M5 21V4 M5 4h12l-2.5 4 2.5 4H5',
+  bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  medal: 'M12 15a6 6 0 100-12 6 6 0 000 12z M8.5 14L7 22l5-3 5 3-1.5-8',
+  stairs: 'M3 20h5v-5h5v-5h5V5h3',
   back: 'M15 18l-6-6 6-6',
   undo: 'M9 14L4 9l5-5 M4 9h10a6 6 0 010 12h-3',
   redo: 'M15 14l5-5-5-5 M20 9H10a6 6 0 000 12h3',

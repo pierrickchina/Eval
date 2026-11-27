@@ -10,12 +10,16 @@ export const SPORTS = {
   futsal: { label: 'Futsal', buttons: [1, -1] },
   ultimate: { label: 'Ultimate', buttons: [1, -1] },
   basket: { label: 'Basket', buttons: [1, 2, 3, -1] },
+  basket5: { label: 'Basket 5e', buttons: [1, 10, 100, -1, -10, -100] }, // réglages tout prêts (Projet EPS) : +1 / +10 / +100, retraits discrets
+  basket3: { label: 'Basket 3e', buttons: [1, 10, 100, -1, -10, -100] },
   autre: { label: 'Autre', buttons: [1, 2, 3, -1] },
 };
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 /** Sport présélectionné d'après le nom d'une activité (« Basket 3e B » → basket) ; « autre » si rien de reconnu. */
-export function sportFromActivity(name) {
+export function sportFromActivity(name, level = '') {
   const n = norm(name);
+  if (/basket/.test(n) && /5/.test(level)) return 'basket5';
+  if (/basket/.test(n) && /3/.test(level)) return 'basket3';
   if (/hand/.test(n)) return 'handball';
   if (/futsal|foot/.test(n)) return 'futsal';
   if (/basket/.test(n)) return 'basket';
@@ -26,7 +30,7 @@ export function sportFromActivity(name) {
 export const DEFAULT_SETTINGS = {
   sport: 'handball', halves: 1, halfMin: 5, pauseMin: 2, pts: { w: 3, d: 2, l: 1 }, courts: 1,
   format: 'single', finals: 'none', perTeam: null, changeover: 2,
-  change: { on: false, mode: 'mid', custom: '' }, customButtons: '1,2,3',
+  change: { on: true, mode: 'mid', custom: '' }, customButtons: '1,2,3',
 };
 
 /** Nom proposé : « Tournoi » + date. */
@@ -39,6 +43,12 @@ export function newTournament({ name, date, teams, settings = {}, scope = 'free'
   t.matches = generateSchedule(teams.map((x) => x.id), t);
   return t;
 }
+
+/** Réglages à reprendre du dernier tournoi (pour pré-remplir le suivant). */
+export const SETTING_KEYS = ['sport', 'halves', 'halfMin', 'pauseMin', 'pts', 'courts', 'format', 'finals', 'perTeam', 'changeover', 'change', 'customButtons'];
+export const settingsOf = (t) => JSON.parse(JSON.stringify(Object.fromEntries(SETTING_KEYS.filter((k) => k in t).map((k) => [k, t[k]]))));
+/** Composition la plus récente : date de la leçon, puis dernière modification. */
+export const latestSet = (sets) => [...(sets || [])].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0))[0] || null;
 
 export const matchMinutes = (t) => (t.halves === 2 ? 2 * t.halfMin + t.pauseMin : t.halfMin);
 export const scoreButtons = (t) => (t.sport === 'autre'

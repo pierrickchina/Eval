@@ -25,6 +25,18 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.9
+
+- **Bibliothèque « Projet EPS »** : les grilles de l'équipe sont livrées avec l'application (Mario Kart 5e, Duathlon 4e et 3e, Circuit training 3e, Acrosport 5e, Danse 5e et 4e, Gymnastique 6e, Basket 5e et 3e, Ultimate 6e et 4e, Tennis de table 6e à 3e, Boxe française 3e, Lutte 6e, Vélo 5e). Modifiables ; « Remettre la version d'origine » dans le menu ⋮ du modèle ; Réglages › Modèles › Bibliothèque Projet EPS rajoute un modèle supprimé. En 6e, les barèmes proposés sont indicatifs.
+- **Note calculée** (Duathlon) : temps de course et zone de lancer (barèmes filles / garçons), écart au projet en 3e, depuis la fiche de l'élève.
+- **Tournoi** : pré-rempli avec la composition la plus récente de l'activité et les réglages du dernier tournoi ; clubs → 2 tournois en parallèle ; indicateur de changement de joueurs activé par défaut ; préréglages Basket 5e et Basket 3e (+1, +10, +100, retraits discrets).
+- **Équipes › ⋮ › Rôles** : tableau équipes × rôles, « Faire tourner les rôles » (chacun change de rôle par rapport à la dernière leçon), gestion de la liste.
+- **Matériel interdit** : point rouge à côté du prénom dans les outils de l'activité, jusqu'à la fin de la séquence (menu de l'élève).
+- **Tables** (tennis de table) et **Rings** (boxe, combat), 8 au plus : placement libre, par niveau moyen ou d'après les résultats de la séance précédente ; duos (mixtes, homogènes, gardés), ronde à l'italienne (3 à 4 équipes de 2). Classement final rangé pendant la séance, appliqué à la séance suivante (1er monte, dernier descend). Case « Inapte / absent ». Tableau général dans l'onglet Résultats de la classe ; niveau « Performance » proposé dans l'évaluation de boxe.
+- **Compteur Mario Kart** (tours + bonus réglables, liste de la fiche MK) et **Chrono Circuit training** (travail / récupération, 5, 8 ou 12 min).
+- Plus tard (grisés) : Duathlon, Certification d'arbitre, Interclasses, Montée de niveau.
+- Nouveau logo (plus doux, sans bleu entre les montagnes) dans les icônes de l'application.
+
 ### Nouveautés de la version 1.8 — PEPS
 
 - L'application s'appelle **PEPS** : nouveau nom, nouvelle icône (deux montagnes qui se croisent, d'après le logo de l'AS), logo discret dans l'accueil. Les données et les sauvegardes ne changent pas.
@@ -50,7 +62,6 @@ Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 - **Tournoi en activité** : équipes reprises d'une composition Équipes ; élève absent = aucun résultat.
 - **Suivi des résultats** (onglet dans Équipes, par activité) : équipes et clubs, bonus/malus, filtre « cette leçon seulement » ; onglet **Résultats** dans la classe.
 - Les messages (toasts) s'affichent maintenant en bas de l'écran.
-- À venir en 1.8 : suivi des tables de tennis de table et autres outils rapides.
 
 ### Nouveautés de la version 1.6.2
 - Écran Équipes : « non placés / dispensés / absents » forment une bande compacte au-dessus ; la zone « à répartir » d'un club tient toujours sur une seule ligne (défilement latéral), pour laisser toute la place aux équipes.
@@ -158,7 +169,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/*.test.mjs                               # 82 tests : calculs, historique, annulation, duplication, synchro, import, v1.1
+node --test tests/*.test.mjs                               # 126 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
@@ -166,6 +177,10 @@ node tests/e2e4.mjs       # v1.2 : Précédent, en-tête, fiche compacte, auto-�
 node tests/e2e5.mjs       # v1.4 : notes, oublis, trimestres, sauvegarde
 node tests/e2e6.mjs       # v1.5 : accueil, carnet de bord, activités, avertissements de suppression
 node tests/e2e3.mjs       # v1.1 : brouillons, « à placer », textes longs, remarque, partage, migration, PDF
+node tests/e2e7.mjs       # v1.6-1.7 : équipes, clubs, confort
+node tests/e2e8.mjs       # v1.7 : tournois, suivi, Résultats
+node tests/e2e9.mjs       # v1.8 : PEPS, réglages d'affichage, vibration
+node tests/e2e10.mjs      # v1.9 : bibliothèque, note calculée, rôles, Tables & Rings, Mario Kart, Circuit training
 ```
 
 ## 6. Organisation du code

@@ -108,7 +108,7 @@ function duplicate(r, ctx, g) {
   const pairId = g.length > 1 ? uid() : null;
   const copies = g.map((t) => {
     const c = TN.newTournament({ name: `${t.name} (copie)`, date: todayISO(), teams: JSON.parse(JSON.stringify(t.teams)), scope: t.scope, pairId, side: t.side, ctx: { classId: t.classId, actId: t.actId, setId: t.setId },
-      settings: { sport: t.sport, halves: t.halves, halfMin: t.halfMin, pauseMin: t.pauseMin, pts: t.pts, courts: t.courts, format: t.format, finals: t.finals, perTeam: t.perTeam, changeover: t.changeover, change: t.change, customButtons: t.customButtons } });
+      settings: TN.settingsOf(t) });
     ctx.add(c); return c;
   });
   persist(ctx, ...copies);
@@ -122,10 +122,13 @@ function initSetup(ctx) {
     name: TN.defaultName(todayISO()), nameTouched: false, date: todayISO(), ...JSON.parse(JSON.stringify(TN.DEFAULT_SETTINGS)),
     parallel: false, minutes: '', plan: null, setId: null, rows: [], teamsA: [], teamsB: [],
   };
+  // réglages du dernier tournoi (de l'activité, ou des tournois libres)
+  const last = [...ctx.list()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+  if (last) Object.assign(S, TN.settingsOf(last));
   if (ctx.kind === 'act') {
-    S.sport = TN.sportFromActivity(ctx.act.name);
-    const sets = ctx.act.equipes?.sets || [];
-    if (sets.length) fillFromSet(S, sets.at(-1));
+    if (!last) S.sport = TN.sportFromActivity(ctx.act.name, ctx.cls.level);
+    const set = TN.latestSet(ctx.act.equipes?.sets);
+    if (set) fillFromSet(S, set); // clubs : « 2 tournois en parallèle » est coché
   } else S.teamsA = defaultTeams(4);
   return S;
 }
@@ -354,7 +357,7 @@ function board(ctx, t, court) {
   };
   const pts = (sd, id) => {
     const v = vest(t, id);
-    return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, TN.scoreButtons(t).map((d) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
+    return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, TN.scoreButtons(t).map((d, _i, all) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''} ${d < 0 && all.filter((x) => x < 0).length > 1 ? 'mini' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
       onClick: () => { if (TN.addPoint(m, sd, d)) { buzz(d > 0 ? 'tap' : 'undo'); save(); } } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`)));
   };
   const goBtn = h('button', { type: 'button', class: `tn-go ${running ? 'run' : ''}`, disabled: over,

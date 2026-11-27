@@ -38,10 +38,12 @@ function activityFrame(cls, act) {
   const showAll = E.all.has(act.id);
   const tools = showAll ? [...shown, ...hidden] : shown;
   const add = iconBtn('plus', 'Ajouter un outil', () => popMenu(add, [
-    ...Object.entries(TOOLS).map(([type, t]) => ({
-      label: type === 'evaluation' ? 'Nouvelle évaluation…' : t.available ? `${t.label}${hasTool(act, type) ? ' (ouvrir)' : ''}` : `${t.label} (bientôt)`,
-      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : t.available ? useTool(cls, act, type) : toast(`${t.label} : bientôt disponible.`)),
+    ...Object.entries(TOOLS).filter(([, t]) => t.available).map(([type, t]) => ({
+      label: type === 'evaluation' ? 'Nouvelle évaluation…' : `${t.label}${hasTool(act, type) ? ' (ouvrir)' : ''}`,
+      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : useTool(cls, act, type)),
     })),
+    '-',
+    ...Object.entries(TOOLS).filter(([, t]) => !t.available).map(([, t]) => ({ label: `${t.label} (plus tard)`, disabled: true, onClick: () => {} })),
     '-',
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
   ]), 'boxed');
@@ -67,13 +69,13 @@ function activityFrame(cls, act) {
     }
     const def = TOOLS[t.type];
     if (def?.available) {
-      const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : t.type === 'tournoi' ? (act.tournois?.length || 0) : 0;
+      const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : t.type === 'tournoi' ? (act.tournois?.length || 0) : (t.type === 'tables' || t.type === 'rings') ? (act.ladders?.[t.type]?.sessions?.length || 0) : 0;
       return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
         icon(def.icon), h('b', null, def.label),
-        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
+        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : (t.type === 'tables' || t.type === 'rings') ? (sets ? `${sets} séance${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
     }
-    return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
-      icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'bientôt'));
+    return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : plus tard.`) },
+      icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'plus tard'));
   };
   return h('section', { class: 'actframe', style: { '--ac': activityColor(act) } },
     h('div', { class: 'acthead' }, h('h2', { class: 'grow' }, `${act.name} · ${cls.name}`), add, more),
@@ -161,7 +163,7 @@ export function newActivityDialog(cls) {
       Object.entries(TOOLS).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available ? 1 : .55 } },
         h('input', { type: 'checkbox', checked: st.tools.has(type), disabled: !t.available, style: { width: '22px', height: '22px' },
           onChange: (e) => { e.target.checked ? st.tools.add(type) : st.tools.delete(type); } }),
-        h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — bientôt')))),
+        h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — plus tard')))),
     ],
     actions: [{ label: 'Annuler' }, { label: 'Créer', primary: true, keepOpen: true, onClick: async () => {
       const name = st.name.trim();
@@ -249,7 +251,7 @@ function manageToolsDialog(cls, act) {
     body: Object.entries(TOOLS).map(([type, t]) => h('label', { class: 'row', style: { opacity: t.available || sel.has(type) ? 1 : .55 } },
       h('input', { type: 'checkbox', checked: sel.has(type), disabled: !t.available && !sel.has(type), style: { width: '22px', height: '22px' },
         onChange: (e) => { e.target.checked ? sel.add(type) : sel.delete(type); } }),
-      h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — bientôt')))),
+      h('span', null, t.label, h('span', { class: 'muted small' }, t.available ? '' : ' — plus tard')))),
     actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, keepOpen: true, onClick: async (dlg) => {
       const removed = act.tools.filter((t) => !sel.has(t.type));
       const added = [...sel].filter((type) => !hasTool(act, type));

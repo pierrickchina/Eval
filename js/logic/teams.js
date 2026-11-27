@@ -131,6 +131,35 @@ export const visibleRole = (set, sid, roles = DEFAULT_ROLES) => {
   return id ? roles.find((r) => r.id === id) || null : null;
 };
 
+/**
+ * Fait tourner les rôles dans chaque équipe : chaque élève reçoit un rôle différent de celui de la leçon précédente
+ * (`prev` : { sid: [roleIds] }), et, autant que possible, deux élèves d'une même équipe n'ont pas le même rôle.
+ * Les absents n'ont pas de rôle. Renvoie le nombre d'élèves qui gardent leur rôle (0 si tout a tourné).
+ */
+export function rotateRoles(set, roleIds, prev = set.roles) {
+  if (!roleIds.length) return 0;
+  const before = Object.fromEntries(Object.entries(prev || {}).map(([k, v]) => [k, (v || [])[0]]));
+  const next = {};
+  let kept = 0;
+  for (const t of teamsOnly(set)) {
+    const ms = t.members.filter((sid) => set.status[sid] !== 'absent');
+    if (!ms.length) continue;
+    // ordre stable : celui des rôles précédents, pour que la rotation « avance » d'un cran
+    const order = ms.slice().sort((a, b) => (roleIds.indexOf(before[a]) + 1 || 99) - (roleIds.indexOf(before[b]) + 1 || 99));
+    let best = null;
+    for (let k = 0; k < roleIds.length; k++) {
+      const pick = order.map((sid, i) => roleIds[(i + k) % roleIds.length]);
+      const same = order.filter((sid, i) => before[sid] && before[sid] === pick[i]).length;
+      if (!best || same < best.same) best = { pick, same, k };
+      if (same === 0 && k > 0) break; // k = 0 donnerait souvent les mêmes rôles : on avance d'au moins un cran
+    }
+    order.forEach((sid, i) => { next[sid] = [best.pick[i]]; });
+    kept += best.same;
+  }
+  set.roles = next;
+  return kept;
+}
+
 export function toggleLock(set, sid) { if (set.locked[sid]) delete set.locked[sid]; else set.locked[sid] = true; }
 
 /** Duplication pour la leçon suivante : mêmes équipes (mêmes identifiants : l'équipe reste la même entité), absences effacées. */

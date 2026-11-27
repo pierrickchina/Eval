@@ -174,7 +174,7 @@ export function startTour(done) {
 export function maybeTour() {
   try { if (localStorage.getItem('eps-skip-tour')) return; } catch { /* ignore */ }
   const r = app.repo;
-  if (r.getMeta('tourDone', false) || r.list('classes').length || r.list('evaluations').length || r.list('models').length) return;
+  if (r.getMeta('tourDone', false) || r.list('classes').length || r.list('evaluations').length || r.list('models').some((m) => !m.library)) return;
   startTour();
 }
 

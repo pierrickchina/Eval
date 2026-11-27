@@ -3,7 +3,8 @@ import { displayPanel, demoPanel, importModelButton, shareModel } from './founda
 import { app, registerView, go, render, syncChip, updateSyncChips } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
-import { SCHOOL_LEVELS } from '../data/schema.js';
+import { SCHOOL_LEVELS, defaultLevels } from '../data/schema.js';
+import { installLibrary, originalOf } from '../data/library.js';
 import { shareBackup, downloadBackup, backupText, changesSinceBackup, makeSafetyCopy, safetyInfo, restoreSafetyCopy } from './backup.js';
 import { DEFAULT_CODE } from './selfEval.js';
 import { getTrimesters, defaultTrimesters } from '../logic/classes.js';
@@ -32,6 +33,22 @@ async function softDelete(store, rec, label) {
 
 // ---------- Modèles ----------
 
+const libOpts = () => ({ uid, defaultLevels, step: (app.repo.getMeta('settings', {}) || {}).step || 0.5 });
+function resetLibraryModel(m) {
+  confirmDialog(`Les corrections apportées au modèle « ${m.activity} » seront remplacées par la grille du Projet EPS. Les évaluations déjà créées ne changent pas.`, 'Remettre l\'origine', { danger: false }).then(async (ok) => {
+    if (!ok) return; const o = originalOf(m, libOpts()); if (!o) return; await app.repo.save('models', o); toast('Version d\'origine remise.'); render();
+  });
+}
+function libraryDialog() {
+  const missing = () => { const have = new Set(app.repo.list('models').filter((m) => m.library).map((m) => m.activity)); return ['Mario Kart', 'Duathlon', 'Circuit training', 'Acrosport', 'Danse', 'Gymnastique', 'Basket', 'Ultimate', 'Tennis de table', 'Boxe française', 'Lutte', 'Vélo'].filter((a) => !have.has(a)); };
+  const miss = missing();
+  openDialog({ title: 'Bibliothèque Projet EPS', body: h('div', { class: 'dlg-body' },
+    h('p', null, 'Les grilles du Projet EPS du collège sont livrées avec PEPS : Mario Kart 5e, Duathlon 4e et 3e, Circuit training 3e, Acrosport 5e, Danse 5e et 4e, Gymnastique 6e, Basket 5e et 3e, Ultimate 6e et 4e, Tennis de table 6e à 3e, Boxe française 3e, Lutte 6e, Vélo 5e.'),
+    h('p', { class: 'muted small' }, 'Vous pouvez les corriger librement (Modifier) ; le menu ⋮ d\'un modèle permet de remettre sa version d\'origine. En 6e, les barèmes proposés sont indicatifs : l\'évaluation se fait surtout par niveaux de maîtrise.'),
+    h('p', null, miss.length ? `Modèles absents (supprimés) : ${miss.join(', ')}.` : 'Tous les modèles de la bibliothèque sont présents.')),
+    actions: [{ label: 'Fermer' }, miss.length ? { label: 'Rajouter les modèles absents', primary: true, onClick: async () => { const n = await installLibrary(app.repo, { ...libOpts(), force: true }); toast(`${n} modèle(s) rajouté(s).`); render(); } } : null].filter(Boolean) });
+}
+
 function modelsTab() {
   const models = app.repo.list('models').sort((a, b) => collator.compare(a.activity + a.name, b.activity + b.name));
   return [
@@ -39,19 +56,22 @@ function modelsTab() {
       btn('Nouveau modèle', { icon: 'plus', cls: 'primary', onClick: () => go('modelEdit', { id: null }) }),
       btn('Importer un tableau (CSV / Excel)', { icon: 'upload', onClick: () => go('import') }),
       importModelButton(() => render()),
+      btn('Bibliothèque Projet EPS', { icon: 'file', onClick: () => libraryDialog() }),
       h('span', { class: 'muted small' }, 'Un modèle = une activité + un tableau de compétences par niveau scolaire (total des barèmes = 20).')),
     models.length ? h('div', { class: 'panel' }, models.map((m) => {
       const more = iconBtn('more', 'Actions', () => popMenu(more, [
         { label: 'Modifier', onClick: () => go('modelEdit', { id: m.id }) },
         { label: 'Partager ce modèle (fichier sans données d\'élèves)', onClick: () => shareModel(m) },
-        { label: 'Dupliquer', onClick: async () => { const c = clone(m); c.id = uid(); c.name += ' (copie)'; for (const lv of Object.values(c.levels)) for (const comp of lv.competences) comp.id = uid(); delete c.deleted; await app.repo.save('models', c); render(); } },
+        m.library ? { label: 'Remettre la version d\'origine', onClick: () => resetLibraryModel(m) } : null,
+        { label: 'Dupliquer', onClick: async () => { const c = clone(m); c.id = uid(); c.name += ' (copie)'; for (const lv of Object.values(c.levels)) for (const comp of lv.competences) comp.id = uid(); delete c.deleted; delete c.library; delete c.libraryVersion; await app.repo.save('models', c); render(); } },
         { label: 'Supprimer', danger: true, onClick: () => softDelete('models', m, `Modèle « ${m.name} »`) },
-      ]), 'sm');
+      ].filter(Boolean)), 'sm');
       const v = validateModel(m);
       return h('div', { class: 'listrow' },
         h('div', { class: 'grow' }, h('b', null, m.activity), h('span', { class: 'muted' }, ` — ${m.name}`),
           h('div', { class: 'chips', style: { marginTop: '4px' } }, SCHOOL_LEVELS.filter((l) => m.levels[l]).map((l) =>
             h('span', { class: 'tag', title: `${m.levels[l].competences.length} compétences` }, `${l} · ${m.levels[l].competences.length} comp.`)),
+          m.library ? h('span', { class: 'tag lib', title: 'Grille du Projet EPS livrée avec PEPS (modifiable)' }, 'Projet EPS') : null,
           v.ok ? null : h('span', { class: 'tag', style: { background: 'var(--danger-soft)' } }, 'à corriger'))),
         btn('Modifier', { cls: 'small', onClick: () => go('modelEdit', { id: m.id }) }), more);
     })) : h('div', { class: 'empty' }, h('h2', null, 'Aucun modèle'), h('p', null, 'Créez un modèle ou importez votre tableau de compétences.')),
@@ -193,7 +213,7 @@ function dataTab(which = 'data') {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.8.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.9.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

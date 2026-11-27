@@ -68,15 +68,15 @@ function toolsTab() {
   const pins = pinnedTools();
   const tile = ([type, t]) => {
     const pinned = pins.includes(type);
-    const star = t.available ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer de l\'accueil' : 'Épingler en haut de l\'accueil', 'aria-pressed': pinned,
+    const star = t.available && t.free ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer de l\'accueil' : 'Épingler en haut de l\'accueil', 'aria-pressed': pinned,
       onClick: async (e) => { e.stopPropagation(); await togglePin(type); render(); } }, icon('star', 20)) : null;
     return h('div', { class: `tooltile big ${t.available ? '' : 'soon'}`, role: 'button', tabindex: 0, style: { '--tc': toolColor(type) },
-      onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil se trouve dans le carnet de bord d\'une classe.' : `${t.label} : bientôt disponible.`)),
+      onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil se trouve dans le carnet de bord d\'une classe.' : `${t.label} : prévu pour plus tard.`)),
       onKeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
-    h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? t.hint : 'bientôt'));
+    h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
   };
   return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
-    h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(([, t]) => t.free || !t.available).map(tile)),
+    h('div', { class: 'tooltiles big' }, Object.entries(TOOLS).filter(([k, t]) => k !== 'evaluation').sort((a, b) => (b[1].available - a[1].available) || (!!b[1].free - !!a[1].free)).map(tile)),
     h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));
 }
 

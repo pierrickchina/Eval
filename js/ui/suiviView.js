@@ -6,6 +6,7 @@ import { vestOf } from '../logic/teams.js';
 import { studentLabel } from '../data/schema.js';
 import { activitiesOf } from '../logic/activities.js';
 import * as R from '../logic/results.js';
+import { ladderResults } from './ladderView.js';
 
 const V = { setId: '', actId: '' };
 const dot = (c) => h('i', { class: 'tdot', style: { background: vestOf(c).hex } });
@@ -63,24 +64,28 @@ function bonusDialog(cls, act, kind, e) {
 // ---------- Onglet « Résultats » d'une classe ----------
 
 export function resultsTab(cls) {
-  const acts = activitiesOf(cls).filter((a) => R.doneTournaments(a).length);
+  const hasLadder = (a) => Object.values(a.ladders || {}).some((L) => L.sessions?.length);
+  const acts = activitiesOf(cls).filter((a) => R.doneTournaments(a).length || hasLadder(a));
   if (V.actId && !acts.some((a) => a.id === V.actId)) V.actId = '';
   if (!acts.length) {
     return h('div', { class: 'empty' }, h('h2', null, 'Pas encore de résultats'),
-      h('p', null, 'Les résultats de tournoi des élèves de cette classe apparaîtront ici, activité par activité, dès qu\'un tournoi sera terminé dans l\'outil Tournoi d\'une activité.'));
+      h('p', null, 'Les résultats des élèves apparaîtront ici, activité par activité : tournois terminés (outil Tournoi) et tableau général des outils Tables et Rings.'));
   }
   const shown = V.actId ? acts.filter((a) => a.id === V.actId) : acts;
-  const cols = shown.flatMap((a) => R.doneTournaments(a).sort((x, y) => (x.date < y.date ? -1 : 1)).map((t) => ({ act: a, t })));
+  const ladders = shown.flatMap((a) => ladderResults(cls, a));
+  const tshown = shown.filter((a) => R.doneTournaments(a).length);
+  const cols = tshown.flatMap((a) => R.doneTournaments(a).sort((x, y) => (x.date < y.date ? -1 : 1)).map((t) => ({ act: a, t })));
   const students = cls.students.filter((s) => s.active !== false).sort((a, b) => collator.compare(studentLabel(a), studentLabel(b)));
-  const cache = new Map(shown.map((a) => [a.id, new Map(students.map((s) => [s.id, R.palmares(a, s.id)]))]));
+  const cache = new Map(tshown.map((a) => [a.id, new Map(students.map((s) => [s.id, R.palmares(a, s.id)]))]));
   return h('div', { class: 'resultsTab scroll grow', 'data-keep': 'results' },
     h('div', { class: 'row wrap', style: { padding: '8px 14px' } },
       h('label', { class: 'row' }, 'Activité', h('select', { 'aria-label': 'Activité', onChange: (e) => { V.actId = e.target.value; render(); } }, h('option', { value: '' }, 'Toutes'), acts.map((a) => h('option', { value: a.id, selected: V.actId === a.id }, a.name)))),
       h('span', { class: 'muted small' }, 'Rang final de l\'équipe de l\'élève dans chaque tournoi (absents : pas de résultat).')),
-    h('div', { style: { padding: '0 14px 20px', overflowX: 'auto' } }, h('table', { class: 'edit restab' },
+    cols.length ? h('div', { style: { padding: '0 14px 20px', overflowX: 'auto' } }, h('table', { class: 'edit restab' },
       h('thead', null, h('tr', null, h('th', null, 'Élève'), cols.map(({ act, t }) => h('th', { title: `${act.name} · ${t.name}` }, h('div', { class: 'rh' }, act.name), h('div', { class: 'rs' }, `${t.name}${t.date ? ' · ' + fmtDate(t.date) : ''}`))))),
       h('tbody', null, students.map((s) => h('tr', null, h('td', null, studentLabel(s)),
-        cols.map(({ act, t }) => { const p = cache.get(act.id).get(s.id).find((x) => x.tid === t.id); return h('td', { class: p ? '' : 'none' }, p ? [h('b', null, `${R.ordinalFr(p.rank)}`), h('span', { class: 'muted small' }, ` / ${p.of}`), h('div', { class: 'muted small' }, dotName(p))] : '–'); }))))))
+        cols.map(({ act, t }) => { const p = cache.get(act.id).get(s.id).find((x) => x.tid === t.id); return h('td', { class: p ? '' : 'none' }, p ? [h('b', null, `${R.ordinalFr(p.rank)}`), h('span', { class: 'muted small' }, ` / ${p.of}`), h('div', { class: 'muted small' }, dotName(p))] : '–'); })))))) : null,
+    ladders.length ? h('div', { style: { padding: '0 14px 20px' } }, ladders) : null,
   );
 }
 const dotName = (p) => [dot(p.color), p.team];

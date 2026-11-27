@@ -19,6 +19,8 @@ import { studentSummaryDialog } from './summaryView.js';
 import { printEvaluation } from './printView.js';
 import { startSelfEval } from './selfEval.js';
 import { selfCell, selfTotals, selfDone, reopenSelf } from '../logic/selfeval.js';
+import { perfResult, parseTime, parseGap, fmtTime } from '../logic/perf.js';
+import { ladderSuggestion } from '../logic/ladder.js';
 
 let V = null; // état de l'évaluation ouverte
 
@@ -433,6 +435,7 @@ function compCard(s, c) {
           onClick: () => act('Observation', (e) => addObs(e, s.id, c.id, l.key)) }, `+${l.symbol}`, n ? h('b', { class: 'cnt' }, n) : null));
     }),
     obsRow(s.id, c.id, cell),
+    c.perf ? perfRow(s, c, cell) : null,
     h('div', { class: 'foot' },
       h('div', { class: 'stepper' },
         h('button', { type: 'button', class: 'sm', 'aria-label': 'Moins', onClick: () => setSc(Math.max(0, (cell?.score ?? 0) - step)) }, '−'),
@@ -442,6 +445,64 @@ function compCard(s, c) {
       state === 'validated'
         ? btn('Modifier', { cls: 'small soft', onClick: () => act('Annulation de validation', (e) => validateCell(e, s.id, c.id, false)) })
         : btn('Valider', { icon: 'check', cls: 'small primary', disabled: state === 'empty', onClick: () => act('Validation', (e) => validateCell(e, s.id, c.id, true)) })));
+}
+
+// ---------- Note calculée à partir d'une performance (Duathlon) ou proposée par Tables & Rings ----------
+
+const PERF_LABEL = { time: 'Temps de course', zone: 'Zone de lancer', timezone: 'Temps et zone', gap: 'Écart au projet' };
+function perfSummary(p, type) {
+  if (!p) return '';
+  const bits = [];
+  if (p.sex) bits.push(p.sex === 'F' ? 'Fille' : 'Garçon');
+  if (p.time) bits.push(fmtTime(parseTime(p.time)));
+  if (p.zone != null && p.zone !== '' && type !== 'gap') bits.push(`zone ${p.zone}`);
+  if (p.gap) bits.push(`écart ${p.gap}`);
+  if (type === 'gap' && p.zonesOk != null) bits.push(`${p.zonesOk}/2 zones`);
+  return bits.join(' · ');
+}
+function perfRow(s, c, cell) {
+  if (c.perf.type === 'ladder') {
+    const sug = ladderSuggestion(app.repo, V.ev, s.id);
+    if (!sug) return h('div', { class: 'perfrow muted small' }, 'Aucun classement Tables & Rings pour cet élève dans cette activité.');
+    return h('div', { class: 'perfrow' }, h('span', { class: 'grow small' }, h('b', null, 'Tables & Rings : '), sug.why),
+      btn(`Proposer « ${levelInfo(sug.level).label} »`, { cls: 'small soft', onClick: () => act('Niveau proposé (Tables & Rings)', (e) => setLevel(e, s.id, c.id, sug.level)) }));
+  }
+  return h('div', { class: 'perfrow' },
+    h('span', { class: 'grow small' }, h('b', null, PERF_LABEL[c.perf.type] || 'Performance'), cell?.perf ? ` : ${perfSummary(cell.perf, c.perf.type)}` : ' : note calculée à partir de la performance'),
+    btn(cell?.perf ? 'Modifier' : 'Saisir', { icon: 'chrono', cls: 'small soft', onClick: () => perfDialog(s, c) }));
+}
+function perfDialog(s, c) {
+  const ev = V.ev;
+  const type = c.perf.type;
+  const grade = ev.model.level || ev.classInfo?.level;
+  const known = Object.values(ev.results?.[s.id] || {}).find((x) => x?.perf?.sex)?.perf?.sex; // sexe déjà saisi pour une autre compétence
+  const st = { sex: 'G', ...(known ? { sex: known } : {}), ...(getCell(ev, s.id, c.id)?.perf || {}) };
+  const body = h('div', { class: 'dlg-body' });
+  const out = h('p', { class: 'perfout' });
+  const show = () => {
+    const r = perfResult(c, st, grade);
+    out.replaceChildren(r ? (r.level ? `Niveau proposé : ${levelInfo(r.level).label} (${fmt(c.levels.find((l) => l.key === r.level).value)} / ${fmt(c.max)})` : `Note proposée : ${fmt(r.score)} / ${fmt(c.max)}`) : h('span', { class: 'muted' }, 'Complétez la saisie.'));
+    return r;
+  };
+  const seg = (k, opts) => h('div', { class: 'seg' }, opts.map(([v, l]) => h('button', { type: 'button', class: String(st[k]) === String(v) ? 'on' : '', onClick: () => { st[k] = v; paint(); } }, l)));
+  const paint = () => body.replaceChildren(
+    type !== 'gap' ? h('div', { class: 'field' }, 'Barème', seg('sex', [['G', 'Garçon'], ['F', 'Fille']])) : null,
+    type === 'time' || type === 'timezone' ? h('label', { class: 'field' }, 'Temps (min\'s)', h('input', { type: 'text', inputmode: 'decimal', value: st.time || '', placeholder: 'ex. 7\'45', onInput: (e) => { st.time = e.target.value; show(); } })) : null,
+    type === 'zone' || type === 'timezone' ? h('div', { class: 'field' }, 'Zone de lancer', seg('zone', [0, 1, 2, 3, 4, 5].map((z) => [z, String(z)]))) : null,
+    type === 'gap' ? h('label', { class: 'field' }, 'Écart au projet (en secondes, ou min\'s)', h('input', { type: 'text', inputmode: 'decimal', value: st.gap || '', placeholder: 'ex. 25', onInput: (e) => { st.gap = e.target.value; show(); } })) : null,
+    type === 'gap' ? h('div', { class: 'field' }, 'Zones de lancer prévues respectées', seg('zonesOk', [[0, 'Aucune'], [1, 'Une'], [2, 'Les deux']])) : null,
+    out,
+  ) && show();
+  paint();
+  openDialog({ title: `${c.name} · ${studentLabel(s)}`, body, actions: [{ label: 'Annuler' }, { label: 'Appliquer', primary: true, onClick: () => {
+    const r = show(); if (!r) return;
+    const clean = { ...st }; if (type === 'gap') delete clean.sex;
+    if (type === 'time' && clean.time) clean.time = fmtTime(parseTime(clean.time));
+    act('Performance', (e) => {
+      if (r.level) setLevel(e, s.id, c.id, r.level); else setScore(e, s.id, c.id, r.score);
+      getCell(e, s.id, c.id).perf = clean;
+    });
+  } }] });
 }
 
 // ---------- Équipes et groupes de niveau ----------

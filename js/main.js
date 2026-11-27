@@ -14,14 +14,20 @@ import './ui/classesView.js';
 import './ui/chronoView.js';
 import './ui/teamsView.js';
 import './ui/tournoiView.js';
+import './ui/ladderView.js';
+import './ui/mkView.js';
+import './ui/circuitView.js';
 import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
+import { installLibrary } from './data/library.js';
+import { defaultLevels } from './data/schema.js';
+import { uid } from './util.js';
 
-window.__APP_VERSION = '1.8.0';
+window.__APP_VERSION = '1.9.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
@@ -56,6 +62,12 @@ async function boot() {
       if (n) toast('Mise à jour 1.1 : les plages de niveaux de vos modèles suivent la nouvelle règle (« en cours » = moitié du barème).', { ms: 9000 });
     }
   } catch (e) { console.warn('Migration des niveaux impossible :', e); }
+
+  // v1.9 : bibliothèque « Projet EPS » (grilles de l'équipe), installée une seule fois, modifiable ensuite.
+  try {
+    const n = await installLibrary(repo, { uid, defaultLevels, step: (repo.getMeta('settings', {}) || {}).step || 0.5 });
+    if (n && repo.list('evaluations').length) toast(`Nouveau : ${n} modèles d'évaluation du Projet EPS ajoutés (Réglages › Modèles).`, { ms: 8000 });
+  } catch (e) { console.warn('Bibliothèque Projet EPS non installée :', e); }
 
   // Copie de sécurité interne au premier lancement d'une nouvelle version (les données sont intactes à ce stade)
   try {
