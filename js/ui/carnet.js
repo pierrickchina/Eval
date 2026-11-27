@@ -67,10 +67,10 @@ function activityFrame(cls, act) {
     }
     const def = TOOLS[t.type];
     if (def?.available) {
-      const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : 0;
+      const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : t.type === 'tournoi' ? (act.tournois?.length || 0) : 0;
       return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
         icon(def.icon), h('b', null, def.label),
-        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
+        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
     }
     return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : bientôt disponible.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'bientôt'));

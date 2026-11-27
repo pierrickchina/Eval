@@ -12,8 +12,9 @@ import {
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
 import { helpItem } from './help.js';
+import { suiviPanel } from './suiviView.js';
 
-const T = { full: false };
+const T = { full: false, tab: 'comp' };
 const roleDefs = () => app.repo.getMeta('teamRoles', null) || DEFAULT_ROLES;
 const saveClass = (cls) => app.repo.save('classes', cls);
 
@@ -89,12 +90,17 @@ registerView('equipes', (r) => {
       shirts(set), more);
   };
   const listMore = iconBtn('more', 'Options', () => popMenu(listMore, [helpItem('equipes')]), 'boxed');
+  const tabs = ctx.kind === 'act' ? h('div', { class: 'toolbar' }, h('div', { class: 'seg' }, [['comp', 'Compositions'], ['suivi', 'Suivi des résultats']].map(([k, l]) => h('button', { type: 'button', class: T.tab === k ? 'on' : '', onClick: () => { T.tab = k; render(); } }, l)))) : null;
+  if (tabs && T.tab === 'suivi') {
+    return h('div', { class: 'main' }, h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }), h('div', { class: 'grow evtitle' }, h('h1', null, 'Équipes'), h('div', { class: 'sub' }, ctx.title)), listMore), tabs, suiviPanel(ctx.cls, ctx.act));
+  }
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, 'Équipes'), h('div', { class: 'sub' }, ctx.title)),
       btn('Nouvelle composition', { icon: 'plus', cls: 'primary', onClick: () => newSetDialog(r, ctx) }),
       listMore),
+    tabs,
     sets.length
       ? h('div', { class: 'scroll grow listpad', 'data-keep': 'teamsets' }, sets.map(row))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucune composition'),

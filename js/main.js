@@ -13,6 +13,7 @@ import './ui/selfEval.js';
 import './ui/classesView.js';
 import './ui/chronoView.js';
 import './ui/teamsView.js';
+import './ui/tournoiView.js';
 import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
@@ -20,7 +21,7 @@ import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
 
-window.__APP_VERSION = '1.6.2';
+window.__APP_VERSION = '1.7.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);

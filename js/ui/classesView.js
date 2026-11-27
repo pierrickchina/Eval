@@ -1,4 +1,5 @@
 // Page d'une classe : 3 onglets — Carnet de bord · Oublis de matériel · Notes.
+import { resultsTab } from './suiviView.js';
 import { app, registerView, go, render } from '../app.js';
 import { h, btn, iconBtn, popMenu, toast } from './dom.js';
 import { hubTab, repairActivities, newActivityDialog } from './carnet.js';
@@ -26,7 +27,7 @@ registerView('classPage', ({ id }) => {
   ]), 'boxed');
   if (P.cls !== id) { P.cls = id; P.tab = 'hub'; } // l'onglet est mémorisé dans la classe, pas d'une classe à l'autre
   repairActivities(cls);
-  const tabs = [['hub', 'Carnet de bord'], ['forgets', 'Oublis de matériel'], ['notes', 'Notes']];
+  const tabs = [['hub', 'Carnet de bord'], ['forgets', 'Oublis de matériel'], ['notes', 'Notes'], ['results', 'Résultats']];
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
@@ -37,7 +38,7 @@ registerView('classPage', ({ id }) => {
       P.tab === 'hub' ? btn('Nouvelle activité', { icon: 'plus', cls: 'primary', onClick: () => newActivityDialog(cls) }) : null,
       P.tab === 'notes' ? notesToolbar(cls) : null,
       P.tab === 'forgets' ? forgetsToolbar(cls) : null),
-    P.tab === 'hub' ? hubTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : notesTab(cls));
+    P.tab === 'hub' ? hubTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : P.tab === 'results' ? resultsTab(cls) : notesTab(cls));
 });
 
 // ---------- Onglet Notes ----------

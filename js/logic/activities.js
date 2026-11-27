@@ -16,7 +16,8 @@ export const TOOLS = {
     help: ['Affiche en très gros un chronomètre ou un minuteur, lisible de toute la salle ; jusqu\'à 4 panneaux côte à côte.', 'Chaque panneau est un chronomètre ou un minuteur ; « +1 min » et « Tout démarrer » vont plus vite.', 'Rien n\'est enregistré : tout s\'efface en quittant.'] },
   equipes: { label: 'Équipes', icon: 'teams', color: '#f5c28a', available: true, free: true, route: 'equipes', hint: 'Compositions, clubs, tirages',
     help: ['Composez vos équipes en glissant les élèves, ou laissez l\'outil tirer au sort, par niveau ou en duos de tutorat.', 'Chaque équipe a un nom et une couleur de chasuble ; les rôles et les contraintes (ensemble / séparés) restent discrets.', 'Gardez une composition par leçon : dupliquez-la, modifiez-la, l\'ancienne reste consultable.'] },
-  tournoi: { label: 'Suivi de tournoi', icon: 'trophy', color: '#b8d4f6', available: false, hint: 'Bientôt' },
+  tournoi: { label: 'Tournoi', icon: 'trophy', color: '#b8d4f6', available: true, free: true, route: 'tournoi', hint: 'Calendrier équilibré, table de marque',
+    help: ['Choisissez les équipes, le sport et la durée : l\'outil prépare un calendrier où chacun joue et arbitre autant, avec des repos bien répartis.', 'L\'écran de jeu tient en un seul écran paysage : chronomètre, scores par équipe, liste des matchs et classement discret.', 'Dans une activité, les équipes viennent de l\'outil Équipes et les résultats sont conservés.'] },
   tables: { label: 'Suivi des tables', icon: 'racket', color: '#b8e6bd', available: false, hint: 'Bientôt (tennis de table)' },
 };
 /** Nom affiché d'une évaluation : le nom donné par l'enseignant, sinon l'activité du modèle (long : le nom de la grille). */

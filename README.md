@@ -25,6 +25,16 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.7
+
+- **Outil Tournoi** (onglet Outils, ou « + » dans une activité) : 2 à 12 équipes, calendrier équilibré (mêmes nombres de matchs, d'arbitrages, repos répartis), 1 ou 2 terrains, finale / petite finale, « j'ai X minutes » (toujours arrondi à la baisse).
+- **Table de marque** en paysage : scores aux couleurs des maillots, chrono, indicateur « Changement : 2:30 », +1/−1, annulation du dernier point, liste des matchs, classement discret.
+- **Deux tournois en parallèle** (écran partagé) ; depuis des **clubs**, équipe 1 → tournoi 1, équipe 2 → tournoi 2.
+- **Tournoi en activité** : équipes reprises d'une composition Équipes ; élève absent = aucun résultat.
+- **Suivi des résultats** (onglet dans Équipes, par activité) : équipes et clubs, bonus/malus, filtre « cette leçon seulement » ; onglet **Résultats** dans la classe.
+- Les messages (toasts) s'affichent maintenant en bas de l'écran.
+- À venir en 1.8 : suivi des tables de tennis de table et autres outils rapides.
+
 ### Nouveautés de la version 1.6.2
 - Écran Équipes : « non placés / dispensés / absents » forment une bande compacte au-dessus ; la zone « à répartir » d'un club tient toujours sur une seule ligne (défilement latéral), pour laisser toute la place aux équipes.
 
