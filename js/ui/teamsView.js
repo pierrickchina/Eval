@@ -14,7 +14,7 @@ import { printNode } from './printView.js';
 import { helpItem } from './help.js';
 import { suiviPanel } from './suiviView.js';
 
-const T = { full: false, tab: 'comp' };
+const T = { full: false, tab: 'comp', open: new Set() }; // open : zones « une ligne » dépliées (double-tap)
 const roleDefs = () => app.repo.getMeta('teamRoles', null) || DEFAULT_ROLES;
 const saveClass = (cls) => app.repo.save('classes', cls);
 
@@ -185,6 +185,13 @@ function editor(r, ctx, set) {
       locked ? h('span', { class: 'sl', title: 'Verrouillé' }, icon('lock', 13)) : null);
   };
   const zone = (id, cls, kids) => h('div', { class: `zone ${cls}`, 'data-zone': id }, kids);
+  /** Zone sur une seule ligne (non placés, dispensés, absents, à répartir) : double-tap ou toucher l'étiquette = tout afficher. */
+  const lineZone = (id, cls, label, kids) => {
+    const open = T.open.has(id);
+    return zone(id, `${cls} oneline ${open ? 'open' : ''}`, [
+      h('button', { type: 'button', class: 'zlabel', 'data-toggle': id, 'aria-expanded': String(open), title: open ? 'Replier' : 'Afficher tous les noms' }, label, icon(open ? 'up' : 'down', 14)),
+      ...kids]);
+  };
   const colorBtn = (t, isClub) => {
     const b = h('button', { type: 'button', class: 'vestbtn', 'aria-label': 'Couleur du chasuble', title: 'Couleur du chasuble', style: { background: vestOf(isClub ? t.color : teamColorId(set, t)).hex } });
     b.addEventListener('click', () => popMenu(b, VEST_COLORS.map((c) => ({ label: `${c.id === (isClub ? t.color : t.color) ? '● ' : ''}${c.label}`, onClick: () => apply(() => { t.color = c.id; if (!isClub) t.colorOwn = true; }) }))));
@@ -211,20 +218,20 @@ function editor(r, ctx, set) {
         nameInput(c, 'Nom du club'), h('span', { class: 'tcount' }, total), colorBtn(c, true),
         iconBtn('trash', `Supprimer ${c.name}`, () => undoable(ctx, set, `Club « ${c.name} » supprimé.`, () => removeClub(set, c.id)), 'sm')),
       h('div', { class: 'cluboard' },
-        zone(pool.id, 'tz clubpool', [h('div', { class: 'zlabel' }, 'À répartir'), ...pool.members.filter((s) => byId.has(s)).map((s) => chip(byId.get(s), {}))]),
+        lineZone(pool.id, 'tz clubpool', `À répartir (${pool.members.filter((s) => byId.has(s)).length})`, pool.members.filter((s) => byId.has(s)).map((s) => chip(byId.get(s), {}))),
         h('div', { class: 'subteams' }, subs.map((t) => h('div', { class: 'sub' }, nameInput(t, 'Nom de l\'équipe'), zone(t.id, 'tz', t.members.filter((s) => byId.has(s)).map((s) => chip(byId.get(s), {}))))))));
   };
 
   const free = unplaced(set, students).filter((s) => statusOf(set, s.id) === 'present');
   const disp = unplaced(set, students).filter((s) => statusOf(set, s.id) === 'dispense');
   const abs = students.filter((s) => statusOf(set, s.id) === 'absent');
-  const side = h('aside', { class: 'tside scroll', 'data-keep': 'tside' },
-    zone('unplaced', 'tz', [h('div', { class: 'zlabel' }, `Non placés (${free.length})`), ...free.map((s) => chip(s, {})), free.length ? null : h('div', { class: 'muted small' }, 'Tout le monde est placé.')]),
-    zone('dispense', 'tz zdisp', [h('div', { class: 'zlabel' }, `Dispensés (${disp.length})`), ...disp.map((s) => chip(s, {}))]),
-    zone('absent', 'tz zabs', [h('div', { class: 'zlabel' }, `Absents (${abs.length})`), ...abs.map((s) => chip(s, {}))]));
+  const side = h('aside', { class: 'tstrip', 'data-keep': 'tstrip' },
+    lineZone('unplaced', 'tz zfree', `Non placés (${free.length})`, [...free.map((s) => chip(s, {})), free.length ? null : h('span', { class: 'muted small' }, 'Tout le monde est placé.')]),
+    lineZone('dispense', `tz zdisp ${disp.length ? '' : 'empty'}`, `Dispensés (${disp.length})`, disp.map((s) => chip(s, {}))),
+    lineZone('absent', `tz zabs ${abs.length ? '' : 'empty'}`, `Absents (${abs.length})`, abs.map((s) => chip(s, {}))));
 
   const cards = set.mode === 'clubs' ? set.clubs.map(clubCard) : teamsOnly(set).map(teamCard);
-  const board = h('div', { class: 'tboard scroll', 'data-keep': 'tboard' },
+  const board = h('div', { class: `tgrid scroll ${set.mode === 'clubs' ? 'clubs' : ''}`, 'data-keep': 'tgrid' },
     cards.length ? cards : h('div', { class: 'empty' }, h('h2', null, set.mode === 'clubs' ? 'Aucun club' : 'Aucune équipe'),
       h('p', null, 'Ajoutez des équipes puis glissez les élèves dedans, ou ouvrez ⋮ › Générer.'),
       btn(set.mode === 'clubs' ? 'Ajouter un club' : 'Ajouter une équipe', { icon: 'plus', cls: 'primary', onClick: () => apply(() => (set.mode === 'clubs' ? addClub(set) : addTeam(set))) })));
@@ -259,6 +266,7 @@ function editor(r, ctx, set) {
     else if (zoneId === 'dispense') { moveStudent(set, sid, null); setStatus(set, sid, 'dispense'); }
     else moveStudent(set, sid, zoneId);
   }), (sid, anchor) => chipMenu(set, sid, anchor, nameOf, roles, apply));
+  attachZoneToggle(root);
   return root;
 }
 
@@ -426,6 +434,24 @@ function printSet(set, nameOf, roles) {
   printNode(h('div', null, h('h1', null, set.name), h('div', { class: 'sub' }, set.date ? fmtDate(set.date) : ''),
     h('div', { class: 'printteams' }, groups.map((g) => h('div', { class: 'pt' }, h('h2', { style: { borderBottom: `6px solid ${vestOf(g.color).hex}` } }, g.title),
       g.subs.map((s) => h('div', null, s.title ? h('h3', null, s.title) : null, h('ul', null, s.ids.map((id) => h('li', null, nameOf(id), visibleRole(set, id, roles) ? ` (${visibleRole(set, id, roles).label})` : ''))))))))), { landscape: true });
+}
+
+// ---------- Zones « une ligne » : déplier / replier ----------
+
+/** Toucher l'étiquette, ou double-tap n'importe où dans la zone (hors élève) : affiche tous les noms sur plusieurs lignes. */
+function attachZoneToggle(root) {
+  let last = { id: null, at: 0 };
+  const toggle = (id) => { if (T.open.has(id)) T.open.delete(id); else T.open.add(id); render(); };
+  root.addEventListener('click', (e) => { const b = e.target.closest('[data-toggle]'); if (b) toggle(b.dataset.toggle); });
+  root.addEventListener('pointerup', (e) => {
+    if (e.target.closest('.schip, [data-toggle]')) return;
+    const z = e.target.closest('.zone.oneline');
+    if (!z) return;
+    const t = performance.now();
+    if (last.id === z.dataset.zone && t - last.at < 380) { last = { id: null, at: 0 }; toggle(z.dataset.zone); }
+    else last = { id: z.dataset.zone, at: t };
+  });
+  root.addEventListener('dblclick', (e) => e.preventDefault());
 }
 
 // ---------- Glisser-déposer (doigt ou stylet) ----------

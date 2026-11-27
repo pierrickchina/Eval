@@ -54,7 +54,7 @@ export function circleRounds(ids) {
   const n = a.length, rounds = [];
   for (let r = 0; r < n - 1; r++) {
     const round = [];
-    for (let i = 0; i < n / 2; i++) { const x = a[i], y = a[n - 1 - i]; if (x && y) round.push(r % 2 ? [y, x] : [x, y]); }
+    for (let i = 0; i < n / 2; i++) { const x = a[i], y = a[n - 1 - i]; if (x != null && y != null) round.push(r % 2 ? [y, x] : [x, y]); }
     rounds.push(round);
     a.splice(1, 0, a.pop());
   }

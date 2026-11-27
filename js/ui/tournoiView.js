@@ -10,7 +10,7 @@ import { clockText } from './chronoView.js';
 import { helpItem } from './help.js';
 import { printNode } from './printView.js';
 
-const K = { ticker: null, lock: null, active: [], setup: null };
+const K = { ticker: null, lock: null, active: [], setup: null, lastCur: {} };
 const saveClass = (cls) => app.repo.save('classes', cls);
 
 // ---------- Contexte : activité ou outil libre ----------
@@ -46,7 +46,18 @@ const persist = (ctx, ...ts) => ts.filter(Boolean).forEach((t) => ctx.save(t));
 // ---------- Aides d'affichage ----------
 
 const vest = (t, id) => { const tm = t.teams.find((x) => x.id === id); return vestOf(tm?.color); };
-const nameOf = (t, id) => t.teams.find((x) => x.id === id)?.name || '—';
+/** Nom affiché : si toutes les équipes finissent pareil (« Club 1 · Équipe 1 », « Club 2 · Équipe 1 »…), la fin commune est retirée (« Club 1 »). */
+const shortNames = new WeakMap();
+const nameOf = (t, id) => {
+  if (!shortNames.has(t.teams)) {
+    const tails = t.teams.map((x) => (x.name.includes(' · ') ? x.name.slice(x.name.lastIndexOf(' · ')) : null));
+    const same = t.teams.length > 1 && tails[0] && tails.every((x) => x === tails[0]);
+    shortNames.set(t.teams, new Map(t.teams.map((x) => [x.id, same ? x.name.slice(0, -tails[0].length) : x.name])));
+  }
+  return shortNames.get(t.teams).get(id) || '—';
+};
+/** Version courte pour les listes serrées : « Club 1 · Équipe 2 » → « Club 1 · É2 ». */
+const tinyName = (t, id) => nameOf(t, id).replace(/ · Équipe (\d+)$/, ' · É$1');
 const dot = (hex) => h('i', { class: 'tdot', style: { background: hex } });
 const shirtIcon = (id) => { const v = vestOf(id); const sv = icon('teams', 20); sv.setAttribute('fill', v.hex); sv.setAttribute('stroke', v.id === 'sans' ? '#8b90a6' : 'rgba(0,0,0,.45)'); return sv; };
 const STATE = { setup: 'à lancer', running: 'en cours', done: 'terminé' };
@@ -77,14 +88,14 @@ registerView('tournoi', (r) => {
         h('div', { class: 'muted small' }, [fmtDate(t.date), TN.SPORTS[t.sport]?.label, g.map((x) => `${x.teams.length} équipes`).join(' + '), g.length > 1 ? 'en parallèle' : '', STATE[st]].filter(Boolean).join(' · '))),
       h('span', { class: 'shirts' }, g.flatMap((x) => x.teams.slice(0, 8).map((tm) => shirtIcon(tm.color)))), more);
   };
-  const newBtn = btn('Nouveau tournoi', { icon: 'plus', cls: 'primary', onClick: () => { K.setup = initSetup(ctx); go('tournoi', { ...r, tid: undefined, setup: true }); } });
+  const newBtn = () => btn('Nouveau tournoi', { icon: 'plus', cls: 'primary', onClick: () => { K.setup = initSetup(ctx); go('tournoi', { ...r, tid: undefined, setup: true }); } });
   const m = iconBtn('more', 'Options', () => popMenu(m, [helpItem('tournoi')]), 'boxed');
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, 'Tournois'), h('div', { class: 'sub' }, ctx.title)), newBtn, m),
+      h('div', { class: 'grow evtitle' }, h('h1', null, 'Tournois'), h('div', { class: 'sub' }, ctx.title)), groups.length ? newBtn() : null, m),
     groups.length ? h('div', { class: 'scroll grow listpad', 'data-keep': 'tournois' }, groups.map(row))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucun tournoi'),
-        h('p', null, 'Choisissez les équipes, le sport et la durée : l\'outil prépare un calendrier équilibré (matchs, arbitrages, repos) et tient la table de marque.'), newBtn));
+        h('p', null, 'Choisissez les équipes, le sport et la durée : l\'outil prépare un calendrier équilibré (matchs, arbitrages, repos) et tient la table de marque.'), newBtn()));
 });
 
 function deleteGroup(ctx, g) {
@@ -133,32 +144,59 @@ function fillFromSet(S, set) {
   if (S.parallel && S.rows.length && !S.rows.some((x) => x.side === 'B')) S.rows.forEach((x, i) => { x.side = i % 2 ? 'B' : 'A'; });
 }
 const teamsOfSide = (S, side, ctx) => (ctx.kind === 'act'
-  ? S.rows.filter((x) => x.include && x.side === side).map((x) => ({ id: uid(), name: x.name, color: x.color, teamId: x.teamId, clubId: x.clubId, members: x.members }))
+  ? S.rows.filter((x) => x.include && (!S.parallel || x.side === side)).map((x) => ({ id: uid(), name: x.name, color: x.color, teamId: x.teamId, clubId: x.clubId, members: x.members }))
   : (side === 'A' ? S.teamsA : S.teamsB));
+
+/** Compteur tactile [−] valeur [+] : plus sûr au doigt qu'un champ numérique. */
+function stepper(value, fn, { min = 1, max = 99, unit = '', label }) {
+  return h('div', { class: 'stepper', role: 'group', 'aria-label': label },
+    h('button', { type: 'button', 'aria-label': `${label} : moins`, disabled: value <= min, onClick: () => fn(Math.max(min, value - 1)) }, icon('minus', 18)),
+    h('output', null, `${value}${unit}`),
+    h('button', { type: 'button', 'aria-label': `${label} : plus`, disabled: value >= max, onClick: () => fn(Math.min(max, value + 1)) }, icon('plus', 18)));
+}
+/** Nouvelle équipe : 1re couleur de chasuble pas encore prise, numéro suivant. */
+function nextTeam(list, offset = 0) {
+  const used = new Set(list.map((x) => x.color));
+  const cols = VEST_COLORS.filter((c) => c.id !== 'sans');
+  const c = cols.find((x) => !used.has(x.id)) || cols[(list.length + offset) % cols.length];
+  const names = new Set(list.map((x) => x.name));
+  let n = list.length + 1 + offset; while (names.has(`Équipe ${n}`)) n++;
+  return { id: uid(), name: `Équipe ${n}`, color: c.id };
+}
+/** Nombre de matchs d'un côté (poule + finales), pour le résumé. */
+function countMatches(S, n) {
+  if (n < 2) return { total: 0, perTeam: 0 };
+  const pool = TN.pairingPool(Array.from({ length: n }, (_, i) => `e${i}`), { format: S.format, perTeam: S.perTeam }).length;
+  const fin = S.finals === 'both' && n >= 4 ? 2 : S.finals !== 'none' && n >= 3 ? 1 : 0;
+  return { total: pool + fin, pool, perTeam: S.perTeam || (n - 1) * (S.format === 'double' ? 2 : 1) };
+}
 
 function setupView(r, ctx) {
   const S = K.setup;
   const re = () => render();
   const set = (k, v) => { S[k] = v; S.plan = null; re(); };
   const num = (v, d) => { const x = parseInt(v, 10); return Number.isFinite(x) && x > 0 ? x : d; };
-  const seg = (items, cur, fn) => h('div', { class: 'seg' }, items.map(([k, l]) => h('button', { type: 'button', class: cur === k ? 'on' : '', onClick: () => fn(k) }, l)));
+  const seg = (items, cur, fn, extra = '') => h('div', { class: `seg ${extra}` }, items.map(([k, l]) => h('button', { type: 'button', class: cur === k ? 'on' : '', 'aria-pressed': String(cur === k), onClick: () => fn(k) }, l)));
   const field = (label, input) => h('label', { class: 'field' }, label, input);
-  const numIn = (val, fn, w = '90px', min = 1, max = 99) => h('input', { type: 'number', inputmode: 'numeric', min, max, value: val, style: { width: w }, onChange: (e) => fn(num(e.target.value, val)) });
+  const opt = (label, control, note) => h('div', { class: 'opt' }, h('div', { class: 'optl' }, label, note ? h('small', null, note) : null), control);
   const sides = S.parallel ? ['A', 'B'] : ['A'];
   const nA = teamsOfSide(S, 'A', ctx).length, nB = S.parallel ? teamsOfSide(S, 'B', ctx).length : 0;
   const matchMin = TN.matchMinutes(S);
   const ok = (n) => n >= 2 && n <= 12;
   const valid = ok(nA) && (!S.parallel || ok(nB));
+  const courts = S.parallel ? 1 : S.courts;
 
   // --- équipes ---
-  const colorBtn = (tm) => { const b = h('button', { type: 'button', class: 'vestbtn', 'aria-label': 'Couleur du chasuble', style: { background: vestOf(tm.color).hex }, onClick: () => popMenu(b, VEST_COLORS.map((c) => ({ label: `${c.id === tm.color ? '● ' : ''}${c.label}`, onClick: () => { tm.color = c.id; re(); } }))) }); return b; };
+  const colorBtn = (tm) => { const b = h('button', { type: 'button', class: 'vestbtn', 'aria-label': `Couleur du chasuble de ${tm.name}`, style: { background: vestOf(tm.color).hex }, onClick: () => popMenu(b, VEST_COLORS.map((c) => ({ label: `${c.id === tm.color ? '● ' : ''}${c.label}`, onClick: () => { tm.color = c.id; re(); } }))) }); return b; };
   const freeList = (key, label) => {
     const list = S[key];
-    return h('div', { class: 'panel' }, h('h3', null, label),
-      list.map((tm, i) => h('div', { class: 'listrow' }, colorBtn(tm), h('input', { type: 'text', value: tm.name, style: { flex: 1 }, 'aria-label': `Nom de l'équipe ${i + 1}`, onChange: (e) => { tm.name = e.target.value.trim() || tm.name; re(); } }),
-        iconBtn('trash', 'Retirer', () => { list.splice(i, 1); S.plan = null; re(); }, 'sm'))),
-      h('div', { class: 'row' }, btn('Ajouter une équipe', { icon: 'plus', cls: 'small soft', disabled: list.length >= 12, onClick: () => { list.push(...defaultTeams(1, list.length)); S.plan = null; re(); } }),
-        h('span', { class: `muted small ${ok(list.length) ? '' : 'bad'}` }, `${list.length} équipe${list.length > 1 ? 's' : ''} (2 à 12)`)));
+    const offset = key === 'teamsB' ? S.teamsA.length : 0;
+    const setCount = (n) => { while (list.length < n) list.push(nextTeam(list, offset)); list.length = n; S.plan = null; re(); };
+    return h('div', { class: 'panel' },
+      h('div', { class: 'panelhead' }, h('h3', null, label), stepper(list.length, setCount, { min: 2, max: 12, label: `Nombre d'équipes${key === 'teamsB' ? ' du tournoi 2' : ''}` })),
+      h('div', { class: 'tn-teamgrid' }, list.map((tm, i) => h('div', { class: 'listrow' }, colorBtn(tm),
+        h('input', { type: 'text', value: tm.name, style: { flex: 1, minWidth: 0 }, 'aria-label': `Nom de l'équipe ${i + 1}`, onChange: (e) => { tm.name = e.target.value.trim() || tm.name; re(); } }),
+        list.length > 2 ? iconBtn('trash', `Retirer ${tm.name}`, () => { list.splice(i, 1); S.plan = null; re(); }, 'sm') : null))));
   };
   const sets = ctx.kind === 'act' ? ctx.act.equipes?.sets || [] : [];
   const actTeams = () => {
@@ -167,49 +205,57 @@ function setupView(r, ctx) {
     return h('div', { class: 'panel' }, h('h3', null, 'Équipes'),
       field('Composition de l\'outil Équipes', h('select', { onChange: (e) => { fillFromSet(S, sets.find((x) => x.id === e.target.value)); S.plan = null; re(); } },
         sets.map((x) => h('option', { value: x.id, selected: x.id === S.setId }, `${x.name}${x.date ? ' · ' + fmtDate(x.date) : ''} (${x.mode === 'clubs' ? 'clubs' : 'équipes'})`)))),
-      S.rows.map((x) => h('div', { class: 'listrow' },
-        h('input', { type: 'checkbox', checked: x.include, style: { width: '22px', height: '22px' }, 'aria-label': `Inclure ${x.name}`, onChange: (e) => { x.include = e.target.checked; S.plan = null; re(); } }),
-        dot(vestOf(x.color).hex), h('b', { class: 'grow' }, x.name), h('span', { class: 'muted small' }, `${x.members.length} élève${x.members.length > 1 ? 's' : ''}`),
-        S.parallel ? seg([['A', 'Tournoi 1'], ['B', 'Tournoi 2']], x.side, (k) => { x.side = k; S.plan = null; re(); }) : null)));
+      h('div', { class: 'tn-teamgrid acts' }, S.rows.map((x) => h('div', { class: `listrow ${x.include ? '' : 'off'}` },
+        h('input', { type: 'checkbox', checked: x.include, class: 'bigchk', 'aria-label': `Inclure ${x.name}`, onChange: (e) => { x.include = e.target.checked; S.plan = null; re(); } }),
+        dot(vestOf(x.color).hex), h('b', { class: 'grow ell' }, x.name), h('span', { class: 'muted small' }, `${x.members.length} él.`),
+        S.parallel ? seg([['A', 'Tournoi 1'], ['B', 'Tournoi 2']], x.side, (k) => { x.side = k; S.plan = null; re(); }, 'sm') : null))));
   };
 
-  // --- réglages ---
+  // --- résumé + « j'ai X minutes » ---
+  const cA = countMatches(S, nA), cB = S.parallel ? countMatches(S, nB) : null;
+  const estimate = (() => { const n = Math.max(nA, nB, 2); const c = countMatches(S, n); const per = n < 4 ? 1 : courts; const slots = Math.ceil(c.pool / per) + (c.total - c.pool); return slots * (matchMin + S.changeover) - S.changeover; })();
   const plan = S.plan;
-  const settings = h('div', { class: 'panel' }, h('h3', null, 'Réglages'),
-    h('div', { class: 'row wrap' },
-      field('Sport', h('select', { onChange: (e) => set('sport', e.target.value) }, Object.entries(TN.SPORTS).map(([k, v]) => h('option', { value: k, selected: S.sport === k }, v.label)))),
-      S.sport === 'autre' ? field('Boutons de points (ex. 1,2,3)', h('input', { type: 'text', value: S.customButtons, style: { width: '140px' }, onChange: (e) => { S.customButtons = e.target.value; re(); } })) : null,
-      field('Format', seg([['single', 'Chacun contre chacun'], ['double', 'Aller-retour']], S.format, (k) => set('format', k))),
-      field('Finale', h('select', { onChange: (e) => set('finals', e.target.value) }, [['none', 'Aucune'], ['final', 'Finale'], ['both', 'Finale et petite finale']].map(([k, l]) => h('option', { value: k, selected: S.finals === k }, l))))),
-    h('div', { class: 'row wrap' },
-      field('Mi-temps', seg([[1, 'Une'], [2, 'Deux']], S.halves, (k) => set('halves', k))),
-      field(S.halves === 2 ? 'Durée d\'une mi-temps (min)' : 'Durée du match (min)', numIn(S.halfMin, (v) => set('halfMin', v))),
-      S.halves === 2 ? field('Pause (min)', numIn(S.pauseMin, (v) => set('pauseMin', v))) : null,
-      field('Changement entre matchs (min)', seg([[1, '1'], [2, '2'], [3, '3']], S.changeover, (k) => set('changeover', k))),
-      field('Terrains', seg([[1, '1'], [2, '2']], S.parallel ? 1 : S.courts, (k) => { if (!S.parallel) set('courts', k); }))),
-    h('div', { class: 'row wrap' }, h('b', null, 'Points de tournoi :'),
-      ...[['w', 'victoire'], ['d', 'égalité'], ['l', 'défaite']].map(([k, l]) => h('label', { class: 'row' }, l, numIn(S.pts[k], (v) => { S.pts[k] = v; re(); }, '64px', 0, 20)))),
-    h('div', { class: 'row wrap' },
-      h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: S.change.on, style: { width: '22px', height: '22px' }, onChange: (e) => { S.change.on = e.target.checked; re(); } }), 'Indicateur « Changement : » sur le chronomètre'),
-      S.change.on ? h('select', { 'aria-label': 'Moment du changement', onChange: (e) => { S.change.mode = e.target.value; re(); } }, [['mid', 'À la moitié (de chaque mi-temps)'], ['thirds', 'Au tiers et aux deux tiers'], ['custom', 'À des temps choisis']].map(([k, l]) => h('option', { value: k, selected: S.change.mode === k }, l))) : null,
-      S.change.on && S.change.mode === 'custom' ? h('input', { type: 'text', placeholder: '1:30, 3:00', value: S.change.custom, style: { width: '140px' }, 'aria-label': 'Temps écoulés des changements', onChange: (e) => { S.change.custom = e.target.value; re(); } }) : null),
-    S.parallel ? h('p', { class: 'muted small', style: { margin: 0 } }, 'Deux tournois en parallèle : un terrain chacun, vue partagée, sans classement en direct.') : null);
-
-  // --- j'ai X minutes ---
-  const planBox = h('div', { class: 'panel' }, h('h3', null, 'J\'ai X minutes'),
-    h('div', { class: 'row wrap' }, field('Temps disponible (min)', h('input', { type: 'number', inputmode: 'numeric', min: 5, value: S.minutes, style: { width: '110px' }, onChange: (e) => { S.minutes = e.target.value; S.plan = TN.planTime({ minutes: num(e.target.value, 0), n: Math.max(nA, nB, 2), courts: S.parallel ? 1 : S.courts, matchMin, changeover: S.changeover, format: S.format }); re(); } })),
-      plan ? btn(plan.possible ? (plan.full ? 'Garder le tournoi complet' : `Appliquer : ${plan.perTeam} match${plan.perTeam > 1 ? 's' : ''} par équipe`) : 'Trop court', { cls: 'soft', disabled: !plan.possible, onClick: () => { S.perTeam = plan.full ? null : plan.perTeam; toast(plan.full ? 'Tournoi complet.' : `${plan.perTeam} matchs par équipe.`); re(); } }) : null),
-    plan ? h('p', { class: 'small', style: { margin: '8px 0 0' } }, plan.possible
-      ? `${plan.full ? 'Le tournoi complet rentre' : `Je propose ${plan.perTeam} match${plan.perTeam > 1 ? 's' : ''} par équipe`} : ${plan.totalMatches} matchs, environ ${plan.minutesUsed} min en comptant les changements (toujours à la baisse).${plan.uneven ? ' Avec un nombre impair d\'équipes, certaines joueront un match de moins.' : ''}`
+  const summary = h('div', { class: 'panel tn-sum' },
+    h('div', { class: 'tn-sumbig' }, S.parallel ? `${cA.total} + ${cB.total} matchs` : `${cA.total} matchs`, h('small', null, ` · ≈ ${Math.max(0, estimate)} min`)),
+    h('div', { class: 'muted small' }, [
+      S.parallel ? `${nA} + ${nB} équipes` : `${nA} équipes`,
+      `${cA.perTeam} match${cA.perTeam > 1 ? 's' : ''} par équipe`,
+      `${matchMin} min par match + ${S.changeover} min de changement`,
+      S.parallel ? '1 terrain par tournoi' : `${courts} terrain${courts > 1 ? 's' : ''}`,
+    ].join(' · ')),
+    valid ? null : h('div', { class: 'bad small' }, 'Chaque tournoi doit avoir de 2 à 12 équipes.'),
+    h('div', { class: 'tn-plan' },
+      h('span', null, 'J\'ai X minutes'),
+      h('input', { type: 'number', inputmode: 'numeric', min: 5, value: S.minutes, placeholder: 'min', 'aria-label': 'Temps disponible', style: { width: '96px' },
+        onChange: (e) => { S.minutes = e.target.value; S.plan = e.target.value ? TN.planTime({ minutes: num(e.target.value, 0), n: Math.max(nA, nB, 2), courts, matchMin, changeover: S.changeover, format: S.format }) : null; re(); } }),
+      plan && plan.possible ? btn(plan.full ? 'Garder le tournoi complet' : `Appliquer : ${plan.perTeam} match${plan.perTeam > 1 ? 's' : ''} par équipe`, { cls: 'small primary', onClick: () => { S.perTeam = plan.full ? null : plan.perTeam; toast(plan.full ? 'Tournoi complet.' : `${plan.perTeam} matchs par équipe.`); re(); } }) : null),
+    plan ? h('p', { class: 'small', style: { margin: '6px 0 0' } }, plan.possible
+      ? `${plan.full ? 'Le tournoi complet rentre' : `Je propose ${plan.perTeam} match${plan.perTeam > 1 ? 's' : ''} par équipe`} : ${plan.totalMatches} matchs, environ ${plan.minutesUsed} min avec les changements (toujours arrondi à la baisse).${plan.uneven ? ' Nombre impair d\'équipes : certaines joueront un match de moins.' : ''}`
       : 'Ce temps est trop court pour un seul match avec les changements.') : null,
     S.perTeam ? h('p', { class: 'small', style: { margin: '6px 0 0' } }, `Réglé sur ${S.perTeam} match${S.perTeam > 1 ? 's' : ''} par équipe. `, h('button', { type: 'button', class: 'linkbtn', onClick: () => { S.perTeam = null; S.plan = null; re(); } }, 'Revenir au tournoi complet')) : null);
 
-  const estimate = (() => { const n = Math.max(nA, 2); const pool = TN.pairingPool(Array.from({ length: n }, (_, i) => i), { format: S.format, perTeam: S.perTeam }).length; const c = (S.parallel ? 1 : S.courts); const slots = Math.ceil(pool / (n < 4 ? 1 : c)) + (S.finals === 'both' && n >= 4 ? 2 : S.finals === 'final' && n >= 3 ? 1 : 0); return slots * (matchMin + S.changeover) - S.changeover; })();
+  // --- réglages du jeu ---
+  const game = h('div', { class: 'panel' }, h('h3', null, 'Jeu'),
+    opt('Sport', seg(Object.entries(TN.SPORTS).map(([k, v]) => [k, v.label]), S.sport, (k) => set('sport', k), 'wrap')),
+    S.sport === 'autre' ? opt('Boutons de points', h('input', { type: 'text', value: S.customButtons, style: { width: '120px' }, 'aria-label': 'Boutons de points', onChange: (e) => { S.customButtons = e.target.value; re(); } }), 'ex. 1, 2, 3') : null,
+    opt('Mi-temps', seg([[1, 'Une'], [2, 'Deux']], S.halves, (k) => set('halves', k))),
+    opt(S.halves === 2 ? 'Durée d\'une mi-temps' : 'Durée du match', stepper(S.halfMin, (v) => set('halfMin', v), { min: 1, max: 60, unit: ' min', label: 'Durée' })),
+    S.halves === 2 ? opt('Pause', stepper(S.pauseMin, (v) => set('pauseMin', v), { min: 0, max: 15, unit: ' min', label: 'Pause' })) : null,
+    opt('Changement entre matchs', seg([[1, '1 min'], [2, '2 min'], [3, '3 min']], S.changeover, (k) => set('changeover', k))),
+    opt('Terrains', S.parallel ? h('span', { class: 'muted small' }, '1 par tournoi') : seg([[1, '1'], [2, '2']], S.courts, (k) => set('courts', k)), !S.parallel && S.courts === 2 && nA < 6 ? 'moins de 6 équipes : certains matchs sans arbitre' : null),
+    opt('Format', seg([['single', 'Chacun contre chacun'], ['double', 'Aller-retour']], S.format, (k) => set('format', k), 'wrap')),
+    opt('Finale', seg([['none', 'Aucune'], ['final', 'Finale'], ['both', '+ petite finale']], S.finals, (k) => set('finals', k), 'wrap')));
+  const more = h('details', { class: 'panel tn-more', open: S.moreOpen || null, onToggle: (e) => { S.moreOpen = e.target.open; } },
+    h('summary', null, 'Plus d\'options : points de tournoi, indicateur de changement'),
+    opt('Points de tournoi', h('div', { class: 'row wrap' }, [['w', 'V'], ['d', 'N'], ['l', 'D']].map(([k, l]) => h('span', { class: 'row', style: { gap: '4px' } }, h('b', null, l), stepper(S.pts[k], (v) => { S.pts[k] = v; re(); }, { min: 0, max: 20, label: `Points ${l}` }))))),
+    h('div', { class: 'opt' }, h('label', { class: 'row' }, h('input', { type: 'checkbox', class: 'bigchk', checked: S.change.on, onChange: (e) => { S.change.on = e.target.checked; re(); } }), 'Indicateur « Changement : » sur le chronomètre'),
+      S.change.on ? h('select', { 'aria-label': 'Moment du changement', onChange: (e) => { S.change.mode = e.target.value; re(); } }, [['mid', 'À la moitié (de chaque mi-temps)'], ['thirds', 'Au tiers et aux deux tiers'], ['custom', 'À des temps choisis']].map(([k, l]) => h('option', { value: k, selected: S.change.mode === k }, l))) : null,
+      S.change.on && S.change.mode === 'custom' ? h('input', { type: 'text', placeholder: '1:30, 3:00', value: S.change.custom, style: { width: '140px' }, 'aria-label': 'Temps écoulés des changements', onChange: (e) => { S.change.custom = e.target.value; re(); } }) : null));
 
   const create = () => {
     if (!valid) return toast('Chaque tournoi doit avoir de 2 à 12 équipes.');
     const pairId = S.parallel ? uid() : null;
-    const settingsOut = { sport: S.sport, halves: S.halves, halfMin: S.halfMin, pauseMin: S.pauseMin, pts: S.pts, courts: S.parallel ? 1 : S.courts, format: S.format, finals: S.finals, perTeam: S.perTeam, changeover: S.changeover, change: S.change, customButtons: S.customButtons };
+    const settingsOut = { sport: S.sport, halves: S.halves, halfMin: S.halfMin, pauseMin: S.pauseMin, pts: S.pts, courts, format: S.format, finals: S.finals, perTeam: S.perTeam, changeover: S.changeover, change: S.change, customButtons: S.customButtons };
     const base = ctx.kind === 'act' ? { classId: ctx.cls.id, actId: ctx.act.id, setId: S.setId } : {};
     const made = sides.map((side) => TN.newTournament({ name: S.parallel ? `${S.name} · Tournoi ${side === 'A' ? 1 : 2}` : S.name, date: S.date, teams: teamsOfSide(S, side, ctx).map((x) => JSON.parse(JSON.stringify(x))), settings: settingsOut, scope: ctx.kind, pairId, side: S.parallel ? side : null, ctx: base }));
     made.forEach((t) => ctx.add(t)); persist(ctx, ...made);
@@ -217,18 +263,22 @@ function setupView(r, ctx) {
     go('tournoi', { ...r, setup: undefined, tid: made[0].id });
   };
 
+  const head = h('div', { class: 'panel' },
+    h('div', { class: 'row wrap', style: { alignItems: 'flex-end' } },
+      field('Nom du tournoi', h('input', { type: 'text', value: S.name, style: { width: '260px' }, 'data-fid': 'tname', onInput: (e) => { S.name = e.target.value; S.nameTouched = true; } })),
+      field('Date', h('input', { type: 'date', value: S.date, onChange: (e) => { S.date = e.target.value || todayISO(); if (!S.nameTouched && /^Tournoi \d/.test(S.name)) S.name = TN.defaultName(S.date); re(); } }))),
+    h('label', { class: 'row switchrow' }, h('input', { type: 'checkbox', class: 'bigchk', checked: S.parallel, onChange: (e) => { S.parallel = e.target.checked; if (S.parallel && ctx.kind === 'free' && !S.teamsB.length) S.teamsB = defaultTeams(4, S.teamsA.length); if (S.parallel && ctx.kind === 'act' && !S.rows.some((x) => x.side === 'B')) S.rows.forEach((x, i) => { x.side = i % 2 ? 'B' : 'A'; }); S.courts = 1; S.plan = null; re(); } }),
+      h('span', null, h('b', null, 'Deux tournois en parallèle'), h('small', { class: 'muted' }, ' — un terrain chacun, écran partagé'))));
+
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => { K.setup = null; go('tournoi', { ...r, setup: undefined }); }, '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, 'Nouveau tournoi'), h('div', { class: 'sub' }, `${ctx.title} · durée estimée ${estimate} min`)),
+      h('div', { class: 'grow evtitle' }, h('h1', null, 'Nouveau tournoi'), h('div', { class: 'sub' }, `${ctx.title} · durée estimée ${Math.max(0, estimate)} min`)),
       btn('Créer le tournoi', { icon: 'play', cls: 'primary', disabled: !valid, onClick: create })),
     h('div', { class: 'scroll grow listpad setup', 'data-keep': 'tsetup' },
-      h('div', { class: 'panel' }, h('div', { class: 'row wrap' },
-        field('Nom du tournoi', h('input', { type: 'text', value: S.name, style: { width: '280px' }, 'data-fid': 'tname', onInput: (e) => { S.name = e.target.value; } })),
-        field('Date', h('input', { type: 'date', value: S.date, onChange: (e) => { S.date = e.target.value || todayISO(); if (!S.nameTouched && /^Tournoi \d/.test(S.name)) S.name = TN.defaultName(S.date); re(); } })),
-        h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: S.parallel, style: { width: '22px', height: '22px' }, onChange: (e) => { S.parallel = e.target.checked; if (S.parallel && ctx.kind === 'free' && !S.teamsB.length) S.teamsB = defaultTeams(4, S.teamsA.length); if (S.parallel && ctx.kind === 'act' && !S.rows.some((x) => x.side === 'B')) S.rows.forEach((x, i) => { x.side = i % 2 ? 'B' : 'A'; }); S.courts = 1; S.plan = null; re(); } }), 'Deux tournois en parallèle (un terrain chacun)'))),
-      ctx.kind === 'act' ? actTeams() : h('div', { class: S.parallel ? 'twocols' : '' }, freeList('teamsA', S.parallel ? 'Équipes du tournoi 1' : 'Équipes'), S.parallel ? freeList('teamsB', 'Équipes du tournoi 2') : null),
-      ctx.kind === 'act' && S.parallel ? h('p', { class: `muted small ${ok(nA) && ok(nB) ? '' : 'bad'}` }, `Tournoi 1 : ${nA} équipes · Tournoi 2 : ${nB} équipes (2 à 12 chacun)`) : null,
-      settings, planBox));
+      h('div', { class: 'tn-setup' },
+        h('div', { class: 'tn-col' }, head,
+          ctx.kind === 'act' ? actTeams() : h('div', { class: S.parallel ? 'twocols' : '' }, freeList('teamsA', S.parallel ? 'Tournoi 1' : 'Équipes'), S.parallel ? freeList('teamsB', 'Tournoi 2') : null)),
+        h('div', { class: 'tn-col right' }, summary, game, more))));
 }
 
 // ---------- Écran de jeu ----------
@@ -237,7 +287,11 @@ const matchLabel = (t, m) => `${nameOf(t, m.a)} – ${nameOf(t, m.b)}`;
 const pending = (t, court) => t.matches.filter((m) => m.court === court && !m.done && m.a && m.b).sort((x, y) => x.slot - y.slot);
 const currentOf = (t, court) => pending(t, court)[0] || null;
 const courtsOf = (t) => (t.courts === 2 && t.teams.length >= 4 ? [0, 1] : [0]);
-const phaseText = { h1: '', pause: 'Pause', h2: '2e mi-temps', fin: 'Temps écoulé' };
+const phaseLabel = (t, el) => ({ h1: t.halves === 2 ? '1re mi-temps' : '', pause: 'Pause', h2: '2e mi-temps', fin: 'Temps écoulé' })[TN.phaseAt(t, el)] || '';
+const poolOrder = (t) => t.matches.filter((x) => x.phase === 'poule').sort((x, y) => x.slot - y.slot || x.court - y.court);
+const matchTitle = (t, m) => (m.phase === 'finale' ? 'Finale' : m.phase === 'petite' ? 'Petite finale' : `Match ${poolOrder(t).indexOf(m) + 1}`);
+/** Minutes restantes (créneaux non joués × durée d'un créneau). */
+const remainingMin = (t) => { const left = new Set(t.matches.filter((m) => !m.done).map((m) => m.slot)).size; return left ? left * (TN.matchMinutes(t) + t.changeover) - t.changeover : 0; };
 
 function playView(r, ctx, t) {
   const partner = partnerOf(ctx, t);
@@ -249,89 +303,134 @@ function playView(r, ctx, t) {
     persist(ctx, ...ts); stopTicker(); go('tournoi', { ...r, tid: undefined });
   };
   const more = iconBtn('more', 'Options', () => popMenu(more, [
-    { label: 'Classement…', onClick: () => rankDialog(ts[0]) },
-    partner ? { label: 'Classement du tournoi 2…', onClick: () => rankDialog(ts[1]) } : null,
+    ...ts.map((x, i) => ({ label: ts.length > 1 ? `Classement du tournoi ${i + 1}…` : 'Classement détaillé…', onClick: () => rankDialog(x) })),
     { label: 'Imprimer calendrier et classement', onClick: () => printTournoi(ts) },
     { label: 'Renommer…', onClick: () => renameDialog(ctx, t) },
     helpItem('tournoi'),
-  ].filter(Boolean)), 'boxed');
-  const est = TN.estimateMinutes(t);
-  return h('div', { class: `main tplay ${partner ? 'split' : ''}` },
+  ]), 'boxed');
+  const played = ts.map((x) => `${x.matches.filter((m) => m.done).length}/${x.matches.length}`).join(' + ');
+  const left = Math.max(...ts.map(remainingMin));
+  return h('div', { class: `main tplay ${partner ? 'tn-split' : ''}` },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', leave, '', { 'data-back': '1' }),
-      h('div', { class: 'grow evtitle' }, h('h1', null, partner ? ts.map((x) => x.name).join(' + ') : t.name),
-        h('div', { class: 'sub' }, `${TN.SPORTS[t.sport]?.label} · ${t.teams.length} équipes${partner ? ` + ${partner.teams.length}` : ''} · ~${est} min`)),
-      partner ? null : btn('Classement', { icon: 'trophy', onClick: () => rankDialog(t) }), more),
-    h('div', { class: 'tpanels' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
+      h('div', { class: 'grow evtitle' }, h('h1', null, partner ? `${t.name.replace(/\s*·\s*Tournoi [12]$/, '')} · 2 tournois en parallèle` : t.name),
+        h('div', { class: 'sub' }, `${TN.SPORTS[t.sport]?.label} · ${played} matchs joués${left ? ` · reste ≈ ${left} min` : ''}`)),
+      more),
+    h('div', { class: 'tn-body' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
 }
 
-function tournamentPanel(ctx, t, compact) {
+function tournamentPanel(ctx, t, split) {
   const courts = courtsOf(t);
-  const done = t.matches.every((m) => m.done);
-  const rows = TN.finalStandings(t);
-  const mini = compact ? null : h('div', { class: 'trank', role: 'button', tabindex: 0, onClick: () => rankDialog(t), 'aria-label': 'Ouvrir le classement' },
-    rows.map((x) => h('div', { class: 'trow' }, h('span', { class: 'rk' }, x.rank), dot(vest(t, x.id).hex), h('span', { class: 'nm' }, nameOf(t, x.id)), h('b', null, x.pts))));
-  return h('section', { class: 'tpanel' },
-    compact ? h('div', { class: 'tphead' }, h('b', null, t.name), btn('Classement', { icon: 'trophy', cls: 'small', onClick: () => rankDialog(t) })) : null,
-    done ? h('div', { class: 'tdone' }, icon('trophy', 20), `Tournoi terminé — 1er : ${nameOf(t, rows[0]?.id)}`) : null,
-    h('div', { class: `boards n${courts.length}` }, courts.map((c) => board(ctx, t, c, compact))),
-    h('div', { class: 'tbottom' }, matchList(ctx, t, courts), mini));
+  const done = t.matches.length > 0 && t.matches.every((m) => m.done);
+  const nDone = t.matches.filter((m) => m.done).length;
+  return h('section', { class: `tn-panel ${split ? 'is-split' : ''}`, 'data-tid': t.id },
+    h('div', { class: `tn-stage n${done ? 1 : courts.length}` }, done ? podium(t) : courts.map((c) => board(ctx, t, c))),
+    h('div', { class: 'tn-aside' },
+      h('div', { class: 'tn-card tn-matches' },
+        h('div', { class: 'tn-cardhead' }, h('b', null, split ? t.name : 'Matchs'), h('span', { class: 'muted small' }, `${nDone}/${t.matches.length} joués`)),
+        matchList(ctx, t, courts)),
+      split ? null : rankCard(t)));
 }
 
-function board(ctx, t, court, compact) {
+function board(ctx, t, court) {
   const m = currentOf(t, court);
   if (!m) {
-    const waiting = t.matches.some((x) => !x.done);
-    return h('div', { class: 'tboard idle' }, h('div', { class: 'muted' }, waiting ? 'En attente des autres matchs (finale à venir)…' : 'Tous les matchs sont joués.'));
+    return h('div', { class: 'tn-board idle' }, h('div', { class: 'tn-wait' }, icon('chrono', 30),
+      h('div', null, t.matches.some((x) => !x.done) ? 'En attente : la suite se joue après les autres matchs.' : 'Plus de match sur ce terrain.')));
   }
+  const key = `${t.id}:${court}`;
   const lv = t.live?.[court]?.matchId === m.id ? t.live[court] : null;
   const total = TN.matchMinutes(t) * 60000;
   const running = TN.liveRunning(lv);
-  const ref = m.ref ? vest(t, m.ref) : null;
-  const frame = ref ? ref.hex : '#c9ccdc';
-  const side = (sd, id) => {
-    const v = vest(t, id), score = sd === 'a' ? m.sa : m.sb;
-    const btns = TN.scoreButtons(t).map((d) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`, onClick: () => { if (TN.addPoint(m, sd, d)) { render(); persist(ctx, t); } } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`));
-    return h('div', { class: 'tside' }, h('div', { class: 'tname', style: { color: 'var(--ink)' } }, dot(v.hex), nameOf(t, id)),
-      h('div', { class: 'tscore', style: { background: v.hex, color: v.ink, borderColor: v.id === 'sans' ? '#2b2d42' : v.hex } }, score), h('div', { class: 'pbtns' }, btns));
-  };
   const elapsed = TN.liveElapsed(lv);
-  const startBtn = btn(running ? 'Pause' : elapsed > 0 ? 'Reprendre' : 'Démarrer', { icon: running ? 'pause' : 'play', cls: 'primary bigbtn',
-    disabled: elapsed >= total,
-    onClick: () => { t.live ||= {}; t.live[court] = running ? TN.livePause(lv) : TN.liveStart(lv, m.id); keepAwake(); render(); persist(ctx, t); } });
-  const validate = btn('Valider le match', { icon: 'check', cls: 'bigbtn', onClick: async () => {
-    if (elapsed < total && !(await confirmDialog('Le temps n\'est pas écoulé. Valider quand même ce match ?', 'Valider', { danger: false }))) return;
+  const over = elapsed >= total;
+  const ref = m.ref ? vest(t, m.ref) : null;
+  const save = () => { render(); persist(ctx, t); };
+  const team = (sd, id) => {
+    const v = vest(t, id);
+    return h('div', { class: `tn-team ${v.id === 'sans' ? 'novest' : ''}`, style: { '--v': v.hex, '--vi': v.ink } },
+      h('div', { class: 'tn-tname' }, nameOf(t, id)),
+      h('div', { class: 'tn-score' }, sd === 'a' ? m.sa : m.sb));
+  };
+  const pts = (sd, id) => {
+    const v = vest(t, id);
+    return h('div', { class: 'tn-pts', style: { '--v': v.hex, '--vi': v.ink } }, TN.scoreButtons(t).map((d) => h('button', { type: 'button', class: `pbtn ${d < 0 ? 'minus' : ''}`, 'aria-label': `${d > 0 ? '+' : '−'}${Math.abs(d)} ${nameOf(t, id)}`,
+      onClick: () => { if (TN.addPoint(m, sd, d)) save(); } }, `${d > 0 ? '+' : '−'}${Math.abs(d)}`)));
+  };
+  const goBtn = h('button', { type: 'button', class: `tn-go ${running ? 'run' : ''}`, disabled: over,
+    onClick: () => { t.live ||= {}; t.live[court] = running ? TN.livePause(lv) : TN.liveStart(lv, m.id); keepAwake(); save(); } },
+  icon(running ? 'pause' : 'play', 24), h('span', null, over ? 'Temps écoulé' : running ? 'Pause' : elapsed > 0 ? 'Reprendre' : 'Démarrer'));
+  const validate = h('button', { type: 'button', class: `tn-validate ${over ? 'hot' : ''}`, onClick: async () => {
+    if (!over && !(await confirmDialog('Le temps n\'est pas écoulé. Valider quand même ce match ?', 'Valider', { danger: false }))) return;
     m.done = true; if (t.live) delete t.live[court];
-    TN.resolveFinals(t); render(); persist(ctx, t);
+    TN.resolveFinals(t); save();
     if (t.matches.every((x) => x.done)) toast('Tournoi terminé.');
-  } });
-  return h('div', { class: `tboard ${compact ? 'compact' : ''}`, style: { borderColor: frame } },
-    h('div', { class: 'tmeta' }, h('span', null, `${m.phase === 'finale' ? 'Finale' : m.phase === 'petite' ? 'Petite finale' : `Match ${t.matches.filter((x) => x.phase === 'poule').sort((x, y) => x.slot - y.slot || x.court - y.court).indexOf(m) + 1}`}${t.courts === 2 ? ` · Terrain ${court + 1}` : ''}`),
-      h('span', null, m.ref ? ['Arbitre : ', dot(ref.hex), nameOf(t, m.ref)] : 'Sans arbitre')),
-    h('div', { class: 'tmain' }, side('a', m.a),
-      h('div', { class: 'tclock' }, h('div', { class: 'clk', 'data-clk': `${t.id}:${court}` }, clockText(total - Math.min(elapsed, total), false)),
-        h('div', { class: 'phase', 'data-phase': `${t.id}:${court}` }, phaseText[TN.phaseAt(t, elapsed)] || ''),
-        t.change?.on ? h('div', { class: 'chg', 'data-chg': `${t.id}:${court}` }) : null),
-      side('b', m.b)),
-    h('div', { class: 'tctrl' }, startBtn, btn('Annuler le dernier point', { cls: 'small', disabled: !(m.log || []).length, onClick: () => { if (TN.undoPoint(m)) { render(); persist(ctx, t); } } }),
-      btn('Zéro', { icon: 'reset', cls: 'small', disabled: !elapsed, onClick: () => { if (t.live) delete t.live[court]; render(); persist(ctx, t); } }), validate));
+  } }, icon('check', 20), h('span', null, 'Valider le match'));
+  const nx = pending(t, court)[1];
+  return h('div', { class: 'tn-board', 'data-st': over ? 'over' : running ? 'run' : 'idle', style: { '--ref': ref ? ref.hex : '#3a3f55' } },
+    h('div', { class: 'tn-top' },
+      h('span', { class: 'tn-title' }, `${matchTitle(t, m)}${t.courts === 2 ? ` · Terrain ${court + 1}` : ''}`),
+      m.ref ? h('span', { class: 'tn-ref', style: { background: ref.hex, color: ref.ink } }, 'Arbitre : ', h('b', null, nameOf(t, m.ref))) : h('span', { class: 'tn-ref none' }, 'Sans arbitre')),
+    h('div', { class: 'tn-mid' }, team('a', m.a),
+      h('div', { class: 'tn-clock' },
+        h('div', { class: 'clk', 'data-clk': key }, clockText(total - Math.min(elapsed, total), false)),
+        h('div', { class: 'phase', 'data-phase': key }, phaseLabel(t, elapsed)),
+        t.change?.on ? h('div', { class: 'chg', 'data-chg': key }) : null),
+      team('b', m.b)),
+    h('div', { class: 'tn-row' }, pts('a', m.a), goBtn, pts('b', m.b)),
+    h('div', { class: 'tn-foot' },
+      h('button', { type: 'button', class: 'tn-mini', 'aria-label': 'Annuler le dernier point', disabled: !(m.log || []).length, onClick: () => { if (TN.undoPoint(m)) save(); } }, icon('undo', 18), h('span', null, 'Annuler le dernier point')),
+      h('button', { type: 'button', class: 'tn-mini', 'aria-label': 'Chrono à zéro', disabled: !elapsed, onClick: () => { if (t.live) delete t.live[court]; save(); } }, icon('reset', 18), h('span', null, 'Zéro')),
+      h('span', { class: 'tn-next' }, nx ? ['Ensuite : ', dot(vest(t, nx.a).hex), nameOf(t, nx.a), ' – ', dot(vest(t, nx.b).hex), nameOf(t, nx.b)] : ''),
+      validate));
+}
+
+/** Fin du tournoi : podium à la place de la table de marque. */
+function podium(t) {
+  const rows = TN.finalStandings(t);
+  return h('div', { class: `tn-board tn-podium ${rows.length > 6 ? 'many' : ''}` },
+    h('div', { class: 'tn-ptitle' }, icon('trophy', 28), 'Tournoi terminé'),
+    h('div', { class: 'tn-places' }, rows.map((x) => { const v = vest(t, x.id); return h('div', { class: `tn-place p${x.rank}`, style: { '--v': v.hex } }, h('span', { class: 'rk' }, ordinal(x.rank)), h('span', { class: 'nm' }, nameOf(t, x.id)), h('span', { class: 'pt' }, `${x.pts} pts`)); })),
+    h('div', { class: 'tn-pbtns' }, btn('Classement complet', { icon: 'trophy', onClick: () => rankDialog(t) }), btn('Imprimer', { icon: 'print', onClick: () => printTournoi([t]) })));
+}
+
+function rankCard(t) {
+  const rows = TN.finalStandings(t);
+  return h('div', { class: 'tn-card tn-rank' },
+    h('div', { class: 'tn-cardhead' }, h('b', null, 'Classement'), h('button', { type: 'button', class: 'tn-link', onClick: () => rankDialog(t) }, 'Détail')),
+    h('div', { class: 'scroll tn-rankwrap' }, h('table', { class: 'tn-ranktab' },
+      h('thead', null, h('tr', null, h('th', null, '#'), h('th', { class: 'nm' }, 'Équipe'), h('th', null, 'J'), h('th', null, 'Diff'), h('th', null, 'Pts'))),
+      h('tbody', null, rows.map((x) => h('tr', { class: x.played && x.rank === 1 ? 'top' : '' },
+        h('td', { class: 'rk' }, x.rank), h('td', { class: 'nm' }, dot(vest(t, x.id).hex), nameOf(t, x.id)), h('td', null, x.played),
+        h('td', null, x.diff > 0 ? `+${x.diff}` : x.diff), h('td', null, h('b', null, x.pts))))))));
 }
 
 function matchList(ctx, t, courts) {
-  const cur = new Set(courts.map((c) => currentOf(t, c)?.id));
+  const cur = new Set(courts.map((c) => currentOf(t, c)?.id).filter(Boolean));
   const ordered = t.matches.slice().sort((a, b) => a.slot - b.slot || a.court - b.court);
   let n = 0;
-  const label = (m) => (m.phase === 'finale' ? 'Finale' : m.phase === 'petite' ? 'Petite finale' : String(++n));
+  const label = (m) => (m.phase === 'finale' ? 'F' : m.phase === 'petite' ? 'PF' : String(++n));
   const rows = ordered.map((m) => {
     const lab = label(m);
     const known = m.a && m.b;
-    const row = h('div', { class: `mrow ${m.done ? 'done' : ''} ${cur.has(m.id) ? 'cur' : ''}`, role: 'button', tabindex: 0, onClick: () => matchMenu(ctx, t, m, row) },
-      h('span', { class: 'mn' }, lab), t.courts === 2 && m.phase === 'poule' ? h('span', { class: 'mc' }, `T${m.court + 1}`) : null,
-      known ? [h('span', { class: 'mt' }, dot(vest(t, m.a).hex), nameOf(t, m.a)), h('span', { class: 'mv' }, m.done || cur.has(m.id) || m.sa || m.sb ? `${m.sa} – ${m.sb}` : 'vs'), h('span', { class: 'mt' }, dot(vest(t, m.b).hex), nameOf(t, m.b))]
-        : h('span', { class: 'mt muted' }, `${m.phase === 'finale' ? '1er contre 2e' : '3e contre 4e'} (après la poule)`),
-      h('span', { class: 'mr' }, m.ref ? ['arb. ', dot(vest(t, m.ref).hex), nameOf(t, m.ref)] : known ? 'sans arbitre' : ''));
+    const shown = m.done || cur.has(m.id) || m.sa || m.sb;
+    const row = h('div', { class: `mrow ${m.done ? 'done' : ''} ${cur.has(m.id) ? 'cur' : ''}`, 'data-mid': m.id, role: 'button', tabindex: 0, onClick: () => matchMenu(ctx, t, m, row) },
+      h('span', { class: 'mn', title: m.phase === 'finale' ? 'Finale' : m.phase === 'petite' ? 'Petite finale' : '' }, lab),
+      t.courts === 2 && m.phase === 'poule' ? h('span', { class: 'mc' }, `T${m.court + 1}`) : null,
+      known ? [h('span', { class: 'mt a', title: nameOf(t, m.a) }, h('span', null, tinyName(t, m.a)), dot(vest(t, m.a).hex)),
+        h('span', { class: 'mv' }, shown ? `${m.sa}–${m.sb}` : '–'),
+        h('span', { class: 'mt b', title: nameOf(t, m.b) }, dot(vest(t, m.b).hex), h('span', null, tinyName(t, m.b)))]
+        : h('span', { class: 'mt muted' }, `${m.phase === 'finale' ? 'Finale : 1er contre 2e' : 'Petite finale : 3e contre 4e'}`),
+      h('span', { class: 'mr', title: m.ref ? `Arbitre : ${nameOf(t, m.ref)}` : '' }, m.ref ? [h('span', { class: 'mrl' }, 'arb.'), dot(vest(t, m.ref).hex), h('span', { class: 'mrn' }, tinyName(t, m.ref))] : known ? '—' : ''));
     return row;
   });
-  return h('div', { class: 'tlist scroll', 'data-keep': `tlist-${t.id}` }, rows);
+  const list = h('div', { class: 'tn-list scroll', 'data-keep': `tlist-${t.id}` }, rows);
+  // le match en cours remonte en haut de la liste quand il change (le précédent reste visible)
+  const first = ordered.find((m) => cur.has(m.id));
+  if (first && K.lastCur[t.id] !== first.id) {
+    K.lastCur[t.id] = first.id;
+    requestAnimationFrame(() => { const el = list.querySelector(`[data-mid="${first.id}"]`); if (el) list.scrollTop = Math.max(0, el.offsetTop - (el.previousElementSibling ? el.offsetHeight + 8 : 0)); });
+  }
+  return list;
 }
 
 function matchMenu(ctx, t, m, anchor) {
@@ -412,11 +511,11 @@ function tick() {
     if (TN.liveRunning(lv) && el >= total) { t.live[court] = { matchId: m.id, base: total, since: null }; persist(K.ctx, t); rerender = true; continue; }
     const txt = clockText(total - Math.min(el, total), false);
     if (clk.textContent !== txt) clk.textContent = txt;
-    const board = clk.closest('.tboard');
+    const board = clk.closest('.tn-board');
     const state = el >= total ? 'over' : TN.liveRunning(lv) ? 'run' : 'idle';
     if (board.dataset.st !== state) board.dataset.st = state;
     const ph = document.querySelector(`[data-phase="${key}"]`);
-    if (ph) { const p = phaseText[TN.phaseAt(t, el)] || ''; if (ph.textContent !== p) ph.textContent = p; }
+    if (ph) { const p = phaseLabel(t, el); if (ph.textContent !== p) ph.textContent = p; }
     const chg = document.querySelector(`[data-chg="${key}"]`);
     if (chg) {
       const cs = TN.changeState(t, el);

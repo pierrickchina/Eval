@@ -25,6 +25,14 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.7.1
+
+- **Équipes / Clubs** : le bandeau « non placés · dispensés · absents » et les clubs prennent toute la largeur, en portrait comme en paysage (clubs : 1 colonne en portrait, 2 en paysage).
+- **Double-tap** sur une zone d'une seule ligne (non placés, dispensés, absents, à répartir) — ou toucher son titre — pour afficher tous les noms ; un nouveau double-tap replie.
+- **Tournoi, écran de jeu** refait : table de marque sombre lisible de loin, gros boutons +1 aux couleurs des maillots, bouton Démarrer/Pause au centre, « Valider le match » mis en avant quand le temps est écoulé, « Ensuite : » pour préparer le match suivant ; matchs + classement à droite (paysage) ou dessous (portrait) ; podium et classement complet à la fin.
+- **Tournoi, création** en 2 colonnes (équipes | résumé et réglages), compteurs − / + au lieu des champs à taper, options avancées repliées.
+- Corrections : estimation de durée (comptait un match de moins par équipe), tournoi en activité sans « parallèle » (reprend maintenant toutes les équipes cochées), styles du Tournoi qui déformaient l'écran Équipes.
+
 ### Nouveautés de la version 1.7
 
 - **Outil Tournoi** (onglet Outils, ou « + » dans une activité) : 2 à 12 équipes, calendrier équilibré (mêmes nombres de matchs, d'arbitrages, repos répartis), 1 ou 2 terrains, finale / petite finale, « j'ai X minutes » (toujours arrondi à la baisse).

@@ -21,7 +21,7 @@ import { applyLevelRule } from './logic/model.js';
 import { makeSafetyCopy } from './ui/backup.js';
 import { ensureActivities } from './logic/activities.js';
 
-window.__APP_VERSION = '1.7.0';
+window.__APP_VERSION = '1.7.1';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
