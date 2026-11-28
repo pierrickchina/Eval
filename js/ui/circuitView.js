@@ -38,7 +38,7 @@ const typeDots = (e) => h('span', { class: 'extypes' }, e.types.map((t) => h('i'
 function tick() {
   if (app.route.name !== 'circuit') { clearInterval(C.ticker); C.ticker = null; return; }
   const st = intervalAt(C.cfg, elapsed());
-  const key = `${st.phase}-${st.round}-${st.station}`;
+  const key = `${st.phase}-${st.round}-${st.station}-${st.slot || 0}`;
   if (key !== C.lastKey) {
     if (C.lastKey && running()) buzz(st.phase === 'done' ? 'end' : 'change');
     C.lastKey = key;
@@ -83,7 +83,7 @@ registerView('circuit', (r) => {
 function chronoTab() {
   const cfg = C.cfg;
   const st = intervalAt(cfg, elapsed());
-  C.lastKey = `${st.phase}-${st.round}-${st.station}`;
+  C.lastKey = `${st.phase}-${st.round}-${st.station}-${st.slot || 0}`;
   const started = elapsed() > 0;
   const circ = cfg.circuit ? circuitOf(cfg.circuit) : null;
   const exAt = (station) => (circ && station ? exById(circ.ids[(station - 1) % circ.ids.length]) : null);
@@ -107,7 +107,8 @@ function chronoTab() {
   const preset = CT_PRESETS.find((p) => Object.entries(p.cfg).every(([k, v]) => cfg[k] === v));
   return h('div', { class: 'ctlayout' },
     h('section', { class: `ctimer ph-${st.phase}` },
-      h('div', { class: 'ctphase' }, LABEL[st.phase], st.phase === 'work' || st.phase === 'rest' ? h('span', null, ` · exercice ${st.station}/${st.stations}${st.rounds > 1 ? ` · tour ${st.round}/${st.rounds}` : ''}`) : null),
+      h('div', { class: 'ctphase' }, st.slot ? `Élève ${st.slot} / ${st.relay}` : LABEL[st.phase], st.phase === 'work' || st.phase === 'rest' ? h('span', null, ` · exercice ${st.station}/${st.stations}${st.rounds > 1 ? ` · ${cfg.relay > 1 ? 'bloc' : 'tour'} ${st.round}/${st.rounds}` : ''}`) : null),
+      st.slot ? h('div', { class: 'ctrelay' }, Array.from({ length: st.relay }, (_, k) => h('i', { class: k + 1 < st.slot ? 'done' : k + 1 === st.slot ? 'on' : '' }, String(k + 1))), h('span', null, 'Les autres comptent et notent sur la feuille')) : null,
       cur ? h('div', { class: 'ctnow' }, exPicture(cur, 'ctpic'), h('b', null, cur.name)) : null,
       h('div', { class: 'ctdigits' }, clockText(st.left, false)),
       nxt && st.phase !== 'done' ? h('div', { class: 'ctnext' }, 'Ensuite : ', h('b', null, nxt.name)) : null,
@@ -121,8 +122,12 @@ function chronoTab() {
         onClick: () => { C.cfg = { ...C.cfg, ...p.cfg, locks: {} }; if (circuitOf(C.cfg.circuit)) C.cfg.stations = circuitOf(C.cfg.circuit).ids.length; saveCfg(); render(); } }, p.label)))),
       h('div', { class: 'field' }, 'Circuit affiché', h('select', { 'aria-label': 'Circuit', disabled: running(), onChange: (e) => { C.cfg.circuit = e.target.value || null; const c2 = circuitOf(C.cfg.circuit); if (c2) C.cfg = setParam(C.cfg, 'stations', c2.ids.length); saveCfg(); render(); } },
         h('option', { value: '' }, 'Aucun (chrono seul)'), circuits().map((x) => h('option', { value: x.id, selected: x.id === cfg.circuit }, `${x.name} (${x.ids.length})`)))),
-      row('work', 'Travail', ' s'), row('rest', 'Récupération', ' s'), row('stations', 'Exercices', ''), row('rounds', 'Tours', ''),
-      cfg.rounds > 1 ? row('roundRest', 'Récup. entre tours', ' s') : null,
+      h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, 'Relais (élèves)'), h('div', { class: 'stepper' },
+        h('button', { type: 'button', 'aria-label': 'Relais : moins', disabled: running() || !(cfg.relay > 1), onClick: () => { C.cfg = { ...C.cfg, relay: cfg.relay > 2 ? cfg.relay - 1 : 0, locks: {} }; saveCfg(); render(); } }, icon('minus', 18)),
+        h('output', null, cfg.relay > 1 ? `${cfg.relay}` : 'non'),
+        h('button', { type: 'button', 'aria-label': 'Relais : plus', disabled: running() || cfg.relay >= 8, onClick: () => { C.cfg = { ...C.cfg, relay: cfg.relay > 1 ? cfg.relay + 1 : 2, locks: {} }; saveCfg(); render(); } }, icon('plus', 18))), h('span')),
+      row('work', cfg.relay > 1 ? 'Travail (par élève)' : 'Travail', ' s'), row('rest', cfg.relay > 1 ? 'Transition' : 'Récupération', ' s'), row('stations', 'Exercices', ''), row('rounds', cfg.relay > 1 ? 'Blocs' : 'Tours', ''),
+      cfg.rounds > 1 ? row('roundRest', cfg.relay > 1 ? 'Pause entre blocs' : 'Récup. entre tours', ' s') : null,
       row('total', 'Durée totale', '', target || total),
       target && Math.abs(target - total) > 0 ? h('p', { class: 'muted small' }, `Durée réelle : ${fmtDur(total)}`) : h('p', { class: 'muted small' }, 'Cadenas : le réglage ne bouge plus ; les autres s\'ajustent pour tenir la durée.'),
       h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, 'Préparation'), h('div', { class: 'stepper' },

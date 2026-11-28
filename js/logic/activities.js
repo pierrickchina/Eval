@@ -41,8 +41,10 @@ export const TOOLS = {
     help: ['Trois fiches de 10 défis (et une vierge), modifiables (⋮). Glissez le prénom de l\'élève sur son niveau.', 'Tout le monde part du niveau 1. Les niveaux vides restent petits mais leur défi reste lisible.', 'Toucher un prénom : monter, descendre ou choisir le niveau.'] },
   interclasses: { label: 'Interclasses', icon: 'cupwreath', color: '#d6e2f5', family: 'collectif', available: true, free: true, freeOnly: true, route: 'interclasses', hint: 'Classes A à E, deux tournois',
     help: ['Ultimate (6e, 4e) ou basket (5e, 3e) : chaque classe a deux équipes (Frisbee / Disque, ou filles / garçons) ; un seul terrain possible, les tournois alternent.', 'Scores saisis comme dans le Tournoi (avec ou sans table de marque) ; sponsor = bonus réglable.', 'Onglets Classements / Titres : lisibles aussi au vidéoprojecteur.'] },
-  arbitre: { label: 'Certification d\'arbitre', icon: 'whistle', color: '#ece0bd', available: true, route: 'arbitre', hint: 'Jeune officiel, certifié, référent',
-    help: ['Un certificat par activité : 4 niveaux (non certifié, jeune officiel, arbitre certifié, arbitre référent) et 4 critères pré-remplis, modifiables (⋮ › Réglages).', 'Trois façons d\'évaluer, au choix et combinables : auto-évaluation, avis des pairs, validation par l\'enseignant. L\'enseignant décide toujours du niveau.', 'Le sifflet (bronze, argent, or) s\'affiche à côté du prénom dans les outils de l\'activité.'] },
+  rotation: { label: 'Rotation d\'ateliers', icon: 'cycle', color: '#d9e6c8', available: true, free: true, route: 'rotation', hint: 'Ateliers, groupes, temps : les groupes tournent',
+    help: ['Réglez le nombre d\'ateliers, leur titre et leur couleur, les groupes et le temps sur un atelier (⋮ › Réglages).', 'Les ateliers restent à leur place ; seules les lettres des groupes tournent, dans le sens des flèches.', 'Au bout du temps, le chrono sonne : « Rotation suivante » fait avancer les groupes et relance le chrono.'] },
+  arbitre: { label: 'Certificat de rôle', icon: 'whistle', color: '#ece0bd', available: true, route: 'arbitre', hint: 'Arbitre, juge, coach : niveaux bronze, argent, or',
+    help: ['Un certificat par activité et par rôle (arbitre, juge-spectateur, coach) : 4 niveaux dans les mots de l\'élève, pris dans les grilles du Projet EPS.', 'L\'élève peut s\'auto-évaluer (repère « auto-éval. faite » dans la liste) ; l\'enseignant valide le niveau.', 'Le badge du rôle (bronze, argent, or) s\'affiche à côté du prénom dans les outils de l\'activité.'] },
   vma: { label: 'Test VMA', icon: 'shuttle', color: '#f3e3b8', family: 'course', available: true, free: true, route: 'vma', hint: 'Léger navette 20 m, bips et allures',
     help: ['Léger navette 20 m : départ 8,5 km/h, +0,5 km/h par palier d\'1 minute. La tablette donne les bips.', 'Quand un élève s\'arrête, touchez son prénom (ou notez le palier) : sa VMA s\'affiche.', 'Tableau d\'allures : distance à parcourir en 30 s, 1 min et 3 min selon le % de VMA.'] },
 };
@@ -59,16 +61,34 @@ export function toolsForActivity(name) {
   if (/lutte|judo|combat/.test(n)) t.push('rings', 'chrono');
   if (/kabaddi/.test(n)) t.push('kabaddi');
   if (/mario|\bmk\b/.test(n)) t.push('mariokart');
-  if (/duathlon/.test(n)) t.push('duathlon', 'chrono');
+  if (/duathlon/.test(n)) t.push('duathlon', 'vma', 'chrono');
+  if (/jeux? athl/.test(n)) t.push('mariokart', 'vma', 'chrono');
   if (/orientation|\bco\b|kivaou/.test(n)) t.push('kivaou');
   if (/hand|basket|foot|futsal|ultimate|volley|rugby|football/.test(n)) t.push('equipes', 'tournoi', 'chrono');
-  if (/demi.?fond|endurance|\bvma\b|course/.test(n)) t.push('vma', 'chrono');
   if (/acro|danse/.test(n)) t.push('equipes', 'chrono');
   if (/gym/.test(n)) t.push('chrono');
   return [...new Set(t)].filter((x) => TOOLS[x]?.available);
 }
-/** Rubriques de l'onglet Outils (1.12). */
-export const TOOL_SECTIONS = { all: ['chrono', 'tournoi', 'interclasses'], other: ['equipes', 'arbitre', 'vma'] };
+/** Rubriques de l'onglet Outils (1.13). */
+export const TOOL_SECTIONS = { all: ['chrono', 'tournoi', 'interclasses', 'rotation', 'arbitre'], other: ['equipes'] };
+/** Outils généraux : proposés dans toutes les activités. */
+export const GENERAL_TOOLS = ['evaluation', 'chrono', 'equipes', 'tournoi', 'arbitre', 'rotation'];
+/** Outils spécialisés : les activités auxquelles ils sont liés (un outil peut servir à plusieurs activités). */
+export const TOOL_GROUPS = [
+  { label: 'Jeux athlétiques et Duathlon', re: /jeux? athl|duathlon|athle/, tools: ['mariokart', 'vma', 'duathlon'] },
+  { label: 'Circuit training', re: /circuit|\bct\b|renfo/, tools: ['circuit'] },
+  { label: 'Boxe et lutte', re: /boxe|\bbf\b|lutte|judo|combat/, tools: ['boxefps', 'rings', 'kabaddi'] },
+  { label: 'Tennis de table', re: /tennis de table|ping|\btt\b/, tools: ['tables', 'montee'] },
+  { label: 'Course d\'orientation', re: /orientation|\bco\b/, tools: ['kivaou'] },
+];
+const TOOL_ACTS = {
+  mariokart: /jeux? athl|duathlon/, vma: /jeux? athl|duathlon/, duathlon: /duathlon/,
+  circuit: /circuit|\bct\b|renfo|boxe|\bbf\b/, kivaou: /orientation|\bco\b/, tables: /tennis de table|ping|\btt\b/, montee: /tennis de table|ping|\btt\b/,
+  kabaddi: /boxe|\bbf\b|lutte|kabaddi/, rings: /boxe|\bbf\b|lutte|judo|combat/, boxefps: /boxe|\bbf\b/,
+};
+const normName = (name) => String(name || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+/** Cet outil est-il proposé pour cette activité ? (généraux : toujours ; spécialisés : selon l'activité) */
+export const toolFits = (type, activityName) => GENERAL_TOOLS.includes(type) || !!TOOL_ACTS[type]?.test(normName(activityName));
 export const toolColor = (type) => (TOOLS[type] && TOOLS[type].color) || '#d9d9e3';
 export const toolLabel = (type) => (TOOLS[type] ? TOOLS[type].label : type);
 

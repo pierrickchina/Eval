@@ -25,6 +25,16 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.13
+
+- **Navigation** : en-tête toujours fixe, écrans ajustés pour tenir sur la tablette sans défiler (grand texte compris) ; actualiser la page ramène au même écran (avec l'historique de Retour) ; carnet de bord : seule l'activité utilisée en dernier est dépliée, les autres sont des bandeaux.
+- **Outils selon l'activité** : le « + » d'une activité propose ses outils (Jeux athlétiques et Duathlon : Mario Kart, Test VMA, Fiches Duathlon ; Boxe : rotation, Rings, Kabaddi, Circuit training ; Lutte : Rings, Kabaddi ; TT : Tables, Montée ; CO : Kivaou) + les outils généraux, et « Autres » pour le reste. Onglet Outils rangé par activité. En-tête des outils d'une classe aux couleurs de l'activité, avec l'icône de la classe.
+- **Séance du jour** (onglet de la classe) : présent / absent / dispensé / inapte d'un toucher, dernières équipes, tirage au sort ; Équipes, Tables / Rings, Kivaou, Test VMA, Kabaddi et Montée de niveau en tiennent compte.
+- **Rotation d'ateliers** (nouvel outil) : 2 à 8 ateliers (titre, couleur pré-remplie différente), groupes nommés, temps par atelier ; flèches de sens (aussi sur la rotation boxe).
+- **Équipes** : transformer / dupliquer en clubs (1 équipe = 1 club) et inversement. **Kabaddi** : équipes reprises de l'outil Équipes (prénoms). **Circuit training** : préréglage « Défi de classe » (relais de 5 × 30 s, 4 exercices, 2 blocs, 2 min 30 entre les blocs).
+- **Certificat de rôle** (remplace la Certification d'arbitre) : rôles par activité (arbitre, juge-spectateur, coach), niveaux dans les mots de l'élève d'après les grilles ; auto-évaluation visible dans la liste ; plus d'avis des pairs.
+- **Résultats** : Test VMA (palier, VMA, distance), tri de chaque tableau en touchant l'en-tête. **Export des notes** en CSV (⋮ de la classe).
+
 ### Nouveautés de la version 1.12
 
 - **Fiabilité** : la sauvegarde et la synchronisation Drive contiennent aussi les réglages partagés (préréglages, circuits, matériel, compteurs Mario Kart / Kabaddi / boxe, rôles, favoris, icônes). Les écritures partent immédiatement (rien ne se perd à la fermeture). Les fenêtres et menus se ferment à chaque changement d'écran.
@@ -203,7 +213,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/*.test.mjs                               # 140 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
+node --test tests/*.test.mjs                               # 144 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
@@ -217,6 +227,7 @@ node tests/e2e9.mjs       # v1.8 : PEPS, réglages d'affichage, vibration
 node tests/e2e10.mjs      # v1.9 : bibliothèque, note calculée, rôles, Tables & Rings, Mario Kart, Circuit training
 node tests/e2e12.mjs      # v1.11 : Kabaddi, Boxe rotation, Montée de niveau, Interclasses, tournoi en alternance, retours
 node tests/e2e11.mjs      # v1.10 : Kivaou, exercices et circuits, Mario Kart V2, préréglages, sans note, séance suivante
+node tests/e2e14.mjs      # v1.13 : carnet replié, outils par activité, séance du jour, rotation, clubs, kabaddi, défi, rôles, résultats, export, actualiser
 node tests/e2e13.mjs      # v1.12 : accueil, outils, Retour unique, arbitrage, test VMA, boxe, oublis, sauvegarde, accueil d'un outil
 ```
 

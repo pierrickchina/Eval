@@ -7,6 +7,7 @@ import { activitiesOf, touchTool } from '../logic/activities.js';
 import { helpItem } from './help.js';
 import { attachDrag } from './drag.js';
 import { whistleBadge } from './badges.js';
+import { practices } from '../logic/today.js';
 import { buzz } from './foundations.js';
 import * as MT from '../logic/montee.js';
 
@@ -22,7 +23,7 @@ registerView('montee', (r) => {
   const place = MT.placeOf(M);
   const lvOf = (sid) => MT.levelOf(M, sid);
   const w = MT.weights(M, students.map((s) => s.id));
-  const chip = (s) => h('div', { class: 'mtchip', 'data-sid': s.id, role: 'button', tabindex: 0 }, studentLabel(s), whistleBadge(act, s.id, 14));
+  const chip = (s) => h('div', { class: `mtchip ${practices(cls, s.id) ? '' : 'off-today'}`, 'data-sid': s.id, role: 'button', tabindex: 0 }, studentLabel(s), whistleBadge(act, s.id, 14));
   const unplaced = students.filter((s) => !lvOf(s.id));
   const rows = [];
   for (let lv = 10; lv >= 1; lv--) {

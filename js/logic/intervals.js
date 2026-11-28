@@ -5,17 +5,20 @@
 // en ajustant le premier réglage libre (récupération, puis travail, puis tours, puis exercices).
 
 export const CT_KEYS = ['work', 'rest', 'stations', 'rounds', 'roundRest'];
-export const CT_LIMITS = { work: [5, 300, 5], rest: [0, 300, 5], stations: [1, 30, 1], rounds: [1, 20, 1], roundRest: [0, 600, 5], total: [30, 3600, 10], prep: [0, 30, 5] };
+export const CT_LIMITS = { relay: [0, 8, 1], work: [5, 300, 5], rest: [0, 300, 5], stations: [1, 30, 1], rounds: [1, 20, 1], roundRest: [0, 600, 5], total: [30, 3600, 10], prep: [0, 30, 5] };
 export const CT_PRESETS = [
-  { id: 'wo5', label: '5 min Workout', cfg: { work: 20, rest: 20, stations: 3, rounds: 3, roundRest: 20 } },
-  { id: 'wo8', label: '8 min Workout', cfg: { work: 30, rest: 10, stations: 12, rounds: 1, roundRest: 0 } },
-  { id: 'alt30', label: '30 s / 30 s', cfg: { work: 30, rest: 30, stations: 8, rounds: 1, roundRest: 0 } },
+  { id: 'wo5', label: '5 min Workout', cfg: { work: 20, rest: 20, stations: 3, rounds: 3, roundRest: 20, relay: 0 } },
+  { id: 'wo8', label: '8 min Workout', cfg: { work: 30, rest: 10, stations: 12, rounds: 1, roundRest: 0, relay: 0 } },
+  { id: 'alt30', label: '30 s / 30 s', cfg: { work: 30, rest: 30, stations: 8, rounds: 1, roundRest: 0, relay: 0 } },
+  // 1.13 : défi de classe — groupes de 5 sur le même exercice, 30 s chacun en relais sans pause ; 30 s de transition ;
+  // 4 exercices par bloc, 2 blocs, 2 min 30 entre les blocs.
+  { id: 'defi', label: 'Défi de classe', cfg: { work: 30, rest: 30, stations: 4, rounds: 2, roundRest: 150, relay: 5 } },
 ];
 export const CT_DEFAULT = { ...CT_PRESETS[1].cfg, prep: 5, locks: {}, circuit: null };
 
 /** Durée totale (secondes), sans la préparation. */
 export function totalOf(c) {
-  const n = c.rounds * c.stations;
+  const n = c.rounds * c.stations * (c.relay > 1 ? c.relay : 1);
   const betweenRounds = c.roundRest > 0 ? c.roundRest : c.rest;
   return n * c.work + c.rounds * (c.stations - 1) * c.rest + (c.rounds - 1) * betweenRounds;
 }
@@ -60,7 +63,8 @@ export function timeline(c) {
   if (c.prep) out.push({ phase: 'prep', dur: c.prep * 1000, round: 0, station: 0 });
   for (let r = 1; r <= c.rounds; r++) {
     for (let s = 1; s <= c.stations; s++) {
-      out.push({ phase: 'work', dur: c.work * 1000, round: r, station: s });
+      if (c.relay > 1) for (let k = 1; k <= c.relay; k++) out.push({ phase: 'work', dur: c.work * 1000, round: r, station: s, slot: k, relay: c.relay }); // relais : un élève après l'autre, sans pause
+      else out.push({ phase: 'work', dur: c.work * 1000, round: r, station: s });
       if (s < c.stations && c.rest) out.push({ phase: 'rest', dur: c.rest * 1000, round: r, station: s });
     }
     if (r < c.rounds) { const rr = c.roundRest > 0 ? c.roundRest : c.rest; if (rr) out.push({ phase: c.roundRest > 0 ? 'roundRest' : 'rest', dur: rr * 1000, round: r, station: c.stations }); }
@@ -77,7 +81,7 @@ export function intervalAt(c, ms) {
   for (let i = 0; i < tl.length; i++) {
     const p = tl[i];
     if (ms < t + p.dur) {
-      const nextWork = tl.slice(i + (p.phase === 'work' ? 1 : 0)).find((x) => x.phase === 'work');
+      const nextWork = tl.slice(i + 1).find((x) => x.phase === 'work' && x.station !== p.station) || (p.phase !== 'work' ? tl.slice(i).find((x) => x.phase === 'work') : null);
       return { ...p, left: t + p.dur - ms, totalLeft: all - Math.max(ms, prep), rounds: c.rounds, stations: c.stations, next: nextWork ? nextWork.station : null };
     }
     t += p.dur;

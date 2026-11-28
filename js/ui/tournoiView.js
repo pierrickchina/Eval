@@ -379,7 +379,7 @@ function resultsPanel(ctx, ts) {
       h('span', null, dot(vest(t, m.a).hex), nameOf(t, m.a), h('i', null, ' – '), dot(vest(t, m.b).hex), nameOf(t, m.b)),
       h('em', null, 'Noter le résultat')))
       : h('p', { class: 'muted' }, 'Tous les matchs sont joués.'));
-  return h('div', { class: `tn-body rs ${ts.length > 1 ? 'two' : ''}` },
+  return h('div', { class: `tn-body rs ${ts.length > 1 ? 'two' : ''} ${ts.reduce((a, t) => a + t.matches.length, 0) > 12 ? 'dense' : ''}` },
     h('div', { class: 'rs-main' }, ts.map(col)),
     h('aside', { class: 'rs-aside' }, nowCard, h('div', { class: 'rs-ranks' }, ts.map((t) => rankCard(t, ts.length > 1 ? (t.label || t.name) : 'Classement')))));
 }

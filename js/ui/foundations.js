@@ -3,7 +3,8 @@
 import { app, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, openDialog, toast, download } from './dom.js';
 import { uid, todayISO, schoolYear } from '../util.js';
-import { newActivity, activitiesOf, TOOLS, toolColor, activityEvals } from '../logic/activities.js';
+import { newActivity, activitiesOf, TOOLS, toolColor, activityEvals, activityColor } from '../logic/activities.js';
+import { classIconSvg, classIconOf } from './classIcon.js';
 
 // ---------- Affichage et confort (réglages généraux, mémorisés sur cette tablette) ----------
 
@@ -252,4 +253,18 @@ function welcome(route) {
     openDialog({ title: t.label, wide: true, body: h('div', { class: 'welcards' }, t.help.slice(0, 3).map((line, i) => h('div', { class: 'welcard', style: { '--tc': t.color } }, h('span', { class: 'welnum' }, String(i + 1)), h('p', null, line)))),
       actions: [{ label: 'C\'est parti', primary: true }] });
   }, 250);
+}
+
+// ---------- En-tête d'un outil de classe (1.13) : couleur de l'activité + petite icône de la classe ----------
+export function decorateTopbar(view, route) {
+  if (!route.classId || !route.actId || route.name === 'classPage') return;
+  const bar = view.querySelector?.('.topbar');
+  if (!bar || bar.classList.contains('actbar')) return;
+  const cls = app.repo.get('classes', route.classId);
+  const act = cls?.activities?.find((a) => a.id === route.actId);
+  if (!act) return;
+  bar.classList.add('actbar');
+  bar.style.setProperty('--ac', activityColor(act));
+  const title = bar.querySelector('.evtitle, h1')?.closest('.grow') || bar.querySelector('.grow');
+  if (title) title.before(h('span', { class: 'barcls', title: cls.name }, classIconSvg(classIconOf(cls), 34)));
 }

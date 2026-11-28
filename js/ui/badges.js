@@ -1,13 +1,10 @@
-// Petits repères à côté du prénom (1.12) : sifflet de certification d'arbitre (bronze / argent / or) de l'activité.
+// Petits repères à côté du prénom : badge de chaque rôle certifié dans l'activité (1.13 : arbitre, juge-spectateur, coach),
+// en bronze / argent / or.
 import { h, icon } from './dom.js';
-import { whistleOf, AR_LEVELS } from '../logic/arbitre.js';
+import { badgesOf } from '../logic/arbitre.js';
 
-/** Sifflet de l'élève dans cette activité (rien s'il n'est pas certifié ou si l'activité n'a pas l'outil). */
 export function whistleBadge(act, sid, size = 16) {
-  const A = act?.arbitre;
-  if (!A) return null;
-  const w = whistleOf(A, sid);
-  if (!w) return null;
-  const lv = ['', 'bronze', 'argent', 'or'].indexOf(w.name);
-  return h('i', { class: `whistle ${w.name}`, title: `${(A.levels || AR_LEVELS)[lv]} (sifflet ${w.name})`, style: { '--w': w.color } }, icon('whistle', size));
+  const list = act?.arbitre?.roles ? badgesOf(act.arbitre, sid) : [];
+  if (!list.length) return null;
+  return h('span', { class: 'rolebadges' }, list.map((b) => h('i', { class: `whistle ${b.metal.name}`, title: b.title, style: { '--w': b.metal.color } }, icon(b.icon, size))));
 }

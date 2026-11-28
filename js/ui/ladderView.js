@@ -9,6 +9,7 @@ import * as LD from '../logic/ladder.js';
 import { helpItem } from './help.js';
 import { attachDrag } from './drag.js';
 import { whistleBadge } from './badges.js';
+import { practices } from '../logic/today.js';
 
 const saveClass = (cls) => app.repo.save('classes', cls);
 const V = { rank: false, tab: 'sessions' };
@@ -84,7 +85,7 @@ function setupDialog(r, c) {
   const st = {
     date: todayISO(), format: last?.format && (c.K.duos || last.format === 'simple') ? last.format : 'simple',
     place: last ? 'resultats' : 'niveau', duoMode: c.L.duos.length ? 'keep' : 'mixte',
-    count: last ? last.tables.filter((t) => t.units.length).length : 0, absent: new Set(),
+    count: last ? last.tables.filter((t) => t.units.length).length : 0, absent: new Set(c.students.filter((x) => !practices(c.cls, x.id)).map((x) => x.id)), // 1.13 : Séance du jour
   };
   const body = h('div', { class: 'dlg-body ld-setup' });
   const seg = (k, opts, dis = () => false) => h('div', { class: 'seg wrap' }, opts.map(([v, l]) => h('button', { type: 'button', class: st[k] === v ? 'on' : '', disabled: dis(v), onClick: () => { st[k] = v; paint(); } }, l)));

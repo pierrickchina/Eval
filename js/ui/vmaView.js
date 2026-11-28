@@ -10,6 +10,7 @@ import { helpItem } from './help.js';
 import { tone } from './foundations.js';
 import { clockText } from './chronoView.js';
 import * as VM from '../logic/vma.js';
+import { practices } from '../logic/today.js';
 
 // Le test en cours vit en mémoire (un test dure < 20 min ; il ne se reprend pas après fermeture).
 const T = { startedAt: null, countdown: null, ticker: null, lastLeg: -1, lastStage: 0, lock: null, tab: 'test', vma: 12 };
@@ -71,8 +72,9 @@ registerView('vma', (r) => {
   const m = iconBtn('more', 'Options', () => popMenu(m, [
     c.free ? { label: 'Effacer la liste des arrêts', danger: true, disabled: !c.st.list.length, onClick: () => { const snap = c.st.list.slice(); c.st.list = []; c.save(); render(); toast('Liste effacée.', { action: 'Annuler', ms: 8000, onAction: () => { c.st.list = snap; c.save(); render(); } }); } }
       : { label: 'Effacer les résultats de la classe', danger: true, onClick: () => { const snap = { ...c.results }; for (const k of Object.keys(c.results)) delete c.results[k]; c.save(); render(); toast('Résultats effacés.', { action: 'Annuler', ms: 8000, onAction: () => { Object.assign(c.results, snap); c.save(); render(); } }); } },
+    c.free ? null : { label: 'Voir les résultats de la classe', onClick: () => { stop(); go('classPage', { id: c.cls.id, tab: 'results' }); } },
     helpItem('vma'),
-  ]), 'boxed');
+  ].filter(Boolean)), 'boxed');
   const tabs = h('div', { class: 'seg' }, [['test', 'Test'], ['allures', 'Allures']].map(([k, l]) => h('button', { class: T.tab === k ? 'on' : '', onClick: () => { T.tab = k; render(); } }, l)));
   return h('div', { class: 'main vma' },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', back, '', { 'data-back': '1' }),
@@ -96,7 +98,7 @@ function testPanel(s, running, start, finish) {
 
 function classList(c, mark, running) {
   const students = c.cls.students.filter((x) => x.active !== false).sort((a, b) => collator.compare(studentLabel(a), studentLabel(b)));
-  const inRun = students.filter((x) => !c.results[x.id]);
+  const inRun = students.filter((x) => !c.results[x.id] && practices(c.cls, x.id)); // 1.13 : absents / dispensés / inaptes du jour exclus
   const out = students.filter((x) => c.results[x.id]).sort((a, b) => c.results[b.id].stage - c.results[a.id].stage);
   return h('section', { class: 'vmside' },
     h('h3', null, running ? `En course (${inRun.length}) — touchez le prénom à l'arrêt` : `Élèves (${students.length})`),

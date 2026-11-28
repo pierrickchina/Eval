@@ -1,6 +1,7 @@
 // Outil Équipes (et mode Clubs) : liste des compositions, tableau de composition (glisser-déposer), génération,
 // rôles, contraintes, affichage plein écran, PDF. Utilisable seul (outil libre) ou dans une activité.
 import { whistleBadge } from './badges.js';
+import { statusToday } from '../logic/today.js';
 import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog } from './dom.js';
 import { fmtDate, todayISO, collator, clone, uid, now } from '../util.js';
@@ -9,7 +10,7 @@ import { activitiesOf, activityEvals, touchTool, hasTool } from '../logic/activi
 import {
   VEST_COLORS, vestOf, DEFAULT_ROLES, newSet, addTeam, addClub, removeTeam, removeClub, teamsOnly, teamColorId, teamLabel,
   studentsOf, syncStudents, unplaced, moveStudent, setStatus, statusOf, toggleRole, visibleRole, toggleLock, duplicateSet, rotateRoles,
-  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor, setBasketClubs, BASKET_ROLES,
+  generate, levelScores, constraintText, copyIntoEvaluation, teamOfStudent, roleColor, setBasketClubs, BASKET_ROLES, teamsToClubs, clubsToTeams,
 } from '../logic/teams.js';
 import { printNode } from './printView.js';
 import { helpItem } from './help.js';
@@ -173,6 +174,12 @@ function newSetDialog(r, ctx) {
 function editor(r, ctx, set) {
   const students = ctx.students(set);
   syncStudents(set, students.map((s) => s.id)); // élèves partis retirés ; nouveaux élèves = « non placés »
+  // 1.13 : Séance du jour — absents / dispensés / inaptes repris dans la composition du jour (sans écraser un choix fait ici)
+  if (ctx.kind === 'act' && (!set.date || set.date === todayISO())) {
+    let ch = false;
+    for (const st of students) { const t = statusToday(ctx.cls, st.id); if (t !== 'present' && !set.status[st.id]) { setStatus(set, st.id, t === 'absent' ? 'absent' : 'dispense'); ch = true; } }
+    if (ch) ctx.save(set);
+  }
   const byId = new Map(students.map((s) => [s.id, s]));
   const nameOf = (id) => (byId.get(id) ? studentLabel(byId.get(id)) : '?');
   const roles = roleDefs(set);
@@ -253,6 +260,14 @@ function editor(r, ctx, set) {
     ctx.kind === 'free' ? { label: 'Ajouter des élèves…', onClick: () => addStudentsDialog(set, apply) } : null,
     { label: 'Imprimer / PDF', onClick: () => printSet(set, nameOf, roles) },
     { label: 'Dupliquer pour la leçon suivante', onClick: () => duplicate(r, ctx, set) },
+    '-',
+    set.mode === 'clubs' ? { label: 'Transformer en équipes (1 club = 1 équipe)', onClick: () => undoable(ctx, set, 'Chaque club est devenu une équipe.', () => clubsToTeams(set)) }
+      : { label: 'Transformer en clubs (1 équipe = 1 club)', onClick: () => undoable(ctx, set, 'Chaque équipe est devenue un club : répartissez les joueurs en équipe 1 et 2.', () => teamsToClubs(set)) },
+    { label: set.mode === 'clubs' ? 'Dupliquer en équipes…' : 'Dupliquer en clubs…', onClick: () => {
+      const copy = duplicateSet(set, { name: `${set.name || 'Composition'} (${set.mode === 'clubs' ? 'équipes' : 'clubs'})`, date: todayISO() });
+      if (set.mode === 'clubs') clubsToTeams(copy); else teamsToClubs(copy);
+      ctx.add(copy); ctx.save(copy); go('equipes', { ...r, setId: copy.id }); toast('Copie transformée : l\'original est conservé.');
+    } },
     helpItem('equipes'),
     '-',
     { label: 'Tout remettre en « non placés »', danger: true, onClick: () => undoable(ctx, set, 'Équipes vidées.', () => { for (const t of set.teams) t.members = []; }) },

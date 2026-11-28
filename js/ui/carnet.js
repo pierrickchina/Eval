@@ -7,7 +7,7 @@ import { createEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
 import {
   TOOLS, ACTIVITY_COLORS, activityColor, toolColor, toolLabel, evTitle, newActivity, activitiesOf, activityEvals, hasTool, touchTool, visibleTools, deleteImpact, ensureActivities,
-  toolsForActivity,
+  toolsForActivity, toolFits,
 } from '../logic/activities.js';
 import { duplicateDialog } from './home.js';
 
@@ -29,17 +29,31 @@ export function hubTab(cls) {
   const evals = app.repo.list('evaluations').filter((e) => e.classId === cls.id);
   const recent = (a) => Math.max(a.createdAt || 0, ...a.tools.map((t) => t.lastUsed || t.addedAt || 0), ...evals.filter((e) => e.activityId === a.id).map((e) => e.updatedAt || e.createdAt || 0));
   const acts = [...activitiesOf(cls)].sort((a, b) => recent(b) - recent(a));
+  // 1.13 : seule l'activité utilisée en dernier est dépliée ; les autres sont des bandeaux (un toucher les déplie)
+  const o = OPEN.get(cls.id); // activité dépliée à la main… tant qu'aucune autre n'a servi depuis
+  const openId = o && acts.some((a) => a.id === o.id) && !acts.some((a) => a.id !== o.id && recent(a) > o.at) ? o.id : acts[0]?.id;
   return h('div', { class: 'hub scroll grow', 'data-keep': 'hub' },
-    acts.length ? acts.map((a) => activityFrame(cls, a))
+    acts.length ? acts.map((a) => (a.id === openId ? activityFrame(cls, a) : foldedFrame(cls, a)))
       : h('div', { class: 'empty' }, h('h2', null, 'Aucune activité'),
         h('p', null, 'Une activité, c\'est une APSA travaillée avec cette classe (handball, badminton…). Elle contient les outils : évaluation, puis d\'autres.'),
         btn('Nouvelle activité', { icon: 'plus', cls: 'primary', onClick: () => newActivityDialog(cls) })));
 }
 
+const OPEN = new Map(); // classe → activité dépliée
+/** Bandeau d'une activité repliée : nom, petites icônes de ses outils ; toucher = déplier. */
+function foldedFrame(cls, act) {
+  const unfold = () => { OPEN.set(cls.id, { id: act.id, at: Date.now() }); render(); };
+  return h('section', { class: 'actframe folded', style: { '--ac': activityColor(act) } },
+    h('button', { type: 'button', class: 'acthead foldhead', 'aria-expanded': 'false', onClick: unfold },
+      h('h2', { class: 'grow' }, `${act.name} · ${cls.name}`),
+      h('span', { class: 'foldicons' }, act.tools.filter((t) => TOOLS[t.type]).map((t) => h('i', { style: { '--tc': toolColor(t.type) }, title: toolLabel(t.type) }, icon(TOOLS[t.type].icon, 18)))),
+      icon('down', 22)));
+}
+
 function activityFrame(cls, act) {
   const evals = app.repo.list('evaluations');
   const { shown, hidden } = visibleTools(act.tools);
-  const showAll = E.all.has(act.id);
+  const showAll = true; // 1.13 : activité dépliée = toutes ses cartes
   const tools = showAll ? [...shown, ...hidden] : shown;
   const add = iconBtn('plus', 'Ajouter un outil', () => addToolDialog(cls, act), 'boxed');
   const more = iconBtn('more', 'Options de l\'activité', () => popMenu(more, [
@@ -67,7 +81,7 @@ function activityFrame(cls, act) {
       const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : t.type === 'tournoi' ? (act.tournois?.length || 0) : (t.type === 'tables' || t.type === 'rings') ? (act.ladders?.[t.type]?.sessions?.length || 0) : 0;
       return h('button', { type: 'button', style: tintVars(toolColor(t.type)), class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
         icon(def.icon), h('b', null, def.label),
-        h('span', { class: 'small tsub' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Nouvelle') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Nouveau') : (t.type === 'tables' || t.type === 'rings') ? (sets ? `${sets} séance${sets > 1 ? 's' : ''}` : 'Nouvelle') : def.hint));
+        h('span', { class: 'small tsub' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Nouvelle') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Nouveau') : (t.type === 'tables' || t.type === 'rings') ? (sets ? `${sets} séance${sets > 1 ? 's' : ''}` : 'Nouvelle') : t.type === 'vma' ? `${Object.keys(act.vma?.results || {}).length} / ${cls.students.filter((x) => x.active !== false).length} résultats` : def.hint));
     }
     return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : plus tard.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'plus tard'));
@@ -82,13 +96,17 @@ function activityFrame(cls, act) {
 }
 
 /** « + » d'une activité : grille d'icônes des outils pas encore présents (l'évaluation est toujours proposée). */
-function addToolDialog(cls, act) {
-  const list = Object.entries(TOOLS).filter(([type, t]) => t.available && !t.freeOnly && (type === 'evaluation' || !hasTool(act, type)));
+function addToolDialog(cls, act, all = false) {
+  // 1.13 : seulement les outils liés à cette activité (+ les généraux) ; « Autres » montre le reste
+  const avail = Object.entries(TOOLS).filter(([type, t]) => t.available && !t.freeOnly && (type === 'evaluation' || !hasTool(act, type)));
+  const list = avail.filter(([type]) => all || toolFits(type, act.name));
+  const others = avail.length - list.length;
   const dlg = openDialog({
     title: `Ajouter à « ${act.name} »`, wide: true,
     body: [h('div', { class: 'addgrid' }, list.map(([type, t]) => h('button', { type: 'button', class: 'addtile', style: tintVars(toolColor(type)),
       onClick: () => { dlg.close(); type === 'evaluation' ? addEvaluation(cls, act) : useTool(cls, act, type); } },
-    icon(t.icon, 34), h('b', null, type === 'evaluation' ? 'Nouvelle évaluation' : t.label)))),
+    icon(t.icon, 34), h('b', null, type === 'evaluation' ? 'Nouvelle évaluation' : t.label))),
+    others ? h('button', { type: 'button', class: 'addtile other', onClick: () => { dlg.close(); addToolDialog(cls, act, true); } }, icon('more', 34), h('b', null, `Autres (${others})`)) : null),
     h('button', { type: 'button', class: 'linkbtn', onClick: () => { dlg.close(); manageToolsDialog(cls, act); } }, 'Gérer les outils de l\'activité…')],
   });
 }

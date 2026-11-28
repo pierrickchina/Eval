@@ -1,5 +1,5 @@
 // Point d'entrée : initialisation, écrans, hors connexion (service worker), installation.
-import { app, mount, go, render, updateSyncChips, initBack } from './app.js';
+import { savedRoute, app, mount, go, render, updateSyncChips, initBack } from './app.js';
 import { createStore } from './data/db.js';
 import { Repo } from './data/repo.js';
 import { h, toast } from './ui/dom.js';
@@ -25,7 +25,8 @@ import './ui/monteeView.js';
 import './ui/interclassesView.js';
 import './ui/arbitreView.js';
 import './ui/vmaView.js';
-import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
+import './ui/rotationView.js';
+import { noteRoute, applyDisplay, maybeTour, decorateTopbar } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
 import { applyLevelRule } from './logic/model.js';
@@ -35,7 +36,7 @@ import { installLibrary, upgradeLibrary, originalOf } from './data/library.js';
 import { defaultLevels } from './data/schema.js';
 import { uid } from './util.js';
 
-window.__APP_VERSION = '1.12.0';
+window.__APP_VERSION = '1.13.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
@@ -118,8 +119,14 @@ async function boot() {
   } catch { /* ignore */ }
   initBack();
   app.onRoute = noteRoute;
+  app.decorate = decorateTopbar;
+  // 1.13 : après une actualisation, on revient sur le même écran (et son historique pour Retour)
+  // (seulement pour une actualisation ; ouvrir l'appli depuis l'écran d'accueil de la tablette part de l'accueil)
+  const isReload = (() => { try { return performance.getEntriesByType('navigation')[0]?.type === 'reload'; } catch { return false; } })();
+  const saved = isReload ? savedRoute() : null;
+  if (first.name === 'home' && saved) { first = saved.route; app.stack = (saved.stack || []).filter((x) => app.views[x.name]); }
   first = resumeRoute() || first; // mode élève actif : on y reste, même après un rechargement
-  go(first.name, first);
+  go(first.name, first, { isBack: true });
   if (first.name === 'home') setTimeout(() => maybeTour(), 400);
 
   window.addEventListener('online', updateSyncChips);

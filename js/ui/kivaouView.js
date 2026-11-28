@@ -7,6 +7,7 @@ import { studentLabel } from '../data/schema.js';
 import { activitiesOf, touchTool } from '../logic/activities.js';
 import { buzz } from './foundations.js';
 import { helpItem } from './help.js';
+import { practices } from '../logic/today.js';
 import { presetFor, savePreset } from './presets.js';
 import * as KV from '../logic/kivaou.js';
 
@@ -142,7 +143,7 @@ function groupDialog(c, s, apply, g = null) {
   const st = { sids: new Set(g ? g.sids : []), course: g ? g.course : (c.K.settings.lastCourse || c.K.settings.courses[0]?.id) };
   const body = h('div', { class: 'dlg-body kvdlg' });
   const paint = () => body.replaceChildren(
-    h('div', { class: 'field' }, `Élèves (${st.sids.size})`, h('div', { class: 'kvpick' }, c.students.filter((x) => !busy.has(x.id) || st.sids.has(x.id)).map((x) =>
+    h('div', { class: 'field' }, `Élèves (${st.sids.size})`, h('div', { class: 'kvpick' }, c.students.filter((x) => (!busy.has(x.id) && practices(c.cls, x.id)) || st.sids.has(x.id)).map((x) =>
       h('button', { type: 'button', class: `kvchip ${st.sids.has(x.id) ? 'on' : ''}`, onClick: () => { st.sids.has(x.id) ? st.sids.delete(x.id) : st.sids.add(x.id); paint(); } }, studentLabel(x))))),
     h('div', { class: 'field' }, 'Parcours', h('div', { class: 'kvpick' }, c.K.settings.courses.map((x) =>
       h('button', { type: 'button', class: `kvchip course ${st.course === x.id ? 'on' : ''}`, onClick: () => { st.course = x.id; paint(); } }, x.name, h('small', null, ` ${x.balises} balises`))))));

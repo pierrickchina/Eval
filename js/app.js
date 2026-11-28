@@ -85,6 +85,8 @@ export function go(name, params = {}, { replace = false, isBack = false } = {}) 
   // l'écran d'arrivée ne figure jamais lui-même en haut de l'historique
   while (app.stack.length && (same(app.stack.at(-1), next) || onlyTab(app.stack.at(-1), next))) app.stack.pop();
   if (cur?.name !== name || !same(cur, next)) closeAllOverlays();
+  // 1.13 : actualiser la page ramène au même écran (avec son historique) ; jamais au milieu d'un éditeur
+  if (!transient(next)) { try { localStorage.setItem('eps-route', JSON.stringify({ route: snap(next), stack: app.stack.map(snap), at: Date.now() })); } catch { /* */ } }
   app.route = next;
   app.onRoute?.(app.route);
   try {
@@ -98,6 +100,15 @@ export function go(name, params = {}, { replace = false, isBack = false } = {}) 
     else localStorage.removeItem('eps-last-route');
   } catch { /* stockage indisponible : sans importance */ }
   render();
+}
+
+/** Écran à rouvrir après une actualisation (moins de 12 h), sinon null. */
+export function savedRoute() {
+  try {
+    const x = JSON.parse(localStorage.getItem('eps-route') || 'null');
+    if (!x?.route?.name || !app.views[x.route.name] || Date.now() - (x.at || 0) > 12 * 3600e3) return null;
+    return x;
+  } catch { return null; }
 }
 
 /** Retour : écran précédent de l'historique ; sinon fallback (ou l'accueil). */
@@ -126,6 +137,7 @@ export function render() {
       h('button', { class: 'btn primary', onClick: () => go('home') }, 'Retour à l\'accueil'));
   }
   root.replaceChildren(view);
+  try { app.decorate?.(view, app.route); } catch (e) { console.warn(e); }
   root.querySelectorAll('[data-keep]').forEach((el) => {
     const k = keep[el.dataset.keep];
     if (k) { el.scrollLeft = k[0]; el.scrollTop = k[1]; }

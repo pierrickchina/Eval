@@ -1,8 +1,11 @@
 // Outil Kabaddi : attaques de 2 minutes, un bouton par attaquant (+100 puis +10), Ace +1000, faute −1, tableau Attaque × Défense.
 import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast } from './dom.js';
-import { clone } from '../util.js';
-import { vestOf, VEST_COLORS } from '../logic/teams.js';
+import { clone, uid } from '../util.js';
+import { vestOf, VEST_COLORS, teamsOnly, teamLabel, teamColorId } from '../logic/teams.js';
+import { studentLabel } from '../data/schema.js';
+import { activitiesOf } from '../logic/activities.js';
+import { practices } from '../logic/today.js';
 import { clockText } from './chronoView.js';
 import { buzz } from './foundations.js';
 import { helpItem } from './help.js';
@@ -11,7 +14,25 @@ import { presetFor, savePreset } from './presets.js';
 
 const V = { ticker: null };
 const keyOf = (r) => `kab:${r.scope === 'act' ? r.actId : 'free'}`;
-const stateOf = (r) => app.repo.getMeta(keyOf(r), null) || fresh();
+const stateOf = (r) => app.repo.getMeta(keyOf(r), null) || fromTeams(r) || fresh();
+/** 1.13 : dans une activité, les équipes du Kabaddi = la dernière composition d'Équipes (prénoms sur les boutons). */
+function seqTeams(r) {
+  if (r.scope !== 'act') return null;
+  const cls = app.repo.get('classes', r.classId);
+  const act = cls ? activitiesOf(cls).find((a) => a.id === r.actId) : null;
+  const set = (act?.equipes?.sets || []).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).find((x) => teamsOnly(x).filter((t) => t.members.length).length >= 2);
+  return set ? { cls, act, set } : null;
+}
+function fromTeams(r) {
+  const q = seqTeams(r);
+  if (!q) return null;
+  const st = fresh();
+  st.teams = teamsOnly(q.set).filter((t) => t.members.length).slice(0, 6).map((t) => ({ id: uid(), name: teamLabel(q.set, t), color: teamColorId(q.set, t),
+    players: t.members.filter((sid) => practices(q.cls, sid)).map((sid, i) => { const s = q.cls.students.find((x) => x.id === sid); return { n: i + 1, name: s ? studentLabel(s) : '', sid }; }) }));
+  st.fromSet = q.set.id;
+  st.attacks = []; st.current = null; KB.buildAttacks(st);
+  return st;
+}
 /** Nouvelle partie : préréglage de l'équipe EPS (nombre d'équipes, durée d'une attaque). */
 export function fresh() { const p = presetFor(null, 'kabaddi') || {}; const st = KB.newKabaddi(p.teams || 3); if (p.attackMin) st.attackMin = p.attackMin; return st; }
 const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
@@ -36,11 +57,13 @@ registerView('kabaddi', (r) => {
   const running = !!a?.clock.startedAt;
   const m = iconBtn('more', 'Options', () => popMenu(m, [
     { label: 'Équipes et joueurs…', onClick: () => teamsDialog(st, () => { save(); render(); }) },
+    r.scope === 'act' ? { label: 'Reprendre les équipes de la séquence', disabled: !seqTeams(r), onClick: () => { const snap = clone(st); const nx = fromTeams(r); Object.keys(st).forEach((k) => delete st[k]); Object.assign(st, nx); save(); render(); toast('Équipes reprises de l\'outil Équipes (scores remis à zéro).', { action: 'Annuler', ms: 8000, onAction: () => { Object.keys(st).forEach((k) => delete st[k]); Object.assign(st, snap); save(); render(); } }); } } : null,
+    r.scope === 'act' ? { label: 'Changer les équipes (glisser-déposer)…', onClick: () => go('equipes', { from: 'classPage', classId: r.classId, scope: 'act', actId: r.actId, latest: 1 }) } : null,
     { label: 'Enregistrer comme préréglage de l\'équipe EPS', onClick: async () => { await savePreset(null, 'kabaddi', { teams: st.teams.length, attackMin: st.attackMin }); toast('Préréglage Kabaddi enregistré.'); } },
     '-',
     { label: 'Tout remettre à zéro', danger: true, onClick: () => { const snap = clone(st); apply(() => { st.attacks.forEach((x) => { x.events = []; x.done = false; x.clock = { base: 0, startedAt: null }; }); st.current = st.attacks[0]?.id; }, 'undo'); toast('Scores remis à zéro.', { action: 'Annuler', ms: 9000, onAction: () => { Object.assign(st, snap); save(); render(); } }); } },
     helpItem('kabaddi'),
-  ]), 'boxed');
+  ].filter(Boolean)), 'boxed');
   const attackPanel = () => {
     if (!a) { const rk = KB.ranking(st); return h('div', { class: 'empty' }, h('h2', null, 'Toutes les attaques sont jouées'), h('p', { class: 'kbwin' }, rk[0] ? `1re place : ${team(rk[0].id).name} (${rk[0].total} pts)` : '')); }
     const att = team(a.att), def = team(a.def), v = vestOf(att.color);

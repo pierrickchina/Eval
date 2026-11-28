@@ -181,6 +181,25 @@ export function rotateRoles(set, roleIds, prev = set.roles) {
 export function toggleLock(set, sid) { if (set.locked[sid]) delete set.locked[sid]; else set.locked[sid] = true; }
 
 /** Duplication pour la leçon suivante : mêmes équipes (mêmes identifiants : l'équipe reste la même entité), absences effacées. */
+/** 1.13 : chaque équipe devient un club (même nom, même couleur) ; ses joueurs vont dans « à répartir » du club. */
+export function teamsToClubs(set) {
+  const teams = teamsOnly(set).filter((t) => !t.clubId);
+  set.clubs = []; set.teams = set.teams.filter((t) => t.clubId);
+  for (const t of teams) {
+    const club = { id: uid(), name: t.name || `Club ${set.clubs.length + 1}`, color: t.color };
+    set.clubs.push(club);
+    const pool = newTeam({ name: 'Club', color: t.color, kind: 'pool', clubId: club.id, rank: 0 }); pool.members = t.members.slice();
+    set.teams.push(pool, newTeam({ name: 'Équipe 1', color: t.color, kind: 'team', clubId: club.id, rank: 1 }), newTeam({ name: 'Équipe 2', color: t.color, kind: 'team', clubId: club.id, rank: 2 }));
+  }
+  set.mode = 'clubs';
+  if (set.flavor === 'nba') setBasketClubs(set, true);
+}
+/** 1.13 : chaque club devient une équipe (nom et couleur du club), avec tous ses joueurs. */
+export function clubsToTeams(set) {
+  const out = set.clubs.map((c) => { const t = newTeam({ name: c.name, color: c.color }); t.members = set.teams.filter((x) => x.clubId === c.id).flatMap((x) => x.members); return t; });
+  set.teams = out; set.clubs = []; set.mode = 'teams'; delete set.flavor;
+}
+
 export function duplicateSet(set, { name, date } = {}) {
   const c = clone(set);
   c.id = uid();

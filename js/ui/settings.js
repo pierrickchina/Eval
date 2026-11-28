@@ -7,6 +7,7 @@ import { SCHOOL_LEVELS, defaultLevels } from '../data/schema.js';
 import { installLibrary, originalOf } from '../data/library.js';
 import { toolPresets, savePreset, resetPreset } from './presets.js';
 import { BX_ATELIERS } from './boxeView.js';
+import { defaultRotation, settingsDialog as rotationSettingsDialog } from './rotationView.js';
 import { kivaouSettingsDialog } from './kivaouView.js';
 import { mkSettingsDialog } from './mkView.js';
 import { KV_DEFAULT } from '../logic/kivaou.js';
@@ -30,7 +31,7 @@ registerView('settings', ({ tab = 'models' }) => {
       syncChip()),
     h('div', { class: 'toolbar' }, h('div', { class: 'seg' }, TABS.map(([k, l]) =>
       h('button', { class: tab === k ? 'on' : '', onClick: () => go('settings', { tab: k }) }, l)))),
-    h('div', { class: 'settings scroll', 'data-keep': 'settings-' + tab }, body));
+    h('div', { class: `settings scroll ${tab === 'general' || tab === 'data' ? 'cols' : ''}`, 'data-keep': 'settings-' + tab }, body));
 });
 
 async function softDelete(store, rec, label) {
@@ -41,7 +42,7 @@ async function softDelete(store, rec, label) {
 
 // ---------- Préréglages de l'équipe EPS (1.12 : un par outil, pour toutes les activités) ----------
 
-const PRESET_TOOLS = [['tournoi', 'Tournoi', 'trophy'], ['circuit', 'Circuit training', 'bolt'], ['kivaou', 'Kivaou', 'compass'], ['mariokart', 'Mario Kart', 'flag'], ['kabaddi', 'Kabaddi', 'hand'], ['boxefps', 'Boxe française · rotation', 'glovespin']];
+const PRESET_TOOLS = [['tournoi', 'Tournoi', 'trophy'], ['circuit', 'Circuit training', 'bolt'], ['kivaou', 'Kivaou', 'compass'], ['mariokart', 'Mario Kart', 'flag'], ['kabaddi', 'Kabaddi', 'hand'], ['boxefps', 'Boxe française · rotation', 'glovespin'], ['rotation', 'Rotation d\'ateliers', 'cycle']];
 const P_OPEN = new Set();
 const KB_DEFAULT = { teams: 3, attackMin: 2 };
 const BX_DEFAULT = () => ({ durationMin: 6, ateliers: BX_ATELIERS.slice() });
@@ -52,9 +53,10 @@ function presetSummary(tool, p) {
   if (tool === 'tournoi') return `${p.halves === 2 ? `2 × ${p.halfMin}` : p.halfMin} min · ${p.courts || 1} terrain(s) · ${p.format === 'double' ? 'aller-retour' : 'tous contre tous'} · ${p.board === 'suivi' ? 'sans table de marque' : 'table de marque'} · V ${p.pts?.w ?? 3} / N ${p.pts?.d ?? 2} / D ${p.pts?.l ?? 1}`;
   if (tool === 'kabaddi') return `${p.teams} équipes · attaques de ${p.attackMin} min`;
   if (tool === 'boxefps') return `${p.ateliers.length} ateliers · ${p.durationMin} min par rotation`;
+  if (tool === 'rotation') return `${p.ateliers.length} ateliers (${p.ateliers.map((a) => a.title).join(', ')}) · ${p.groups.length} groupes · ${p.durationMin} min`;
   return '';
 }
-const defaultOf = (tool) => ({ kivaou: KV_DEFAULT, mariokart: newMK(), circuit: CT_DEFAULT, tournoi: TN_DEFAULT, kabaddi: KB_DEFAULT, boxefps: BX_DEFAULT() })[tool];
+const defaultOf = (tool) => ({ kivaou: KV_DEFAULT, mariokart: newMK(), circuit: CT_DEFAULT, tournoi: TN_DEFAULT, kabaddi: KB_DEFAULT, boxefps: BX_DEFAULT(), rotation: (({ rot, clock, ...x }) => x)(defaultRotation()) })[tool];
 /** Petits réglages modifiables sur place (sans fenêtre) : tournoi, circuit, kabaddi, boxe. */
 function inlineEditor(tool, cur) {
   const S = JSON.parse(JSON.stringify(cur));
@@ -98,6 +100,7 @@ function presetsTab() {
           inline || h('div', { class: 'row wrap' }, btn('Modifier les réglages…', { icon: 'edit', cls: 'primary', onClick: () => {
             const done = async (S) => { await savePreset(null, tool, S); render(); };
             if (tool === 'kivaou') kivaouSettingsDialog(cur, done, 'Kivaou', { presetOnly: true });
+            else if (tool === 'rotation') { const st = JSON.parse(JSON.stringify(cur)); st.rot = 0; rotationSettingsDialog(st, () => done({ durationMin: st.durationMin, ateliers: st.ateliers, groups: st.groups })); }
             else mkSettingsDialog(cur, (S) => done({ version: S.version, durationMin: S.durationMin, bonus: S.bonus, objectives: S.objectives }), 'Mario Kart', { presetOnly: true });
           } })),
           h('div', { class: 'row', style: { justifyContent: 'flex-end', marginTop: '8px' } },
@@ -289,7 +292,7 @@ function dataTab(which = 'data') {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.12.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.13.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

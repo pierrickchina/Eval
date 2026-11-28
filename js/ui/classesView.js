@@ -1,8 +1,10 @@
-// Page d'une classe : 3 onglets — Carnet de bord · Oublis de matériel · Notes.
+// Page d'une classe : Carnet de bord · Séance du jour · Oublis de matériel · Notes · Résultats.
 import { resultsTab } from './suiviView.js';
 import { app, registerView, go, render , back as navBack } from '../app.js';
-import { h, btn, iconBtn, popMenu, toast } from './dom.js';
+import { h, btn, iconBtn, popMenu, toast, download } from './dom.js';
+import { studentTotals } from '../logic/scoring.js';
 import { hubTab, repairActivities, newActivityDialog } from './carnet.js';
+import { todayTab } from './todayView.js';
 import { evTitle } from '../logic/activities.js';
 import { fmt, fmtDate, collator, todayISO, schoolYear } from '../util.js';
 import { studentLabel } from '../data/schema.js';
@@ -19,15 +21,18 @@ const saveClass = (cls) => app.repo.save('classes', cls);
 
 // ---------- Page d'une classe ----------
 
-registerView('classPage', ({ id }) => {
+registerView('classPage', (r) => {
+  const { id } = r;
   const cls = app.repo.get('classes', id);
   if (!cls || cls.deleted) { queueMicrotask(() => go('home')); return h('div'); }
   const more = iconBtn('more', 'Options de la classe', () => popMenu(more, [
     { label: 'Modifier la classe et ses élèves…', onClick: () => go('classEdit', { id: cls.id, from: 'classPage' }) },
+    { label: 'Exporter les notes (tableur CSV)', onClick: () => exportNotes(cls) },
   ]), 'boxed');
-  if (P.cls !== id) { P.cls = id; P.tab = 'hub'; } // l'onglet est mémorisé dans la classe, pas d'une classe à l'autre
+  if (P.cls !== id) { P.cls = id; P.tab = 'hub'; }
+  if (r.tab) { P.tab = r.tab; delete r.tab; } // ouverture directe d'un onglet (ex. Résultats depuis le Test VMA) // l'onglet est mémorisé dans la classe, pas d'une classe à l'autre
   repairActivities(cls);
-  const tabs = [['hub', 'Carnet de bord'], ['forgets', 'Oublis de matériel'], ['notes', 'Notes'], ['results', 'Résultats']];
+  const tabs = [['hub', 'Carnet de bord'], ['today', 'Séance du jour'], ['forgets', 'Oublis'], ['notes', 'Notes'], ['results', 'Résultats']];
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
       iconBtn('back', 'Retour', () => navBack(), '', { 'data-back': '1' }),
@@ -38,7 +43,7 @@ registerView('classPage', ({ id }) => {
       P.tab === 'hub' ? btn('Nouvelle activité', { icon: 'plus', cls: 'primary', onClick: () => newActivityDialog(cls) }) : null,
       P.tab === 'notes' ? notesToolbar(cls) : null,
       P.tab === 'forgets' ? forgetsToolbar(cls) : null),
-    P.tab === 'hub' ? hubTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : P.tab === 'results' ? resultsTab(cls) : notesTab(cls));
+    P.tab === 'hub' ? hubTab(cls) : P.tab === 'today' ? todayTab(cls) : P.tab === 'forgets' ? forgetsTab(cls) : P.tab === 'results' ? resultsTab(cls) : notesTab(cls));
 });
 
 // ---------- Onglet Notes ----------
@@ -57,7 +62,7 @@ function notesToolbar(cls) {
     h('select', { 'aria-label': 'Tri des élèves', value: P.sort, onChange: (e) => { P.sort = e.target.value; render(); } },
       h('option', { value: 'list' }, 'Élèves : ordre de la liste'), h('option', { value: 'alpha' }, 'Élèves : A → Z'),
       h('option', { value: 'mean' }, 'Élèves : meilleure moyenne')),
-    btn('Imprimer / PDF', { icon: 'file', cls: 'small', onClick: () => printNotes(cls) }),
+    btn('PDF', { icon: 'file', cls: 'small', title: 'Imprimer / PDF', onClick: () => printNotes(cls) }),
   ];
 }
 
@@ -142,4 +147,18 @@ function forgetsTab(cls) {
   const density = shown.length > 24 ? 'dense2' : shown.length > 12 ? 'dense' : '';
   return h('div', { class: `forgets scroll ${density}`, 'data-keep': 'forgets' },
     shown.length ? shown.map(row) : h('div', { class: 'empty' }, list.length ? 'Aucun élève à 3 croix ou plus.' : 'Cette classe n\'a pas encore d\'élèves.'));
+}
+
+// ---------- Export des notes (1.13) : un tableur, une ligne par élève, une colonne par évaluation (note sur 20) ----------
+function exportNotes(cls) {
+  const evs = app.repo.list('evaluations').filter((e) => e.classId === cls.id && !e.deleted).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  if (!evs.length) return toast('Aucune évaluation dans cette classe.');
+  const students = activeStudents(cls).slice().sort((a, b) => collator.compare(studentLabel(a), studentLabel(b)));
+  const q = (x) => `"${String(x ?? '').replace(/"/g, '""')}"`;
+  const num = (v) => (v == null ? '' : String(Math.round(v * 100) / 100).replace('.', ','));
+  const head = ['Élève', ...evs.map((e) => evTitle(e))];
+  const rows = students.map((s) => [studentLabel(s), ...evs.map((e) => { const t = studentTotals(e, s.id); return t.status !== 'present' ? (t.status === 'absent' ? 'ABS' : 'DISP') : t.noScore ? '' : num(t.final ?? t.provisional); })]);
+  const csv = '\ufeff' + [head, ...rows].map((r) => r.map(q).join(';')).join('\r\n');
+  download(`notes-${cls.name.replace(/\s+/g, '-')}.csv`, csv, 'text/csv;charset=utf-8');
+  toast('Notes exportées (séparateur « ; », s\'ouvre dans Sheets ou Excel).');
 }

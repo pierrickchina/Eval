@@ -6,7 +6,7 @@ import { classIconSvg, classIconOf } from './classIcon.js';
 import { fmtDate, todayISO, collator } from '../util.js';
 import { duplicateEvaluation } from '../logic/evaluation.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
-import { TOOLS, toolColor, activitiesOf, TOOL_SECTIONS, activityColor } from '../logic/activities.js';
+import { TOOLS, toolColor, activitiesOf, TOOL_SECTIONS, TOOL_GROUPS, activityColor } from '../logic/activities.js';
 import { shareBackup, backupText, backupNeedsAttention, changesSinceBackup } from './backup.js';
 
 const F = { tab: 'classes', sort: 'level', level: '' }; // état conservé entre deux visites
@@ -78,17 +78,20 @@ function toolsTab() {
       onKeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
     h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'small tsub' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
   };
-  const fam = (t) => t.family || 'zz';
   const { all, other } = TOOL_SECTIONS;
+  const grouped = new Set(TOOL_GROUPS.flatMap((g) => g.tools));
+  const free1st = (a, b) => !!b[1].free - !!a[1].free;
+  const section = (title, items, cls = '') => (items.length ? [h('h3', { class: `toolsec ${cls}` }, title), h('div', { class: `tooltiles big ${cls}` }, items.map(tile))] : []);
+  const pick = (keys) => keys.filter((k) => TOOLS[k] && !pins.includes(k)).map((k) => [k, TOOLS[k]]);
+  // 1.13 : « Par activité » rangé par activité (les outils d'une même APSA côte à côte)
+  const byAct = TOOL_GROUPS.map((g) => [g.label, pick(g.tools)]).filter(([, it]) => it.length);
+  const rest = Object.entries(TOOLS).filter(([k, t]) => !pins.includes(k) && k !== 'evaluation' && !all.includes(k) && !other.includes(k) && !grouped.has(k) && t.available);
   return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
-    ...[['Favoris', ([k]) => pins.includes(k), 'fav'],
-      ['Pour toutes les activités', ([k]) => !pins.includes(k) && all.includes(k)],
-      ['Par activité', ([k, t]) => t.available && !pins.includes(k) && k !== 'evaluation' && !all.includes(k) && !other.includes(k)],
-      ['Autres et à venir', ([k, t]) => !pins.includes(k) && (other.includes(k) || !t.available)]].map(([title, f, cls]) => {
-      // outils utilisables sans classe en premier, puis par famille d'activité (couleurs voisines côte à côte)
-      const items = Object.entries(TOOLS).filter(f).sort((a, b) => (!!b[1].free - !!a[1].free) || fam(a[1]).localeCompare(fam(b[1])));
-      return items.length ? [h('h3', { class: `toolsec ${cls || ''}` }, title), h('div', { class: `tooltiles big ${cls || ''}` }, items.map(tile))] : [];
-    }).flat(),
+    ...section('Favoris', pins.filter((k) => TOOLS[k]).map((k) => [k, TOOLS[k]]), 'fav'),
+    ...section('Pour toutes les activités', pick(all).sort(free1st)),
+    byAct.length ? h('h3', { class: 'toolsec' }, 'Par activité') : null,
+    byAct.length ? h('div', { class: 'actgroups' }, byAct.map(([label, items]) => h('div', { class: 'actgroup' }, h('div', { class: 'actglabel' }, label), h('div', { class: 'tooltiles big' }, items.sort(free1st).map(tile))))) : null,
+    ...section('Autres et à venir', [...pick(other), ...rest, ...Object.entries(TOOLS).filter(([k, t]) => !t.available && !pins.includes(k))]),
     h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));
 }
 

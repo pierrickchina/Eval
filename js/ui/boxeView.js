@@ -8,6 +8,7 @@ import { clockText } from './chronoView.js';
 import { buzz } from './foundations.js';
 import { helpItem } from './help.js';
 import { presetFor, savePreset } from './presets.js';
+import { ringArrows } from './rotationView.js';
 
 export const BX_ATELIERS = ['Assaut en 1 touche', 'Assaut normal', 'Coaching guidé', 'Assaut en 1 touche', 'Assaut normal', 'Coaching guidé'];
 /** Trois types d'atelier (d'après la fiche d'observation Assaut) : icône, couleurs et consignes. */
@@ -75,7 +76,7 @@ registerView('boxefps', (r) => {
     V.tab === 'fiche' ? h('div', { class: 'scroll grow listpad bxfiche' }, h('p', { class: 'muted' }, 'Fiche d\'observation (une par groupe, sur papier).'),
       h('img', { src: 'img/boxe/fiche-1.jpg', alt: 'Fiche Assaut normal' }), h('img', { src: 'img/boxe/fiche-2.jpg', alt: 'Fiche Assaut en 1 touche et Coaching guidé' }))
       : h('div', { class: 'bxwrap' },
-        h('div', { class: `bxdial ${over ? 'over' : running ? 'run' : ''}` }, h('div', { class: 'bxring' }), ...ateliers,
+        h('div', { class: `bxdial ${over ? 'over' : running ? 'run' : ''}` }, h('div', { class: 'bxring' }), ...ringArrows(n, R), ...ateliers,
           h('div', { class: 'bxcenter' },
             h('div', { class: 'bxrot' }, `Rotation ${st.rot + 1} / ${n}`),
             h('div', { class: 'bxclock' }, clockText(Math.max(0, left), false)),
