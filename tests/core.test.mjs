@@ -55,17 +55,16 @@ test('exemple du cahier des charges : 4/5 + 3/5 + 3/4 + 5/6 = 15/20', () => {
   assert.equal(t.remaining, 0);
 });
 
-test("somme des barèmes : 20 exigé, erreur sinon (et message clair)", () => {
+test("somme des barèmes libre depuis 1.10 : total ≠ 20 accepté, note ramenée sur 20 ; grille sans note", () => {
   const ok = validateTable(makeModel([5, 5, 4, 6]).levels['6e'].competences);
-  assert.equal(ok.ok, true);
+  assert.equal(ok.ok, true); assert.equal(ok.exact20, true);
   const low = validateTable(makeModel([5, 5, 4, 5]).levels['6e'].competences);
-  assert.equal(low.ok, false);
-  assert.match(low.errors.join(' '), /il manque 1 point/);
-  const high = validateTable(makeModel([5, 5, 5, 6]).levels['6e'].competences);
-  assert.equal(high.ok, false);
-  assert.match(high.errors.join(' '), /1 point\(s\) en trop/);
-  assert.equal(validateModel(makeModel([5, 5, 4, 5])).ok, false);
-  assert.equal(validateModel(makeModel()).ok, true);
+  assert.equal(low.ok, true); assert.equal(low.exact20, false); assert.equal(low.diff, 1);
+  assert.equal(validateModel(makeModel([5, 5, 4, 5])).ok, true);
+  const bad = makeModel([5, 0, 4, 5]);
+  assert.equal(validateModel(bad).ok, false);
+  bad.noScore = true;
+  assert.equal(validateModel(bad).ok, true);
 });
 
 test('compétences non renseignées ≠ zéro : note finale absente, points partiels affichés', () => {
@@ -130,7 +129,8 @@ test('choisir un niveau propose une note ; note modifiable ; le niveau suit la n
   assert.equal(getCell(ev, sid, c.id).level, 'de');
   setLevel(ev, sid, c.id, 'de');
   assert.equal(getCell(ev, sid, c.id).score, c.max);
-  assert.equal(levelForScore(c, 3), 'ec');
+  assert.equal(levelForScore(c, 2), 'ec');
+  assert.equal(levelForScore(c, 3), 'ac');
 });
 
 test('correspondances niveau → note modifiables par compétence, indépendamment', () => {
@@ -464,7 +464,7 @@ test('changer le barème d\'une compétence remet ses niveaux à l\'échelle', (
   const c = newCompetence(5);
   setCompetenceMax(c, 10);
   assert.equal(c.levels[3].value, 10);
-  assert.equal(c.levels[1].value, 6); // 55 % de 10 = 5,5 → pas 0,5 ; ancien 3 × 2 = 6
+  assert.equal(c.levels[1].value, 5); // « en cours » = exactement la moitié du barème
   assert.ok(c.levels.every((l) => l.min <= l.value && l.value <= l.max));
 });
 
@@ -521,6 +521,7 @@ test('export / import JSON : restauration complète (fusion et remplacement)', a
   assert.equal(b.list('models')[0].levels['6e'].competences.length, 4);
 
   // import en mode fusion : ne remplace JAMAIS une donnée locale plus récente
+  await new Promise((r) => setTimeout(r, 5)); // (évite l'égalité d'horodatage à la milliseconde près)
   const local = b.get('evaluations', ev.id);
   setScore(local, ev.students[0].id, comps(ev)[0].id, 1);
   await b.save('evaluations', local);

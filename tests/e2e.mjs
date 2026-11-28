@@ -9,6 +9,7 @@ const URL = process.argv[2] || 'http://127.0.0.1:8765/index.html';
 const SHOTS = process.env.SHOTS || '/tmp/claude-0/-home-claude/7c20a5a1-b5cf-5e73-87c9-df7896a28ca7/scratchpad/shots';
 mkdirSync(SHOTS, { recursive: true });
 
+import { newEvaluation, openClass, openEvalList, openFirstEval } from './nav.mjs';
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, hasTouch: true, locale: 'fr-FR', acceptDownloads: true });
 const page = await ctx.newPage();
@@ -19,6 +20,7 @@ const shot = (n) => page.screenshot({ path: `${SHOTS}/${n}.png` });
 let step = 0;
 const log = (m) => console.log(`✓ ${String(++step).padStart(2, '0')} ${m}`);
 
+await page.addInitScript(() => { try { localStorage.setItem('eps-skip-tour', '1'); } catch {} });
 await page.goto(URL);
 await page.waitForSelector('.empty h2');
 assert.match(await page.textContent('.empty h2'), /Bienvenue/);
@@ -44,7 +46,7 @@ await shot('01-classe');
 await page.click('text=Terminer');
 
 // ---------- Modèle ----------
-await page.click('.seg >> text=Modèles d\'évaluation');
+await page.click('.seg >> text=Modèles');
 await page.click('text=Nouveau modèle');
 await page.fill('input[placeholder^="ex. Badminton – "]', 'Badminton cycle 3');
 await page.fill('input[placeholder="ex. Badminton"]', 'Badminton');
@@ -52,7 +54,7 @@ await page.click('.chip >> text=6e');
 await page.click('text=Ajouter une compétence');
 // 1re compétence : barème proposé 5
 const addComp = async (name, max) => {
-  const rows = page.locator('table.edit tbody tr:has(input[data-max])');
+  const rows = page.locator('.mecard');
   const n = await rows.count();
   const row = rows.nth(n - 1);
   await row.locator('input[aria-label="Nom"]').fill(name);
@@ -62,10 +64,10 @@ const addComp = async (name, max) => {
 await addComp('S\'engager dans la pratique', 5);
 await page.click('text=Ajouter une compétence'); await addComp('Réaliser une performance', 5);
 await page.click('text=Ajouter une compétence'); await addComp('Arbitrer', 4);
-// somme = 14 : l'enregistrement doit être bloqué
-assert.equal(await page.locator('#m-save').isDisabled(), true);
-assert.match(await page.textContent('#m-sum'), /14 \/ 20 — il manque 6/);
-log('somme ≠ 20 : message « il manque 6 » et enregistrement bloqué');
+// somme = 14 : accepté depuis la 1.10, la note sera ramenée sur 20
+assert.equal(await page.locator('#m-save').isDisabled(), false);
+assert.match(await page.textContent('#m-sum'), /14 — la note sera ramenée sur 20/);
+log('somme ≠ 20 : accepté, message « la note sera ramenée sur 20 »');
 await page.click('text=Ajouter une compétence');
 await addComp('Coopérer', 6);
 assert.match(await page.textContent('#m-sum'), /20 \/ 20/);
@@ -80,10 +82,7 @@ log('modèle enregistré une fois la somme égale à 20');
 
 // ---------- Nouvelle évaluation ----------
 await page.click('[aria-label="Retour"]');
-await page.click('text=Nouvelle évaluation');
-await page.waitForSelector('.dlg select');
-await page.click('.dlg >> text=Créer');
-await page.waitForSelector('table.grid');
+await newEvaluation(page, { activity: 'Badminton' });
 assert.equal(await page.locator('tbody tr').count(), 4);
 assert.equal(await page.locator('thead th').count(), 6); // élève + 4 compétences + note
 log('évaluation créée : 4 élèves × 4 compétences');
@@ -137,7 +136,8 @@ log('élève absent : statut visible, jamais compté comme zéro');
 await shot('05-statuts');
 
 // groupes
-await page.click('text=Groupes');
+await page.click('[aria-label="Options de l\'évaluation"]');
+await page.click('.popmenu >> text=Équipes');
 await page.click('.dlg >> text=Ajouter une équipe');
 await page.click('.dlg >> text=Ajouter une équipe');
 await page.locator('.dlg table select').first().selectOption({ index: 1 });
@@ -152,28 +152,33 @@ await page.waitForSelector('.compcard');
 assert.equal(await page.locator('.compcard').count(), 4);
 await shot('06-fiche-eleve');
 log('fiche individuelle ouverte (4 compétences, 4 niveaux chacune)');
-await page.click('text=Historique');
+await page.click('[aria-label="Plus d\'options"]');
+await page.click('.popmenu >> text=Historique');
 await page.waitForSelector('table.hist');
 await shot('07-historique');
 await page.click('.dlg >> text=Fermer');
 await page.click('text=Tableau');
 
 // ---------- Duplication ----------
-await page.click('[aria-label="Retour aux évaluations"]');
-await page.locator('.card [aria-label="Actions"]').click();
+const oldId = await page.evaluate(() => window.__app.route.id);
+await page.click('[aria-label="Options de l\'évaluation"]');
 await page.click('.popmenu >> text=Dupliquer');
 await page.click('.dlg-foot >> text=Dupliquer');
+await page.waitForFunction((id) => window.__app.route.id && window.__app.route.id !== id, oldId);
 await page.waitForSelector('table.grid');
 assert.equal(await page.locator('td.cell.draft, td.cell.validated').count(), 0);
 log('duplication : nouvelle évaluation sans résultats');
-await page.click('[aria-label="Retour aux évaluations"]');
-assert.equal(await page.locator('.card').count(), 2);
+await page.click('[aria-label="Retour"]');
+await page.waitForSelector('.hub');
+assert.equal(await (await openEvalList(page)).locator('.evrow').count(), 2);
 await shot('08-accueil');
 
 // ---------- Sauvegarde persistante + hors connexion ----------
-await page.reload();
-await page.waitForSelector('.card');
-assert.equal(await page.locator('.card').count(), 2);
+await page.reload(); // 1.13 : l'actualisation revient sur le même écran (la carte de la classe)
+await page.waitForSelector('.topbar'); await page.waitForFunction(() => window.__app?.repo);
+await page.evaluate(async () => (await import('./js/app.js')).go('home'));
+await openClass(page);
+assert.equal(await (await openEvalList(page)).locator('.evrow').count(), 2);
 log('rechargement : données conservées (IndexedDB)');
 
 await page.waitForFunction(() => navigator.serviceWorker?.controller || navigator.serviceWorker?.ready.then(() => true), null, { timeout: 8000 }).catch(() => {});
@@ -182,10 +187,9 @@ await page.reload();
 await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 8000 });
 await ctx.setOffline(true);
 await page.reload();
-await page.waitForSelector('.card');
-assert.equal(await page.locator('.card').count(), 2);
-await page.locator('.card').first().click();
-await page.waitForSelector('table.grid');
+await page.waitForSelector('.topbar'); await page.waitForFunction(() => window.__app?.repo);
+await page.evaluate(async () => (await import('./js/app.js')).go('home'));
+await openFirstEval(page);
 await cell(1, 1).click(); await page.click('.lvbtn.ec');
 assert.match(await cell(1, 1).getAttribute('class'), /lv-ec/);
 log('HORS CONNEXION : rechargement, ouverture et saisie fonctionnent');
@@ -201,9 +205,10 @@ log('mode portrait');
 await page.setViewportSize({ width: 1280, height: 800 });
 await page.goto(URL + '#');
 await page.waitForSelector('.card, table.grid');
-if (await page.locator('table.grid').count()) await page.click('[aria-label="Retour aux évaluations"]');
-await page.click('text=Réglages'); await page.click('.seg >> text=Données et synchronisation');
-const [dl] = await Promise.all([page.waitForEvent('download'), page.click('text=Exporter une sauvegarde')]);
+if (await page.locator('table.grid').count()) await page.click('[aria-label="Retour"]');
+if (await page.locator('.hub').count()) await page.click('[aria-label="Retour"]');
+await page.click('text=Réglages'); await page.click('.seg >> text=Sauvegarde');
+const [dl] = await Promise.all([page.waitForEvent('download'), page.click('text=Télécharger le fichier')]);
 const path = await dl.path();
 const json = JSON.parse((await import('node:fs')).readFileSync(path, 'utf8'));
 assert.equal(json.app, 'eps-eval');

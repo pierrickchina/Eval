@@ -2,6 +2,7 @@
 // Lancer : node tests/e2e2.mjs [url]
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
+import { newEvaluation, openClass, openEvalList, ensureActivity, goHome } from './nav.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 
@@ -20,6 +21,7 @@ let step = 0;
 const log = (m) => console.log(`✓ ${String(++step).padStart(2, '0')} ${m}`);
 const shot = (n) => page.screenshot({ path: `${SHOTS}/${n}.png` });
 
+await page.addInitScript(() => { try { localStorage.setItem('eps-skip-tour', '1'); } catch {} });
 await page.goto(URL);
 await page.waitForSelector('.empty h2');
 
@@ -61,7 +63,7 @@ log('CSV : barème manquant signalé, import bloqué');
 // on corrige la case « barème » de la dernière ligne
 await page.locator('table.edit tbody tr').last().locator('input[aria-label="max"]').fill('5');
 await page.press('table.edit tbody tr:last-child input[aria-label="max"]', 'Tab');
-await page.waitForSelector('text=Total des barèmes : 25 / 20');
+await page.waitForSelector('text=Total des barèmes : 25 — la note sera ramenée sur 20');
 await page.click('text=Mettre à l\'échelle sur 20');
 await page.waitForSelector('text=Total des barèmes : 20 / 20');
 log('somme 25 → mise à l\'échelle automatique sur 20');
@@ -88,11 +90,7 @@ await page.click('text=Terminer');
 
 // évaluation sur 6e B avec le modèle importé
 await page.click('[aria-label="Retour"]');
-await page.click('text=Nouvelle évaluation');
-await page.waitForSelector('.dlg select');
-await page.locator('.dlg select').first().selectOption({ label: '6e B (6e) — 4 élèves' });
-await page.click('.dlg-foot >> text=Créer');
-await page.waitForSelector('table.grid');
+await newEvaluation(page, { cls: '6e B', activity: 'Athlétisme' });
 // Bruno : toutes compétences à « Acquis », puis on l'utilise comme élève qui partira
 const rowOf = (n) => page.locator(`tbody tr:has(.nm:text-is("${n}"))`);
 for (let c = 0; c < 4; c++) { await rowOf('Bruno').locator('td.cell').nth(c).click(); await page.click('.lvbtn.ac'); await page.click('.sheet >> text=Valider >> nth=0'); }
@@ -100,7 +98,7 @@ const brunoTotal = (await rowOf('Bruno').locator('td.total').textContent()).trim
 log(`ancienne évaluation : Bruno a ${brunoTotal}`);
 
 // Bruno quitte la classe, Dina arrive
-await page.click('[aria-label="Retour aux évaluations"]');
+await goHome(page);
 await page.click('text=Réglages'); await page.click('.seg >> text=Classes');
 await page.locator('.listrow:has-text("6e B") >> text=Modifier').first().click();
 await page.locator('.listrow').nth(1).locator('[aria-label="L\'élève quitte la classe"]').click(); // 2e ligne = Bruno
@@ -114,21 +112,17 @@ await page.click('text=Terminer');
 
 // nouvelle évaluation : Dina présente, Bruno absent ; ancienne évaluation inchangée
 await page.click('[aria-label="Retour"]');
-await page.click('text=Nouvelle évaluation');
-await page.waitForSelector('.dlg select');
-console.log('   options de classe :', await page.locator('.dlg select').first().locator('option').allTextContents());
-await page.locator('.dlg select').first().selectOption({ label: '6e B (6e) — 4 élèves' });
-await page.click('.dlg-foot >> text=Créer');
-await page.waitForSelector('table.grid');
+await newEvaluation(page, { cls: '6e B', activity: 'Athlétisme' });
 const names2 = await page.$$eval('tbody .nm', (els) => els.map((e) => e.firstChild.textContent.trim()));
 assert.deepEqual(names2.sort(), ['Anna', 'Chloé D.', 'Chloé F.', 'Dina']);
 log('nouvelle évaluation : Dina présente, Bruno absent');
-await page.click('[aria-label="Retour aux évaluations"]');
-const oldCards = await page.$$eval('.card .d', (els) => els.map((e) => e.textContent));
+await page.click('[aria-label="Retour"]');
+await openEvalList(page);
+const oldCards = await page.$$eval('.evrow .muted', (els) => els.map((e) => e.textContent));
 assert.ok(oldCards.some((t) => /1\/4 notés/.test(t)), 'ancienne évaluation : ' + oldCards.join(' | '));
 log('ancienne évaluation intacte : toujours 4 élèves dont Bruno noté (carte « 1/4 notés »)');
 // l'historique de Bruno est consultable depuis l'ancienne évaluation
-await page.locator('.card:has-text("1/4 notés")').first().click();
+await page.locator('.evrow:has-text("1/4 notés")').first().click();
 await page.waitForSelector('table.grid');
 await rowOf('Bruno').locator('.st').click();
 await page.click('.popmenu >> text=Historique');
@@ -137,8 +131,9 @@ assert.match(await page.textContent('table.hist tbody'), /Test CSV|Badminton imp
 await shot('12-historique-bruno');
 await page.click('.dlg >> text=Fermer');
 log('historique de l\'élève parti toujours consultable');
-await page.click('[aria-label="Retour aux évaluations"]');
+await page.click('[aria-label="Retour"]');
 
+await goHome(page);
 // ---------- Conflit Drive (interface) ----------
 await page.evaluate(async () => {
   const app = window.__app, repo = app.repo;
@@ -181,8 +176,8 @@ await ctx.setOffline(false);
 log('état « Hors connexion » affiché');
 
 // ---------- Export puis import JSON par l'interface (fusion) ----------
-await page.click('text=Réglages'); await page.click('.seg >> text=Données et synchronisation');
-const [dl] = await Promise.all([page.waitForEvent('download'), page.click('text=Exporter une sauvegarde')]);
+await page.click('text=Réglages'); await page.click('.seg >> text=Sauvegarde');
+const [dl] = await Promise.all([page.waitForEvent('download'), page.click('text=Télécharger le fichier')]);
 const file = await dl.path();
 await page.setInputFiles('input[type=file][accept*=json]', file);
 await page.waitForSelector('.dlg >> text=Importer une sauvegarde');

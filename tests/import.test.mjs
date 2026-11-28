@@ -79,7 +79,7 @@ test('import CSV : données manquantes/incompatibles signalées, somme ≠ 20 d�
   // correction : on donne un barème au dernier, puis somme = 5+15+? → rescale
   competences[2].max = 5;
   assert.equal(sumMax(competences), 25);
-  assert.equal(validateTable(competences).ok, false);
+  assert.equal(validateTable(competences).exact20, false); // 1.10 : accepté (note ramenée sur 20)
   rescaleTo20(competences);
   assert.equal(sumMax(competences), 20);
   assert.equal(validateTable(competences).ok, true);
