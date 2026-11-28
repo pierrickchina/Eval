@@ -1,6 +1,6 @@
 // Fondations 1.6 : « Reprendre où j'en étais », outils épinglés, affichage (texte / contraste),
 // visite guidée, classe de démonstration, partage d'un modèle d'évaluation par petit fichier.
-import { app, go, render } from '../app.js';
+import { app, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, openDialog, toast, download } from './dom.js';
 import { uid, todayISO, schoolYear } from '../util.js';
 import { newActivity, activitiesOf, TOOLS, toolColor, activityEvals } from '../logic/activities.js';
@@ -51,7 +51,7 @@ export function displayPanel() {
 // ---------- Vibrations et sons ----------
 
 let audio = null;
-function tone(freq, ms, at = 0) {
+export function tone(freq, ms, at = 0) {
   try {
     audio ||= new (window.AudioContext || window.webkitAudioContext)();
     if (audio.state === 'suspended') audio.resume();
@@ -78,6 +78,7 @@ const RESUME_KEY = 'eps-resume';
 const RESUMABLE = new Set(['eval', 'classPage', 'equipes']);
 /** Appelé par go() : mémorise le dernier écran « de travail » (jamais un écran d'accueil ou de réglages). */
 export function noteRoute(route) {
+  welcome(route);
   if (!RESUMABLE.has(route.name)) return;
   if (route.name === 'equipes' && !route.setId) return;
   try { localStorage.setItem(RESUME_KEY, JSON.stringify({ ...route, at: Date.now() })); } catch { /* ignore */ }
@@ -233,4 +234,22 @@ export function importModelButton(after) {
     try { const m = parseModelFile(await f.text()); await app.repo.save('models', m); toast(`Modèle « ${m.activity} » ajouté.`); after?.(); } catch (err) { toast(err.message); }
   } });
   return [input, btn('Recevoir un modèle (fichier)', { icon: 'upload', onClick: () => input.click() })];
+}
+
+// ---------- Première ouverture d'un outil (1.12) : 3 cartes courtes, une seule fois ----------
+const WELCOMED = new Set();
+function welcome(route) {
+  const type = Object.keys(TOOLS).find((k) => TOOLS[k].route === route.name && TOOLS[k].help);
+  if (!type || WELCOMED.has(type)) return;
+  try { if (localStorage.getItem('eps-skip-tour') || localStorage.getItem('eps-skip-welcome')) return; } catch { /* */ }
+  const seen = app.repo?.getMeta('seenTools', []) || [];
+  if (seen.includes(type)) return;
+  WELCOMED.add(type);
+  app.repo.setMeta('seenTools', [...seen, type]);
+  setTimeout(() => {
+    if (app.route.name !== route.name) return;
+    const t = TOOLS[type];
+    openDialog({ title: t.label, wide: true, body: h('div', { class: 'welcards' }, t.help.slice(0, 3).map((line, i) => h('div', { class: 'welcard', style: { '--tc': t.color } }, h('span', { class: 'welnum' }, String(i + 1)), h('p', null, line)))),
+      actions: [{ label: 'C\'est parti', primary: true }] });
+  }, 250);
 }

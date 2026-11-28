@@ -1,6 +1,7 @@
 // Écran d'une évaluation : tableau général, saisie rapide, fiche élève, groupes, statuts.
 import { evTitle } from '../logic/activities.js';
-import { app, registerView, go, render, syncChip } from '../app.js';
+import { whistleBadge } from './badges.js';
+import { app, registerView, go, render, syncChip , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, hasDialog, confirmDialog, closeTopDialog } from './dom.js';
 import { fmt, fmtDate, parseNum, todayISO } from '../util.js';
 import { LEVELS, STATUSES, levelInfo, studentLabel, newStudent } from '../data/schema.js';
@@ -83,7 +84,7 @@ function topbar() {
     { label: 'Supprimer l\'évaluation…', danger: true, onClick: deleteThis },
   ]), 'boxed');
   return h('div', { class: 'topbar' },
-    iconBtn('back', 'Retour', () => { V.sel = null; const r = app.route; if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home'); }, '', { 'data-back': '1' }),
+    iconBtn('back', 'Retour', () => { V.sel = null; const r = app.route; navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'))); }, '', { 'data-back': '1' }),
     h('div', { class: 'grow evtitle' },
       h('h1', null, `${ev.classInfo.name} · ${evTitle(ev)}`),
       h('div', { class: 'sub' }, `${ev.model.name} — ${ev.students.length} élèves — ${fmtDate(ev.date)}`)),
@@ -162,6 +163,8 @@ function tableMode() {
   return h('div', { class: 'main' }, toolbar, wrap, sheet());
 }
 
+/** Activité de l'évaluation (pour le sifflet d'arbitre à côté du prénom). */
+function evAct(ev) { const c = app.repo.get('classes', ev.classId); return c?.activities?.find((a) => a.id === ev.activityId) || null; }
 function studentRow(s, comps) {
   const ev = V.ev;
   const t = studentTotals(ev, s.id);
@@ -170,7 +173,7 @@ function studentRow(s, comps) {
   const label = studentLabel(s);
   const tr = h('tr', { class: t.usable ? '' : 'inactive' },
     h('th', { class: 'sticky', scope: 'row' }, h('div', { class: 'namecell' },
-      h('button', { type: 'button', class: 'nm', onClick: () => openStudent(s.id), title: 'Ouvrir la fiche' }, label,
+      h('button', { type: 'button', class: 'nm', onClick: () => openStudent(s.id), title: 'Ouvrir la fiche' }, label, whistleBadge(evAct(ev), s.id, 14),
         team ? h('span', { class: 'tag team' }, team.name) : null, lvl ? h('span', { class: 'tag level' }, lvl.name) : null,
         getNote(ev, s.id) ? h('span', { class: 'notemark', title: getNote(ev, s.id) }, '✎') : null),
       more)),

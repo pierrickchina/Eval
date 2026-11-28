@@ -1,13 +1,14 @@
 // Éditeur de groupe classe : nom, niveau, couleur, élèves (sauvegarde automatique).
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, iconBtn, toast, confirmDialog, openDialog } from './dom.js';
 import { collator, now } from '../util.js';
+import { classIconSvg, classIconOf, ICON_SHAPES, ICON_PALETTES, PALETTE_NAMES } from './classIcon.js';
 import { SCHOOL_LEVELS, CLASS_COLORS, newClass, newStudent, studentLabel } from '../data/schema.js';
 
 let CE = null; // { cls }
 
 registerView('classEdit', ({ id, from }) => {
-  const leave = () => { CE = null; if (from === 'classPage' && id) go('classPage', { id }); else go('settings', { tab: 'classes' }); };
+  const leave = () => { CE = null; navBack(() => (from === 'classPage' && id ? go('classPage', { id }) : go('settings', { tab: 'classes' }))); };
   if (!CE || CE.key !== (id ?? 'new')) {
     let cls = id ? app.repo.get('classes', id) : null;
     if (!cls) {
@@ -97,7 +98,8 @@ registerView('classEdit', ({ id, from }) => {
           h('div', { class: 'swatches' }, CLASS_COLORS.map((col) => h('button', { type: 'button', class: `swatch ${c.color === col ? 'on' : ''}`, style: { background: col }, 'aria-label': 'Couleur ' + col,
             onClick: async () => { c.color = col; if (c.name) await persist(); render(); } })),
           h('input', { type: 'color', value: c.color, 'aria-label': 'Couleur personnalisée', style: { width: '44px', height: '44px', padding: 0, border: 0, background: 'none' },
-            onChange: async (e) => { c.color = e.target.value; if (c.name) await persist(); render(); } })))),
+            onChange: async (e) => { c.color = e.target.value; if (c.name) await persist(); render(); } }))),
+        iconPicker(c, persist)),
 
       h('div', { class: 'panel' }, h('h3', null, `Élèves (${active.length})`),
         h('div', { class: 'row wrap', style: { marginBottom: '8px' } }, firstInput, initInput,
@@ -130,4 +132,14 @@ function pasteDialog(c, persist) {
       render();
     } }],
   });
+}
+
+/** Icône de la classe : le symbole et la palette se choisissent séparément. */
+function iconPicker(c, persist) {
+  const cur = classIconOf(c);
+  const set = async (patch) => { c.icon = { ...cur, ...patch }; if (c.name) await persist(); render(); };
+  return h('div', { style: { marginTop: '14px' } },
+    h('div', { class: 'muted small', style: { fontWeight: 600, marginBottom: '6px' } }, 'Icône'),
+    h('div', { class: 'iconpick' }, ICON_SHAPES.map(([k, label]) => h('button', { type: 'button', class: `ipk ${cur.shape === k ? 'on' : ''}`, 'aria-label': label, title: label, onClick: () => set({ shape: k }) }, classIconSvg({ ...cur, shape: k }, 48)))),
+    h('div', { class: 'iconpick' }, Object.keys(ICON_PALETTES).map((k) => h('button', { type: 'button', class: `ipk ${cur.palette === k ? 'on' : ''}`, 'aria-label': `Couleurs ${PALETTE_NAMES[k]}`, title: PALETTE_NAMES[k], onClick: () => set({ palette: k }) }, classIconSvg({ ...cur, palette: k }, 48)))));
 }

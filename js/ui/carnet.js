@@ -1,7 +1,7 @@
 // Carnet de bord d'une classe : cadres d'activités (« Handball · 3e B ») contenant des tuiles d'outils.
 // La tuile Évaluation se déplie sur place (liste des évaluations de l'activité, sans nouvelle page).
-import { app, go, render } from '../app.js';
-import { h, btn, icon, iconBtn, openDialog, popMenu, toast } from './dom.js';
+import { app, go, render , back as navBack } from '../app.js';
+import { h, btn, icon, iconBtn, openDialog, popMenu, toast, tintVars } from './dom.js';
 import { fmtDate, todayISO, collator } from '../util.js';
 import { createEvaluation } from '../logic/evaluation.js';
 import { studentTotals } from '../logic/scoring.js';
@@ -41,16 +41,7 @@ function activityFrame(cls, act) {
   const { shown, hidden } = visibleTools(act.tools);
   const showAll = E.all.has(act.id);
   const tools = showAll ? [...shown, ...hidden] : shown;
-  const add = iconBtn('plus', 'Ajouter un outil', () => popMenu(add, [
-    ...Object.entries(TOOLS).filter(([, t]) => t.available && !t.freeOnly).map(([type, t]) => ({
-      label: type === 'evaluation' ? 'Nouvelle évaluation…' : `${t.label}${hasTool(act, type) ? ' (ouvrir)' : ''}`,
-      onClick: () => (type === 'evaluation' ? addEvaluation(cls, act) : useTool(cls, act, type)),
-    })),
-    '-',
-    ...Object.entries(TOOLS).filter(([, t]) => !t.available).map(([, t]) => ({ label: `${t.label} (plus tard)`, disabled: true, onClick: () => {} })),
-    '-',
-    { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
-  ]), 'boxed');
+  const add = iconBtn('plus', 'Ajouter un outil', () => addToolDialog(cls, act), 'boxed');
   const more = iconBtn('more', 'Options de l\'activité', () => popMenu(more, [
     { label: 'Nom et couleur…', onClick: () => editActivityDialog(cls, act) },
     { label: 'Gérer les outils…', onClick: () => manageToolsDialog(cls, act) },
@@ -67,16 +58,16 @@ function activityFrame(cls, act) {
         E.open.has(act.id) ? E.open.delete(act.id) : E.open.add(act.id);
         render();
       };
-      return h('button', { type: 'button', style: { '--tc': toolColor('evaluation') }, class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': n > 1 ? open : null, onClick: press },
+      return h('button', { type: 'button', style: tintVars(toolColor('evaluation')), class: `tooltile ${open ? 'on' : ''}`, 'aria-expanded': n > 1 ? open : null, onClick: press },
         icon(TOOLS.evaluation.icon), h('b', null, 'Évaluation'),
-        h('span', { class: 'muted small' }, n === 0 ? 'Aucune · toucher pour créer' : n === 1 ? '1 évaluation · toucher pour ouvrir' : `${n} évaluations`));
+        h('span', { class: 'small tsub' }, n === 0 ? 'Aucune' : n === 1 ? '1 évaluation' : `${n} évaluations`));
     }
     const def = TOOLS[t.type];
     if (def?.available) {
       const sets = t.type === 'equipes' ? (act.equipes?.sets?.length || 0) : t.type === 'tournoi' ? (act.tournois?.length || 0) : (t.type === 'tables' || t.type === 'rings') ? (act.ladders?.[t.type]?.sessions?.length || 0) : 0;
-      return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
+      return h('button', { type: 'button', style: tintVars(toolColor(t.type)), class: 'tooltile', onClick: () => useTool(cls, act, t.type) },
         icon(def.icon), h('b', null, def.label),
-        h('span', { class: 'muted small' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : (t.type === 'tables' || t.type === 'rings') ? (sets ? `${sets} séance${sets > 1 ? 's' : ''}` : 'Toucher pour créer') : def.hint));
+        h('span', { class: 'small tsub' }, t.type === 'equipes' ? (sets ? `${sets} composition${sets > 1 ? 's' : ''}` : 'Nouvelle') : t.type === 'tournoi' ? (sets ? `${sets} tournoi${sets > 1 ? 's' : ''}` : 'Nouveau') : (t.type === 'tables' || t.type === 'rings') ? (sets ? `${sets} séance${sets > 1 ? 's' : ''}` : 'Nouvelle') : def.hint));
     }
     return h('button', { type: 'button', style: { '--tc': toolColor(t.type) }, class: 'tooltile soon', onClick: () => toast(`${toolLabel(t.type)} : plus tard.`) },
       icon(TOOLS[t.type]?.icon || 'file'), h('b', null, toolLabel(t.type)), h('span', { class: 'muted small' }, 'plus tard'));
@@ -88,6 +79,18 @@ function activityFrame(cls, act) {
     hidden.length ? h('button', { type: 'button', class: 'linkbtn', onClick: () => { showAll ? E.all.delete(act.id) : E.all.add(act.id); render(); } },
       showAll ? 'Masquer les outils peu utilisés' : `Afficher ${hidden.length} outil${hidden.length > 1 ? 's' : ''} peu utilisé${hidden.length > 1 ? 's' : ''}`) : null,
     E.open.has(act.id) && hasTool(act, 'evaluation') && activityEvals(evals, cls, act).length > 1 ? evalList(cls, act) : null);
+}
+
+/** « + » d'une activité : grille d'icônes des outils pas encore présents (l'évaluation est toujours proposée). */
+function addToolDialog(cls, act) {
+  const list = Object.entries(TOOLS).filter(([type, t]) => t.available && !t.freeOnly && (type === 'evaluation' || !hasTool(act, type)));
+  const dlg = openDialog({
+    title: `Ajouter à « ${act.name} »`, wide: true,
+    body: [h('div', { class: 'addgrid' }, list.map(([type, t]) => h('button', { type: 'button', class: 'addtile', style: tintVars(toolColor(type)),
+      onClick: () => { dlg.close(); type === 'evaluation' ? addEvaluation(cls, act) : useTool(cls, act, type); } },
+    icon(t.icon, 34), h('b', null, type === 'evaluation' ? 'Nouvelle évaluation' : t.label)))),
+    h('button', { type: 'button', class: 'linkbtn', onClick: () => { dlg.close(); manageToolsDialog(cls, act); } }, 'Gérer les outils de l\'activité…')],
+  });
 }
 
 /** Ouvre un outil de l'activité (l'ajoute au cadre s'il n'y est pas encore). */

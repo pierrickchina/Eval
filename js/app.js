@@ -1,9 +1,10 @@
 // État global de l'application, routeur minimal et rendu.
-import { h, hasDialog, closeTopDialog, toast } from './ui/dom.js';
+import { h, hasDialog, closeTopDialog, closeAllOverlays, toast } from './ui/dom.js';
 
 export const app = {
   repo: null,
   route: { name: 'home' },
+  stack: [], // v1.12 : historique unique des écrans (Retour = écran précédent, partout)
   views: {},
   sync: null, // contrôleur de synchronisation (voir sync/controller.js)
   syncState: 'local',
@@ -47,8 +48,44 @@ export function initBack() {
   });
 }
 
-export function go(name, params = {}) {
-  app.route = { name, ...params };
+const snap = (r) => { try { return JSON.parse(JSON.stringify(r)); } catch { return { name: r.name }; } };
+const same = (a, b) => JSON.stringify(snap(a)) === JSON.stringify(snap(b));
+const IDS = ['id', 'setId', 'sid', 'tid', 'icId'];
+/** Même écran : simple changement d'onglet, ou fiche « sœur » (dupliquée, leçon suivante…) → remplace au lieu d'empiler. */
+const onlyTab = (a, b) => {
+  if (a.name !== b.name) return false;
+  const keys = new Set([...Object.keys(snap(a)), ...Object.keys(snap(b))]);
+  const diff = [...keys].filter((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]));
+  return diff.every((k) => k === 'tab' || (IDS.includes(k) && a[k] && b[k]));
+};
+/** Écrans de passage (éditeurs, création) : jamais gardés dans l'historique. */
+const TRANSIENT = new Set(['classEdit', 'modelEdit', 'import', 'selfEval']);
+const transient = (r) => TRANSIENT.has(r.name) || !!r.setup;
+/** next est le « parent » de cur (même outil, moins de détail : la liste après la fiche) : on remonte, on n'empile pas. */
+const isParent = (next, cur) => next.name === cur.name && Object.keys(snap(next)).every((k) => JSON.stringify(cur[k]) === JSON.stringify(next[k])) && Object.keys(snap(cur)).filter((k) => JSON.stringify(cur[k]) !== JSON.stringify(next[k])).every((k) => next[k] == null && [...IDS, 'direct', 'latest'].includes(k));
+
+/**
+ * Change d'écran. L'écran quitté est mémorisé (sauf retour, remplacement, simple changement d'onglet).
+ * Revenir à un écran déjà dans l'historique coupe l'historique à cet endroit : aucune boucle possible.
+ */
+export function go(name, params = {}, { replace = false, isBack = false } = {}) {
+  isBack ||= app.backing;
+  const next = { name, ...params };
+  const cur = app.route;
+  if (name === 'home') app.stack.length = 0;
+  else if (!isBack && !replace && cur && !transient(cur) && !same(cur, next) && !onlyTab(cur, next) && !isParent(next, cur)) {
+    const i = app.stack.findIndex((x) => same(x, next) || onlyTab(x, next));
+    if (i >= 0) app.stack.length = i;
+    else {
+      const j = app.stack.findIndex((x) => same(x, cur) || onlyTab(x, cur)); // chaque écran une seule fois
+      if (j >= 0) app.stack.length = j;
+      app.stack.push(snap(cur)); if (app.stack.length > 40) app.stack.shift();
+    }
+  }
+  // l'écran d'arrivée ne figure jamais lui-même en haut de l'historique
+  while (app.stack.length && (same(app.stack.at(-1), next) || onlyTab(app.stack.at(-1), next))) app.stack.pop();
+  if (cur?.name !== name || !same(cur, next)) closeAllOverlays();
+  app.route = next;
   app.onRoute?.(app.route);
   try {
     // Bouton « Précédent » de la tablette : on garde toujours une entrée « garde » devant l'entrée de base
@@ -61,6 +98,13 @@ export function go(name, params = {}) {
     else localStorage.removeItem('eps-last-route');
   } catch { /* stockage indisponible : sans importance */ }
   render();
+}
+
+/** Retour : écran précédent de l'historique ; sinon fallback (ou l'accueil). */
+export function back(fallback) {
+  const prev = app.stack.pop();
+  if (prev) { const { name, ...p } = prev; go(name, p, { isBack: true }); }
+  else { app.backing = true; try { fallback ? fallback() : go('home'); } finally { app.backing = false; } }
 }
 
 /** Re-rend la vue courante en conservant la position de défilement des zones [data-keep]. */

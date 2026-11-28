@@ -1,5 +1,5 @@
 // Éditeur de modèle d'évaluation : compétences, barèmes (somme = 20), niveaux de réussite.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, toast, confirmDialog } from './dom.js';
 import { clone, uid, parseNum, fmt, now } from '../util.js';
 import { SCHOOL_LEVELS, LEVELS, newModel, newCompetence } from '../data/schema.js';
@@ -42,7 +42,7 @@ registerView('modelEdit', ({ id }) => {
   const leave = async () => {
     if (ME.dirty && !(await confirmDialog('Abandonner les modifications de ce modèle ?', 'Abandonner'))) return;
     ME = null;
-    go('settings', { tab: 'models' });
+    navBack(() => go('settings', { tab: 'models' }));
   };
 
   return h('div', { class: 'main' },
@@ -104,25 +104,22 @@ function levelPanel(levelsOn) {
     paintSum(Math.round(s * 1e4) / 1e4);
   };
 
-  const rows = comps.flatMap((c, i) => {
-    const row = h('tr', null,
-      h('td', { style: { whiteSpace: 'nowrap' } },
-        iconBtn('up', 'Monter', () => move(comps, i, -1), 'sm', { disabled: i === 0 }),
-        iconBtn('down', 'Descendre', () => move(comps, i, 1), 'sm', { disabled: i === comps.length - 1 })),
-      h('td', null, h('input', { type: 'text', 'data-fid': 'n-' + c.id, value: c.name, placeholder: 'Nom de la compétence', 'aria-label': 'Nom', onInput: (e) => { c.name = e.target.value; ME.dirty = true; } , onChange: refreshSave })),
-      h('td', null, h('input', { type: 'text', 'data-fid': 'a-' + c.id, value: c.afc, placeholder: 'Ex. AFC 1.2', 'aria-label': 'AFC', onInput: (e) => { c.afc = e.target.value; ME.dirty = true; } })),
-      h('td', null, h('input', { type: 'text', class: 'num', inputmode: 'decimal', 'data-max': '1', 'data-fid': 'x-' + c.id, value: String(c.max).replace('.', ','), 'aria-label': 'Barème',
+  // 1.12 : une carte par compétence, grand champ pour l'AFC / référence
+  const cards = comps.map((c, i) => h('div', { class: 'mecard' },
+    h('div', { class: 'mehead' },
+      h('div', { class: 'memove' }, iconBtn('up', 'Monter', () => move(comps, i, -1), 'sm', { disabled: i === 0 }), iconBtn('down', 'Descendre', () => move(comps, i, 1), 'sm', { disabled: i === comps.length - 1 })),
+      h('span', { class: 'menum' }, String(i + 1)),
+      h('input', { type: 'text', class: 'mename', 'data-fid': 'n-' + c.id, value: c.name, placeholder: 'Nom de la compétence', 'aria-label': 'Nom', onInput: (e) => { c.name = e.target.value; ME.dirty = true; }, onChange: refreshSave }),
+      h('label', { class: 'mesmall' }, 'Barème', h('input', { type: 'text', class: 'num', inputmode: 'decimal', 'data-max': '1', 'data-fid': 'x-' + c.id, value: String(c.max).replace('.', ','), 'aria-label': 'Barème',
         onInput: liveSum,
         onChange: (e) => { const v = parseNum(e.target.value); if (v > 0) { setCompetenceMax(c, Math.round(v / step) * step, step); ME.dirty = true; } render(); } })),
-      h('td', null, h('input', { type: 'text', class: 'num', inputmode: 'decimal', 'data-fid': 'k-' + c.id, value: String(c.coef ?? 1).replace('.', ','), 'aria-label': 'Coefficient', title: 'Sert uniquement à répartir les 20 points (bouton « Répartir selon les coefficients »)',
+      h('label', { class: 'mesmall' }, 'Coef.', h('input', { type: 'text', class: 'num', inputmode: 'decimal', 'data-fid': 'k-' + c.id, value: String(c.coef ?? 1).replace('.', ','), 'aria-label': 'Coefficient', title: 'Sert uniquement à répartir les 20 points (bouton « Répartir selon les coefficients »)',
         onChange: (e) => { const v = parseNum(e.target.value); c.coef = v > 0 ? v : 1; ME.dirty = true; e.target.value = String(c.coef).replace('.', ','); } })),
-      h('td', { style: { whiteSpace: 'nowrap' } },
-        btn(ME.open.has(c.id) ? 'Niveaux ▲' : 'Niveaux ▼', { cls: 'small soft', onClick: () => { ME.open.has(c.id) ? ME.open.delete(c.id) : ME.open.add(c.id); render(); } }),
-        iconBtn('trash', 'Supprimer la compétence', () => { comps.splice(i, 1); ME.dirty = true; render(); }, 'sm')));
-    if (!ME.open.has(c.id)) return [row];
-    const det = h('tr', null, h('td', { colspan: 6 }, levelsEditor(c)));
-    return [row, det];
-  });
+      iconBtn('trash', 'Supprimer la compétence', () => { comps.splice(i, 1); ME.dirty = true; render(); }, 'sm')),
+    h('label', { class: 'meafc' }, 'AFC / référence',
+      h('textarea', { rows: 2, 'data-fid': 'a-' + c.id, 'aria-label': 'AFC', placeholder: 'Ex. D1.4 – Acquérir des techniques spécifiques pour améliorer son efficience', onInput: (e) => { c.afc = e.target.value; ME.dirty = true; e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; } }, c.afc || '')),
+    btn(ME.open.has(c.id) ? 'Niveaux ▲' : 'Niveaux ▼', { cls: 'small soft', onClick: () => { ME.open.has(c.id) ? ME.open.delete(c.id) : ME.open.add(c.id); render(); } }),
+    ME.open.has(c.id) ? levelsEditor(c) : null));
 
   return h('div', { class: 'panel' },
     h('div', { class: 'row wrap', style: { marginBottom: '10px' } },
@@ -138,9 +135,7 @@ function levelPanel(levelsOn) {
       h('input', { type: 'checkbox', checked: !!m.levels[lv].noScore, style: { width: '22px', height: '22px' }, onChange: (e) => { if (e.target.checked) m.levels[lv].noScore = true; else delete m.levels[lv].noScore; ME.dirty = true; render(); } }),
       h('span', null, `Sans note en ${lv} : niveaux de maîtrise seulement (pas de barème)`)),
     m.levels[lv].noScore ? h('div', { class: 'sumbar ok' }, icon('check', 20), h('span', null, 'Grille sans note : on choisit seulement un niveau de maîtrise par compétence.')) : sumbar,
-    comps.length ? h('div', { style: { overflow: 'auto', marginTop: '8px' } }, h('table', { class: `edit ${m.levels[lv].noScore ? 'noscore' : ''}` },
-      h('thead', null, h('tr', null, h('th'), h('th', null, 'Compétence'), h('th', null, 'AFC / référence'), h('th', null, 'Barème'), h('th', null, 'Coef.'), h('th'))),
-      h('tbody', null, rows))) : h('p', { class: 'muted' }, `Aucune compétence pour le niveau ${lv}.`),
+    comps.length ? h('div', { class: `mecards ${m.levels[lv].noScore ? 'noscore' : ''}` }, cards) : h('p', { class: 'muted' }, `Aucune compétence pour le niveau ${lv}.`),
     h('div', { class: 'row wrap', style: { marginTop: '10px' } },
       btn('Ajouter une compétence', { icon: 'plus', cls: 'soft', onClick: () => { const c = newCompetence(Math.max(0.5, Math.min(5, 20 - sumMax(comps) || 5)), step); comps.push(c); ME.open.clear(); ME.open.add(c.id); ME.dirty = true; render(); } }),
       btn('Répartir selon les coefficients', { disabled: !comps.length, title: 'Redistribue les 20 points proportionnellement aux coefficients', onClick: () => { applyCoefficients(comps, step); ME.dirty = true; render(); } }),

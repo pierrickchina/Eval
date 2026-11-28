@@ -1,6 +1,6 @@
 // Sauvegarde : « Partager la sauvegarde » (menu de partage de la tablette → Google Drive, Mes fichiers, mail…)
 // et rappel de la dernière sauvegarde. Aucune connexion à un compte, aucun identifiant à créer.
-import { app } from '../app.js';
+import { app , back as navBack } from '../app.js';
 import { download, toast } from './dom.js';
 import { DATA_STORES } from '../data/repo.js';
 

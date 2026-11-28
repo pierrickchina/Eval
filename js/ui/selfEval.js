@@ -1,7 +1,7 @@
 // Mode auto-évaluation : la tablette est confiée aux élèves.
 // L'élève ne voit QUE sa propre fiche (aucune note, remarque ou observation de l'enseignant).
 // Sortie protégée par un code (0007 par défaut, modifiable dans Réglages). Le verrou survit à un rechargement.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, openDialog, confirmDialog, toast } from './dom.js';
 import { fmt } from '../util.js';
 import { LEVELS, studentLabel } from '../data/schema.js';

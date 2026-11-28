@@ -15,14 +15,16 @@ export function monteeOf(act) {
 }
 export const criteria = (M, id = M.sheet) => M.sheets[id] || MONTEE_SHEETS.find((s) => s.id === id)?.levels || Array(10).fill('');
 export const placeOf = (M, id = M.sheet) => (M.place[id] ??= {});
+/** 1.12 : tout le monde part du niveau 1 ; 0 = retiré de l'échelle (explicitement). */
+export const levelOf = (M, sid, id = M.sheet) => { const v = placeOf(M, id)[sid]; return v == null ? 1 : v; };
 export function setLevel(M, sid, level) {
   const p = placeOf(M);
-  if (level == null || level < 1) delete p[sid]; else p[sid] = Math.min(10, Math.max(1, level));
+  p[sid] = level == null || level < 1 ? 0 : Math.min(10, Math.max(1, level));
 }
 /** Hauteur relative de chaque niveau à l'écran : un niveau vide reste petit, un niveau occupé grandit avec ses élèves. */
 export function weights(M, sids) {
   const p = placeOf(M);
   const counts = Array(10).fill(0);
-  for (const s of sids) if (p[s]) counts[p[s] - 1]++;
+  for (const s of sids) { const lv = levelOf(M, s); if (lv) counts[lv - 1]++; }
   return counts.map((n) => (n ? 1 + n * 0.55 : 0));
 }

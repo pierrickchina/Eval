@@ -23,6 +23,8 @@ import './ui/kabaddiView.js';
 import './ui/boxeView.js';
 import './ui/monteeView.js';
 import './ui/interclassesView.js';
+import './ui/arbitreView.js';
+import './ui/vmaView.js';
 import { noteRoute, applyDisplay, maybeTour } from './ui/foundations.js';
 import { resumeRoute } from './ui/selfEval.js';
 import { SyncController } from './sync/controller.js';
@@ -33,7 +35,7 @@ import { installLibrary, upgradeLibrary, originalOf } from './data/library.js';
 import { defaultLevels } from './data/schema.js';
 import { uid } from './util.js';
 
-window.__APP_VERSION = '1.11.0';
+window.__APP_VERSION = '1.12.0';
 applyDisplay(); // taille du texte / contraste choisis dans les réglages
 const rootEl = document.getElementById('app');
 mount(rootEl);
@@ -95,6 +97,18 @@ async function boot() {
     for (const c of r.classes) await repo.save('classes', c);
     for (const e of r.evals) await repo.save('evaluations', e);
   } catch (e) { console.warn('Rangement des activités impossible :', e); }
+
+  // v1.12 : l'outil « Boxe française · rotation » rejoint les activités de boxe existantes (une seule fois)
+  try {
+    if (!repo.getMeta('mig112')) {
+      for (const c of repo.list('classes')) {
+        let dirty = false;
+        for (const a of c.activities || []) if (/boxe|\bbf\b/i.test(a.name) && !a.tools.some((t) => t.type === 'boxefps')) { a.tools.push({ type: 'boxefps', addedAt: Date.now(), lastUsed: Date.now() }); dirty = true; }
+        if (dirty) await repo.save('classes', c);
+      }
+      await repo.setMeta('mig112', 1);
+    }
+  } catch (e) { console.warn('Migration 1.12 impossible :', e); }
 
   // Reprise de l'évaluation en cours après un rechargement
   let first = { name: 'home' };

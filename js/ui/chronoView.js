@@ -1,6 +1,6 @@
 // Outil Chronomètre : de 1 à 4 panneaux (chronomètre ou minuteur), très grands chiffres, rien n'est enregistré.
 // Utilisable seul (onglet Outils) ou comme raccourci dans une activité : même écran dans les deux cas.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, confirmDialog, popMenu } from './dom.js';
 import { uid } from '../util.js';
 import { helpItem } from './help.js';
@@ -67,7 +67,7 @@ function leave() {
   clearInterval(C.ticker); C.ticker = null; release();
   C.panels = []; C.display = false; // « aucune mémoire » : tout s'efface en quittant
   const r = app.route;
-  if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home');
+  navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 }
 
 async function tryLeave() {

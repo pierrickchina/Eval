@@ -1,6 +1,6 @@
 // Page d'une classe : 3 onglets — Carnet de bord · Oublis de matériel · Notes.
 import { resultsTab } from './suiviView.js';
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, iconBtn, popMenu, toast } from './dom.js';
 import { hubTab, repairActivities, newActivityDialog } from './carnet.js';
 import { evTitle } from '../logic/activities.js';
@@ -30,7 +30,7 @@ registerView('classPage', ({ id }) => {
   const tabs = [['hub', 'Carnet de bord'], ['forgets', 'Oublis de matériel'], ['notes', 'Notes'], ['results', 'Résultats']];
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
+      iconBtn('back', 'Retour', () => navBack(), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, cls.name),
         h('div', { class: 'sub' }, `${cls.level}${cls.year ? ' · ' + cls.year : ''} — ${activeStudents(cls).length} élèves`)),
       more),
@@ -130,10 +130,10 @@ function forgetsTab(cls) {
     const l = forgetsOf(cls, s.id);
     return h('div', { class: 'forgetrow' },
       h('span', { class: 'fname' }, studentLabel(s)),
-      h('div', { class: 'crosses', 'aria-label': `${l.length} oubli${l.length > 1 ? 's' : ''}` }, l.length
+      h('span', { class: `fcount ${l.length ? forgetColor(l.length - 1) : ''}` }, l.length ? String(l.length) : '0'),
+      h('div', { class: 'crosses', style: { '--xs': `${l.length <= 5 ? 22 : l.length <= 8 ? 17 : l.length <= 12 ? 13 : 10}px` }, 'aria-label': `${l.length} oubli${l.length > 1 ? 's' : ''}` }, l.length
         ? l.map((d, i) => h('span', { class: `xmark ${forgetColor(i)}`, title: fmtDate(d) }, '✕'))
         : h('span', { class: 'muted small' }, 'aucun')),
-      h('span', { class: `fcount ${l.length ? forgetColor(l.length - 1) : ''}` }, l.length || ''),
       iconBtn('minus', `Retirer un oubli à ${s.first}`, () => change(s, -1), 'boxed fbtn', { disabled: !l.length }),
       iconBtn('plus', `Ajouter un oubli à ${s.first}`, () => change(s, 1), 'boxed fbtn primaryish'),
       h('span', { class: 'muted small flast' }, l.length ? `dernier : ${fmtDate(l.at(-1))}` : ''));

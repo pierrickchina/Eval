@@ -1,5 +1,5 @@
 // Outil Circuit training : Chrono (cadenas, préréglages, circuit affiché) · Exercices (fiches, tri, hasard, matériel) · Circuits (créés et nommés).
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog } from './dom.js';
 import { uid } from '../util.js';
 import { clockText } from './chronoView.js';
@@ -54,7 +54,7 @@ function leave() {
   clearInterval(C.ticker); C.ticker = null; release();
   C.base = 0; C.startedAt = null; C.lastKey = null;
   const r = app.route;
-  if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home');
+  navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 }
 
 // ---------- Écran ----------
@@ -64,10 +64,10 @@ registerView('circuit', (r) => {
   const act = r.scope === 'act' ? activitiesOf(app.repo.get('classes', r.classId) || { activities: [] }).find((a) => a.id === r.actId) : null;
   // préréglage de l'équipe EPS pour cette activité, appliqué à l'ouverture (si le chrono ne tourne pas)
   const rk = `${r.classId || ''}/${r.actId || ''}`;
-  if (rk !== C.routeKey) { C.routeKey = rk; const p = act ? presetFor(act.name, 'circuit') : null; if (p && !elapsed()) { C.cfg = { ...C.cfg, ...p, locks: {} }; saveCfg(); } }
+  if (rk !== C.routeKey) { C.routeKey = rk; const p = presetFor(null, 'circuit'); if (p && !elapsed()) { C.cfg = { ...C.cfg, ...p, locks: {} }; saveCfg(); } }
   const tabs = h('div', { class: 'seg' }, [['chrono', 'Chrono'], ['exos', 'Exercices'], ['circuits', 'Circuits']].map(([k, l]) => h('button', { type: 'button', class: C.tab === k ? 'on' : '', onClick: () => { C.tab = k; render(); } }, l)));
   const m = iconBtn('more', 'Options', () => popMenu(m, [
-    act ? { label: `Enregistrer ces réglages comme préréglage de l'équipe EPS (${act.name})`, onClick: async () => { const { locks, ...p } = C.cfg; await savePreset(act.name, 'circuit', p); toast('Préréglage enregistré.'); } } : null,
+    { label: 'Enregistrer comme préréglage de l\'équipe EPS', onClick: async () => { const { locks, circuit, ...p } = C.cfg; await savePreset(null, 'circuit', p); toast('Préréglage Circuit training enregistré (Réglages › Préréglages).'); } },
     helpItem('circuit'),
   ].filter(Boolean)), 'boxed');
   const back = async () => { if (running() && !(await confirmDialog('Le minuteur tourne encore. Quitter l\'arrête.', 'Quitter', { danger: true }))) return; leave(); };

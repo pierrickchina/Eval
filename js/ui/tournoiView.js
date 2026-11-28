@@ -1,6 +1,6 @@
 // Outil Tournoi : liste, création (libre ou dans une activité, 1 ou 2 tournois en parallèle), écran de jeu en paysage.
 // Un tournoi est un enregistrement autonome : équipes figées (nom, couleur, élèves), calendrier, scores, chronomètres.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog } from './dom.js';
 import { fmtDate, todayISO, uid } from '../util.js';
 import { VEST_COLORS, vestOf, teamsOnly, teamColorId, teamLabel } from '../logic/teams.js';
@@ -52,7 +52,7 @@ function ctxFor(r) {
     save: (t) => repo.save('freetools', recs().find((x) => x.t.id === t.id)),
   };
 }
-const backTo = (r) => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'));
+const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 const partnerOf = (ctx, t) => (t.pairId ? ctx.list().find((x) => x.pairId === t.pairId && x.id !== t.id) || null : null);
 const persist = (ctx, ...ts) => ts.filter(Boolean).forEach((t) => ctx.save(t));
 
@@ -137,10 +137,9 @@ function initSetup(ctx) {
   // réglages du dernier tournoi (de l'activité, ou des tournois libres)
   const last = [...ctx.list()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
   if (last) Object.assign(S, TN.settingsOf(last));
+  if (!last) { const p = presetFor(null, 'tournoi'); if (p) { const { sport, ...rest } = p; Object.assign(S, rest); } } // préréglage de l'équipe EPS (sauf le sport)
   if (ctx.kind === 'act') {
-    const preset = !last ? presetFor(ctx.act.name, 'tournoi') : null; // préréglage de l'équipe EPS
-    if (preset) Object.assign(S, preset);
-    else if (!last) S.sport = TN.sportFromActivity(ctx.act.name, ctx.cls.level);
+    if (!last) S.sport = TN.sportFromActivity(ctx.act.name, ctx.cls.level);
     const set = TN.latestSet(ctx.act.equipes?.sets);
     if (set) fillFromSet(S, set); // clubs : « 2 tournois en parallèle » est coché
   } else S.teamsA = defaultTeams(4);
@@ -263,7 +262,7 @@ function setupView(r, ctx) {
     opt('Terrains', S.parallel ? seg([[false, '1 par tournoi'], [true, '1 seul, en alternance']], !!S.shared, (k) => set('shared', k), 'wrap') : seg([[1, '1'], [2, '2']], S.courts, (k) => set('courts', k)), !S.parallel && S.courts === 2 && nA < 6 ? 'moins de 6 équipes : certains matchs sans arbitre' : S.parallel && S.shared ? 'un match du tournoi 1, un match du tournoi 2… ; chaque tournoi arbitre ses propres matchs' : null),
     S.parallel && S.shared ? h('div', { class: 'opt' }, h('label', { class: 'row' }, h('input', { type: 'checkbox', class: 'bigchk', checked: !!S.equalize, onChange: (e) => { S.equalize = e.target.checked; re(); } }),
       h('span', null, 'Égaliser le temps', h('small', { class: 'muted' }, cA.total !== cB.total ? ` — le tournoi qui a le plus de matchs joue ${TN.equalizedMinutes(S.halfMin, Math.min(cA.total, cB.total), Math.max(cA.total, cB.total))} min au lieu de ${S.halfMin}` : ' — même nombre de matchs : rien à changer')))) : null,
-    opt('Affichage', seg([['table', 'Table de marque'], ['suivi', 'Suivi simple des scores']], S.board || 'table', (k) => set('board', k), 'wrap'), (S.board || 'table') === 'suivi' ? 'pas de chrono ni de gros boutons : score + « Match suivant »' : null),
+    opt('Table de marque', seg([['table', 'Sur la tablette'], ['suivi', 'Sans (résultats seulement)']], S.board || 'table', (k) => set('board', k), 'wrap'), (S.board || 'table') === 'suivi' ? 'pas de chrono : le tableau des matchs prend l\'écran, on note le score de chaque rencontre' : 'chrono et points en direct'),
     opt('Format', seg([['single', 'Chacun contre chacun'], ['double', 'Aller-retour']], S.format, (k) => set('format', k), 'wrap')),
     opt('Finale', seg([['none', 'Aucune'], ['final', 'Finale'], ['both', '+ petite finale']], S.finals, (k) => set('finals', k), 'wrap')));
   const more = h('details', { class: 'panel tn-more', open: S.moreOpen || null, onToggle: (e) => { S.moreOpen = e.target.open; } },
@@ -300,7 +299,7 @@ function setupView(r, ctx) {
       h('span', null, h('b', null, 'Deux tournois en parallèle'), h('small', { class: 'muted' }, ' — un terrain chacun, écran partagé'))));
 
   return h('div', { class: 'main' },
-    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => { K.setup = null; go('tournoi', { ...r, setup: undefined }); }, '', { 'data-back': '1' }),
+    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => { K.setup = null; navBack(() => go('tournoi', { ...r, setup: undefined })); }, '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, 'Nouveau tournoi'), h('div', { class: 'sub' }, `${ctx.title} · durée estimée ${Math.max(0, estimate)} min`)),
       btn('Créer le tournoi', { icon: 'play', cls: 'primary', disabled: !valid, onClick: create })),
     h('div', { class: 'scroll grow listpad setup', 'data-keep': 'tsetup' },
@@ -330,13 +329,13 @@ function playView(r, ctx, t) {
   const leave = async () => {
     for (const x of ts) for (const c of courtsOf(x)) if (TN.liveRunning(x.live?.[c])) x.live[c] = TN.livePause(x.live[c]);
     persist(ctx, ...ts); stopTicker();
-    if (r.scope === 'ic') go('interclasses', { icId: r.icId, from: r.from }); else go('tournoi', { ...r, tid: undefined });
+    navBack(() => (r.scope === 'ic' ? go('interclasses', { icId: r.icId, from: r.from }) : go('tournoi', { ...r, tid: undefined })));
   };
   const more = iconBtn('more', 'Options', () => popMenu(more, [
     ...ts.map((x, i) => ({ label: ts.length > 1 ? `Classement du tournoi ${i + 1}…` : 'Classement détaillé…', onClick: () => rankDialog(x) })),
     { label: 'Imprimer calendrier et classement', onClick: () => printTournoi(ts) },
     { label: 'Renommer…', onClick: () => renameDialog(ctx, t) },
-    ctx.kind === 'act' ? { label: `Enregistrer ces réglages comme préréglage de l'équipe EPS (${ctx.act.name})`, onClick: async () => { await savePreset(ctx.act.name, 'tournoi', TN.settingsOf(t)); toast('Préréglage enregistré.'); } } : null,
+    { label: 'Enregistrer comme préréglage de l\'équipe EPS', onClick: async () => { const { sport, ...p } = TN.settingsOf(t); await savePreset(null, 'tournoi', p); toast('Préréglage Tournoi enregistré (Réglages › Préréglages).'); } },
     helpItem('tournoi'),
   ].filter(Boolean)), 'boxed');
   const played = ts.map((x) => `${x.matches.filter((m) => m.done).length}/${x.matches.length}`).join(' + ');
@@ -346,7 +345,64 @@ function playView(r, ctx, t) {
       h('div', { class: 'grow evtitle' }, h('h1', null, partner ? `${t.name.replace(/\s*·\s*Tournoi [12]$/, '')} · 2 tournois en parallèle` : t.name),
         h('div', { class: 'sub' }, `${TN.SPORTS[t.sport]?.label} · ${played} matchs joués${left ? ` · reste ≈ ${left} min` : ''}`)),
       more),
-    t.shared && partner ? sharedPanel(ctx, ts) : h('div', { class: 'tn-body' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
+    t.board === 'suivi' ? resultsPanel(ctx, ts) : t.shared && partner ? sharedPanel(ctx, ts) : h('div', { class: 'tn-body' }, ts.map((x) => tournamentPanel(ctx, x, !!partner))));
+}
+
+// ---------- Sans table de marque (1.12) : le tableau des matchs prend l'écran, classement en bas à droite ----------
+const ordered = (t) => t.matches.slice().sort((a, b) => a.slot - b.slot || a.court - b.court);
+const nextMatch = (t) => ordered(t).find((m) => !m.done && m.a && m.b) || null;
+
+function resultsPanel(ctx, ts) {
+  const turn = ts.length > 1 && ts[0].shared ? TN.sharedTurn(ts) : null;
+  const nows = turn ? [[turn, nextMatch(turn)]] : ts.map((t) => [t, nextMatch(t)]);
+  const col = (t) => {
+    const nx = nextMatch(t);
+    let n = 0;
+    const cards = ordered(t).map((m) => {
+      const lab = m.phase === 'finale' ? 'Finale' : m.phase === 'petite' ? 'Petite finale' : `Match ${++n}`;
+      const known = m.a && m.b;
+      const team = (id) => h('span', { class: 'rs-team' }, dot(vest(t, id).hex), h('span', null, nameOf(t, id)));
+      const win = m.done ? (m.sa > m.sb ? 'a' : m.sb > m.sa ? 'b' : '') : '';
+      return h('button', { type: 'button', class: `rscard ${m.done ? 'done' : ''} ${nx && m.id === nx.id && (!turn || turn === t) ? 'next' : ''}`, 'data-mid': m.id,
+        onClick: () => (known ? resultDialog(ctx, t, m) : toast('Ce match sera complété à la fin de la poule.')) },
+      h('span', { class: 'rs-top' }, h('b', null, lab), t.courts === 2 && m.phase === 'poule' ? h('span', null, `Terrain ${m.court + 1}`) : null, m.ref ? h('span', { class: 'rs-ref' }, 'arb. ', nameOf(t, m.ref)) : null),
+      known ? h('span', { class: 'rs-mid' }, h('span', { class: `rs-side a ${win === 'a' ? 'win' : ''}` }, team(m.a)), h('b', { class: 'rs-score' }, m.done ? `${m.sa} – ${m.sb}` : '–'), h('span', { class: `rs-side b ${win === 'b' ? 'win' : ''}` }, team(m.b)))
+        : h('span', { class: 'rs-mid muted' }, m.phase === 'finale' ? '1er contre 2e' : '3e contre 4e'));
+    });
+    return h('section', { class: `rs-col ${t.side ? `side-${t.side}` : ''}` },
+      ts.length > 1 ? h('div', { class: 'rs-head' }, h('b', null, t.label || t.name), h('span', { class: 'muted small' }, `${t.matches.filter((m) => m.done).length}/${t.matches.length} joués`)) : null,
+      h('div', { class: 'rs-grid scroll', 'data-keep': `rs-${t.id}` }, cards));
+  };
+  const nowCard = h('div', { class: 'tn-card rs-now' }, h('div', { class: 'tn-cardhead' }, h('b', null, 'À jouer')),
+    nows.some(([, m]) => m) ? nows.filter(([, m]) => m).map(([t, m]) => h('button', { type: 'button', class: 'rs-nowbtn', onClick: () => resultDialog(ctx, t, m) },
+      ts.length > 1 ? h('small', null, t.label || t.name) : null,
+      h('span', null, dot(vest(t, m.a).hex), nameOf(t, m.a), h('i', null, ' – '), dot(vest(t, m.b).hex), nameOf(t, m.b)),
+      h('em', null, 'Noter le résultat')))
+      : h('p', { class: 'muted' }, 'Tous les matchs sont joués.'));
+  return h('div', { class: `tn-body rs ${ts.length > 1 ? 'two' : ''}` },
+    h('div', { class: 'rs-main' }, ts.map(col)),
+    h('aside', { class: 'rs-aside' }, nowCard, h('div', { class: 'rs-ranks' }, ts.map((t) => rankCard(t, ts.length > 1 ? (t.label || t.name) : 'Classement')))));
+}
+
+/** Résultat d'une rencontre : deux grands compteurs, puis Valider (ou corriger un match déjà joué). */
+function resultDialog(ctx, t, m) {
+  let sa = m.sa || 0, sb = m.sb || 0;
+  const body = h('div', { class: 'rs-dlg' });
+  const side = (id, get, setv) => h('div', { class: 'rs-dside', style: { '--v': vest(t, id).hex } },
+    h('div', { class: 'rs-dname' }, h('span', { class: 'vdot' }), nameOf(t, id)),
+    h('div', { class: 'rs-dstep' },
+      h('button', { type: 'button', class: 'tn-sbtn', 'aria-label': `−1 ${nameOf(t, id)}`, onClick: () => { setv(Math.max(0, get() - 1)); paint(); } }, '−'),
+      h('b', null, String(get())),
+      h('button', { type: 'button', class: 'tn-sbtn plus', 'aria-label': `+1 ${nameOf(t, id)}`, onClick: () => { setv(get() + 1); paint(); } }, '+')));
+  const paint = () => body.replaceChildren(side(m.a, () => sa, (v) => { sa = v; }), h('span', { class: 'rs-dvs' }, '–'), side(m.b, () => sb, (v) => { sb = v; }));
+  paint();
+  const finish = () => { TN.resolveFinals(t); persist(ctx, t); render(); if (t.matches.every((x) => x.done)) toast('Tournoi terminé.'); };
+  const dlg = openDialog({ title: `${matchTitle(t, m)}${m.ref ? ` · arbitre : ${nameOf(t, m.ref)}` : ''}`, wide: true, body: [body,
+    !m.done && m.phase === 'poule' ? h('div', { class: 'row', style: { justifyContent: 'center', marginTop: '8px' } },
+      btn('Échanger avec un autre match…', { cls: 'small', onClick: () => { dlg.close(); swapDialog(ctx, t, m); } }), btn('Changer l\'arbitre…', { cls: 'small', onClick: () => { dlg.close(); refDialog(ctx, t, m); } })) : null],
+  actions: [{ label: 'Annuler' },
+    m.done ? { label: 'Remettre à jouer', onClick: () => { m.done = false; m.sa = 0; m.sb = 0; delete m.doneAt; finish(); } } : null,
+    { label: m.done ? 'Corriger' : 'Valider le résultat', primary: true, onClick: () => { m.sa = sa; m.sb = sb; m.log = []; if (!m.done) { m.done = true; m.doneAt = Date.now(); } finish(); } }].filter(Boolean) });
 }
 
 /** Deux tournois sur un seul terrain : une table de marque (le tournoi dont c'est le tour), les deux listes de matchs à côté. */
@@ -468,10 +524,10 @@ function podium(t) {
     h('div', { class: 'tn-pbtns' }, btn('Classement complet', { icon: 'trophy', onClick: () => rankDialog(t) }), btn('Imprimer', { icon: 'print', onClick: () => printTournoi([t]) })));
 }
 
-function rankCard(t) {
+function rankCard(t, title = 'Classement') {
   const rows = TN.finalStandings(t);
   return h('div', { class: 'tn-card tn-rank' },
-    h('div', { class: 'tn-cardhead' }, h('b', null, 'Classement'), h('button', { type: 'button', class: 'tn-link', onClick: () => rankDialog(t) }, 'Détail')),
+    h('div', { class: 'tn-cardhead' }, h('b', null, title), h('button', { type: 'button', class: 'tn-link', onClick: () => rankDialog(t) }, 'Détail')),
     h('div', { class: 'scroll tn-rankwrap' }, h('table', { class: 'tn-ranktab' },
       h('thead', null, h('tr', null, h('th', null, '#'), h('th', { class: 'nm' }, 'Équipe'), h('th', null, 'J'), h('th', null, 'Diff'), h('th', null, 'Pts'))),
       h('tbody', null, rows.map((x) => h('tr', { class: x.played && x.rank === 1 ? 'top' : '' },

@@ -1,6 +1,6 @@
 // Outil Compteur Mario Kart (fiches MK V1, V2, V3) : chrono de course, tours, malus, objectif, pièces, cadeaux tirés au hasard, total.
 // Mémorisé sur la tablette (par activité, ou pour l'outil libre) jusqu'à « Remettre à zéro ».
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast } from './dom.js';
 import { clone } from '../util.js';
 import { vestOf, VEST_COLORS } from '../logic/teams.js';
@@ -14,13 +14,13 @@ import * as MK from '../logic/mariokart.js';
 
 const V = { fix: false, ticker: null, ended: false };
 const keyOf = (r) => `mk:${r.scope === 'act' ? r.actId : 'free'}`;
-const backTo = (r) => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'));
+const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 const actOf = (r) => (r.scope === 'act' ? activitiesOf(app.repo.get('classes', r.classId) || { activities: [] }).find((a) => a.id === r.actId) : null);
 const PRESET_KEYS = ['version', 'durationMin', 'bonus', 'objectives'];
 
 function stateOf(r) {
   let st = app.repo.getMeta(keyOf(r), null);
-  if (!st) { st = MK.newMK(); const p = actOf(r) ? presetFor(actOf(r).name, 'mariokart') : null; if (p) Object.assign(st, p); }
+  if (!st) { st = MK.newMK(); const p = presetFor(null, 'mariokart'); if (p) Object.assign(st, p); }
   return MK.normalizeMK(st);
 }
 
@@ -79,7 +79,7 @@ registerView('mariokart', (r) => {
       h('div', { class: 'mktotal' }, h('span', { class: 'muted small' }, `Groupe performant : ${levelInfo(MK.lapsLevel(g.laps)).label.toLowerCase()}`), h('b', null, `${MK.totalOf(st, g)} pts`)));
   };
   const m = iconBtn('more', 'Options', () => popMenu(m, [
-    { label: 'Réglages (version, durée, objectifs, bonus)…', onClick: () => mkSettingsDialog(st, (S) => { Object.assign(st, S); save(); render(); }, act?.name) },
+    { label: 'Réglages (version, durée, objectifs, bonus)…', onClick: () => mkSettingsDialog(st, (S) => { Object.assign(st, S); save(); render(); }, act?.name || 'libre') },
     '-',
     { label: 'Remettre à zéro', danger: true, onClick: () => { const snap = clone(st); MK.resetMK(st); save(); render(); toast('Compteurs remis à zéro.', { action: 'Annuler', ms: 9000, onAction: () => { Object.assign(st, snap); save(); render(); } }); } },
     helpItem('mariokart'),
@@ -154,7 +154,7 @@ export function mkSettingsDialog(initial, onSave, activityName = null, { presetO
       iconBtn('trash', 'Retirer', () => { S.bonus.splice(i, 1); paint(); }, 'sm'))),
       h('div', { class: 'row' }, btn('Ajouter un bonus', { icon: 'plus', cls: 'small soft', onClick: () => { S.bonus.push('Nouveau bonus'); paint(); } }), btn('Liste d\'origine', { cls: 'small soft', onClick: () => { S.bonus = MK.MK_BONUS.slice(); paint(); } }))),
     activityName && !presetOnly ? h('label', { class: 'row presetcheck' }, h('input', { type: 'checkbox', checked: asPreset, style: { width: '22px', height: '22px' }, onChange: (e) => { asPreset = e.target.checked; } }),
-      h('span', null, `Enregistrer aussi comme préréglage de l'équipe EPS pour « ${activityName} »`)) : '');
+      h('span', null, 'Enregistrer aussi comme préréglage Mario Kart de l\'équipe EPS (toutes les activités)')) : '');
   paint();
   openDialog({ title: presetOnly ? `Préréglage Mario Kart · ${activityName}` : 'Réglages Mario Kart', body, wide: true, actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: async () => {
     S.bonus = S.bonus.map((x) => x.trim()).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i);

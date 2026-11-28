@@ -1,6 +1,7 @@
 // Outil Équipes (et mode Clubs) : liste des compositions, tableau de composition (glisser-déposer), génération,
 // rôles, contraintes, affichage plein écran, PDF. Utilisable seul (outil libre) ou dans une activité.
-import { app, registerView, go, render } from '../app.js';
+import { whistleBadge } from './badges.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog } from './dom.js';
 import { fmtDate, todayISO, collator, clone, uid, now } from '../util.js';
 import { studentLabel } from '../data/schema.js';
@@ -49,7 +50,7 @@ function ctxFor(r) {
   };
 }
 
-const backTo = (r) => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'));
+const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 
 /** Annuler : instantané de la composition avant une action importante, restauré par le bouton du message. */
 function undoable(ctx, set, label, fn) {
@@ -177,14 +178,14 @@ function editor(r, ctx, set) {
   const roles = roleDefs(set);
   const save = () => ctx.save(set);
   const apply = (fn) => { fn(); render(); save(); }; // affichage immédiat, enregistrement ensuite
-  const back = () => { if (T.full) { T.full = false; render(); } else if (r.direct) backTo(r); else go('equipes', { ...r, setId: undefined }); };
+  const back = () => { if (T.full) { T.full = false; render(); } else if (r.direct) backTo(r); else navBack(() => go('equipes', { ...r, setId: undefined })); };
 
   if (T.full) return fullScreen(set, nameOf, roles, back);
 
   const chip = (s, { zone }) => {
     const role = visibleRole(set, s.id, roles), st = statusOf(set, s.id), locked = !!set.locked[s.id];
     return h('div', { class: `schip ${st !== 'present' ? 'st-' + st : ''}`, 'data-sid': s.id, role: 'button', tabindex: 0, 'aria-label': studentLabel(s) },
-      h('span', { class: 'sn' }, studentLabel(s), forbidden(ctx, set).has(s.id) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null),
+      h('span', { class: 'sn' }, studentLabel(s), forbidden(ctx, set).has(s.id) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null, ctx.kind === 'act' ? whistleBadge(ctx.act, s.id, 14) : null),
       role ? h('span', { class: 'sr', title: role.label, style: { '--rc': roleColor(role) } }, role.short) : null,
       st === 'dispense' ? h('span', { class: 'sb', title: 'Dispensé' }, 'D') : null,
       locked ? h('span', { class: 'sl', title: 'Verrouillé' }, icon('lock', 13)) : null);

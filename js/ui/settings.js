@@ -1,17 +1,18 @@
 // Réglages : modèles, classes, général (trimestres, notation, auto-évaluation, affichage, application), sauvegarde (+ Drive).
 import { displayPanel, demoPanel, importModelButton, shareModel } from './foundations.js';
-import { app, registerView, go, render, syncChip, updateSyncChips } from '../app.js';
+import { app, registerView, go, render, syncChip, updateSyncChips , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog, download } from './dom.js';
 import { collator, uid, clone, fmtDate, now, nextSchoolYear } from '../util.js';
 import { SCHOOL_LEVELS, defaultLevels } from '../data/schema.js';
 import { installLibrary, originalOf } from '../data/library.js';
-import { allPresets, savePreset, removePreset, norm } from './presets.js';
+import { toolPresets, savePreset, resetPreset } from './presets.js';
+import { BX_ATELIERS } from './boxeView.js';
 import { kivaouSettingsDialog } from './kivaouView.js';
 import { mkSettingsDialog } from './mkView.js';
 import { KV_DEFAULT } from '../logic/kivaou.js';
 import { newMK } from '../logic/mariokart.js';
 import { CT_PRESETS, CT_DEFAULT, CT_LIMITS, totalOf as ctTotal } from '../logic/intervals.js';
-import { SPORTS } from '../logic/tournament.js';
+import { SPORTS, DEFAULT_SETTINGS as TN_DEFAULT } from '../logic/tournament.js';
 import { shareBackup, downloadBackup, backupText, changesSinceBackup, makeSafetyCopy, safetyInfo, restoreSafetyCopy } from './backup.js';
 import { DEFAULT_CODE } from './selfEval.js';
 import { getTrimesters, defaultTrimesters } from '../logic/classes.js';
@@ -24,7 +25,7 @@ registerView('settings', ({ tab = 'models' }) => {
   const body = tab === 'models' ? modelsTab() : tab === 'classes' ? classesTab() : tab === 'presets' ? presetsTab() : dataTab(tab);
   return h('div', { class: 'main' },
     h('div', { class: 'topbar' },
-      iconBtn('back', 'Retour', () => go('home'), '', { 'data-back': '1' }),
+      iconBtn('back', 'Retour', () => navBack(), '', { 'data-back': '1' }),
       h('h1', { class: 'grow' }, 'Réglages'),
       syncChip()),
     h('div', { class: 'toolbar' }, h('div', { class: 'seg' }, TABS.map(([k, l]) =>
@@ -38,65 +39,70 @@ async function softDelete(store, rec, label) {
   toast(`${label} supprimé(e).`, { action: 'Annuler', ms: 9000, onAction: async () => { await app.repo.restore(store, rec.id); render(); } });
 }
 
-// ---------- Préréglages de l'équipe EPS ----------
+// ---------- Préréglages de l'équipe EPS (1.12 : un par outil, pour toutes les activités) ----------
 
-const PRESET_TOOLS = { kivaou: 'Kivaou', mariokart: 'Mario Kart', circuit: 'Circuit training', tournoi: 'Tournoi' };
+const PRESET_TOOLS = [['tournoi', 'Tournoi', 'trophy'], ['circuit', 'Circuit training', 'bolt'], ['kivaou', 'Kivaou', 'compass'], ['mariokart', 'Mario Kart', 'flag'], ['kabaddi', 'Kabaddi', 'hand'], ['boxefps', 'Boxe française · rotation', 'glovespin']];
+const P_OPEN = new Set();
+const KB_DEFAULT = { teams: 3, attackMin: 2 };
+const BX_DEFAULT = () => ({ durationMin: 6, ateliers: BX_ATELIERS.slice() });
 function presetSummary(tool, p) {
   if (tool === 'kivaou') return `${p.maxMin} min max · malus ${p.malusMin} min · ${p.courses.map((c) => `${c.name} (${c.balises})`).join(', ')}${p.grouped ? ' · départ groupé' : ''}`;
   if (tool === 'mariokart') { const filled = Object.values(p.objectives || {}).flatMap((x) => Object.values(x)).filter((x) => x != null).length; return `${(p.version || 'v1').toUpperCase()} · ${p.durationMin} min · ${p.bonus?.length || 0} bonus · ${filled ? `${filled} objectif(s) rempli(s)` : 'objectifs à remplir'}`; }
   if (tool === 'circuit') return `${p.work} s / ${p.rest} s · ${p.stations} exercices × ${p.rounds} tour(s)`;
-  if (tool === 'tournoi') return `${SPORTS[p.sport]?.label || p.sport} · ${p.halves === 2 ? `2 × ${p.halfMin}` : p.halfMin} min · ${p.courts} terrain(s) · ${p.format === 'double' ? 'aller-retour' : 'tous contre tous'}`;
+  if (tool === 'tournoi') return `${p.halves === 2 ? `2 × ${p.halfMin}` : p.halfMin} min · ${p.courts || 1} terrain(s) · ${p.format === 'double' ? 'aller-retour' : 'tous contre tous'} · ${p.board === 'suivi' ? 'sans table de marque' : 'table de marque'} · V ${p.pts?.w ?? 3} / N ${p.pts?.d ?? 2} / D ${p.pts?.l ?? 1}`;
+  if (tool === 'kabaddi') return `${p.teams} équipes · attaques de ${p.attackMin} min`;
+  if (tool === 'boxefps') return `${p.ateliers.length} ateliers · ${p.durationMin} min par rotation`;
   return '';
 }
-function editPreset(label, tool) {
-  const cur = (allPresets()[norm(label)] || {})[tool];
-  const done = async (S) => { await savePreset(label, tool, S); render(); };
-  if (tool === 'kivaou') return kivaouSettingsDialog(cur || KV_DEFAULT, done, label, { presetOnly: true });
-  if (tool === 'mariokart') return mkSettingsDialog(cur || newMK(), (S) => done({ version: S.version, durationMin: S.durationMin, bonus: S.bonus, objectives: S.objectives }), label, { presetOnly: true });
-  if (tool === 'circuit') return ctPresetDialog(label, cur || CT_DEFAULT, done);
-  toast('Le préréglage Tournoi s\'enregistre depuis un tournoi : ⋮ › « Enregistrer comme préréglage de l\'équipe EPS ».', { ms: 5000 });
-}
-function ctPresetDialog(label, initial, done) {
-  const S = { work: initial.work, rest: initial.rest, stations: initial.stations, rounds: initial.rounds, roundRest: initial.roundRest || 0, prep: initial.prep ?? 5 };
-  const body = h('div', { class: 'dlg-body kvdlg' });
-  const step = (k, lab, unit) => { const [lo, hi, st] = CT_LIMITS[k]; return h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, lab), h('div', { class: 'stepper' },
-    h('button', { type: 'button', 'aria-label': 'Moins', disabled: S[k] <= lo, onClick: () => { S[k] = Math.max(lo, S[k] - st); paint(); } }, icon('minus', 18)), h('output', null, `${S[k]}${unit}`),
-    h('button', { type: 'button', 'aria-label': 'Plus', disabled: S[k] >= hi, onClick: () => { S[k] = Math.min(hi, S[k] + st); paint(); } }, icon('plus', 18))), h('span')); };
-  const paint = () => body.replaceChildren(
-    h('div', { class: 'field' }, 'Partir d\'un préréglage', h('div', { class: 'seg wrap' }, CT_PRESETS.map((p) => h('button', { type: 'button', onClick: () => { Object.assign(S, p.cfg); paint(); } }, p.label)))),
-    step('work', 'Travail', ' s'), step('rest', 'Récupération', ' s'), step('stations', 'Exercices', ''), step('rounds', 'Tours', ''), step('roundRest', 'Récup. entre tours', ' s'),
-    h('p', { class: 'muted small' }, `Durée : ${Math.floor(ctTotal(S) / 60)} min ${String(ctTotal(S) % 60).padStart(2, '0')} s`));
-  paint();
-  openDialog({ title: `Préréglage Circuit training · ${label}`, body, actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: () => done(S) }] });
+const defaultOf = (tool) => ({ kivaou: KV_DEFAULT, mariokart: newMK(), circuit: CT_DEFAULT, tournoi: TN_DEFAULT, kabaddi: KB_DEFAULT, boxefps: BX_DEFAULT() })[tool];
+/** Petits réglages modifiables sur place (sans fenêtre) : tournoi, circuit, kabaddi, boxe. */
+function inlineEditor(tool, cur) {
+  const S = JSON.parse(JSON.stringify(cur));
+  const commit = async () => { await savePreset(null, tool, S); render(); };
+  const step = (lab, get, setv, lo, hi, unit = '', st = 1) => h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, lab), h('div', { class: 'stepper' },
+    h('button', { type: 'button', 'aria-label': `${lab} : moins`, disabled: get() <= lo, onClick: () => { setv(Math.max(lo, get() - st)); commit(); } }, icon('minus', 18)), h('output', null, `${get()}${unit}`),
+    h('button', { type: 'button', 'aria-label': `${lab} : plus`, disabled: get() >= hi, onClick: () => { setv(Math.min(hi, get() + st)); commit(); } }, icon('plus', 18))), h('span'));
+  const seg = (lab, items, get, setv) => h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, lab), h('div', { class: 'seg wrap' }, items.map(([v, l]) => h('button', { type: 'button', class: get() === v ? 'on' : '', onClick: () => { setv(v); commit(); } }, l))), h('span'));
+  if (tool === 'tournoi') {
+    S.pts ??= { w: 3, d: 2, l: 1 };
+    return [seg('Mi-temps', [[1, '1'], [2, '2']], () => S.halves || 1, (v) => { S.halves = v; }), step('Durée', () => S.halfMin, (v) => { S.halfMin = v; }, 2, 30, ' min'),
+      seg('Terrains', [[1, '1'], [2, '2']], () => S.courts || 1, (v) => { S.courts = v; }), seg('Format', [['single', 'Chacun contre chacun'], ['double', 'Aller-retour']], () => S.format || 'single', (v) => { S.format = v; }),
+      seg('Finale', [['none', 'Aucune'], ['final', 'Finale'], ['both', '+ petite finale']], () => S.finals || 'none', (v) => { S.finals = v; }),
+      seg('Table de marque', [['table', 'Sur la tablette'], ['suivi', 'Sans']], () => S.board || 'table', (v) => { S.board = v; }),
+      step('Victoire', () => S.pts.w, (v) => { S.pts.w = v; }, 0, 10, ' pts'), step('Nul', () => S.pts.d, (v) => { S.pts.d = v; }, 0, 10, ' pts'), step('Défaite', () => S.pts.l, (v) => { S.pts.l = v; }, 0, 10, ' pts'),
+      h('p', { class: 'muted small' }, 'Le sport se choisit d\'après le nom de l\'activité.')];
+  }
+  if (tool === 'circuit') return [h('div', { class: 'ctrow' }, h('span', { class: 'ctl' }, 'Partir de'), h('div', { class: 'seg wrap' }, CT_PRESETS.map((p) => h('button', { type: 'button', onClick: () => { Object.assign(S, p.cfg); commit(); } }, p.label))), h('span')),
+    ...[['work', 'Travail', ' s'], ['rest', 'Récupération', ' s'], ['stations', 'Exercices', ''], ['rounds', 'Tours', ''], ['roundRest', 'Récup. entre tours', ' s']].map(([k, lab, u]) => { const [lo, hi, st] = CT_LIMITS[k]; S[k] ??= 0; return step(lab, () => S[k], (v) => { S[k] = v; }, lo, hi, u, st); }),
+    h('p', { class: 'muted small' }, `Durée : ${Math.floor(ctTotal(S) / 60)} min ${String(ctTotal(S) % 60).padStart(2, '0')} s`)];
+  if (tool === 'kabaddi') return [step('Équipes', () => S.teams, (v) => { S.teams = v; }, 2, 6), step('Attaque', () => S.attackMin, (v) => { S.attackMin = v; }, 1, 5, ' min')];
+  if (tool === 'boxefps') return [step('Rotation', () => S.durationMin, (v) => { S.durationMin = v; }, 1, 15, ' min'),
+    h('div', { class: 'field' }, 'Ateliers', ...S.ateliers.map((a, i) => h('div', { class: 'listrow' }, h('b', { style: { width: '6em' } }, `Atelier ${i + 1}`),
+      h('input', { type: 'text', value: a, style: { flex: 1 }, onChange: (e) => { S.ateliers[i] = e.target.value.trim() || a; commit(); } }))))];
+  return null;
 }
 function presetsTab() {
-  const all = allPresets();
-  const keys = Object.keys(all).sort((a, b) => collator.compare(all[a].label || a, all[b].label || b));
-  const addDlg = () => {
-    // choix par boutons : activités des classes + APSA courantes (le clavier reste possible)
-    const names = [...new Set([...app.repo.list('classes').flatMap((c) => (c.activities || []).map((a) => a.name)), 'Course d\'orientation', 'Mario Kart', 'Circuit training', 'Basket', 'Handball', 'Ultimate', 'Futsal'])].sort(collator.compare);
-    const st = { name: '' };
-    const body = h('div', { class: 'dlg-body kvdlg' });
-    const toolFor = (n) => { const x = norm(n); return /orientation|\bco\b|kivaou/.test(x) ? ['kivaou'] : /mario|\bmk\b/.test(x) ? ['mariokart'] : /circuit|\bct\b/.test(x) ? ['circuit'] : ['kivaou', 'mariokart', 'circuit']; };
-    const paint = () => body.replaceChildren(
-      h('div', { class: 'field' }, '1. L\'activité', h('div', { class: 'kvpick' }, names.map((n) => h('button', { type: 'button', class: `kvchip ${st.name === n ? 'on' : ''}`, onClick: () => { st.name = n; paint(); } }, n))),
-        h('input', { type: 'text', value: names.includes(st.name) ? '' : st.name, placeholder: 'ou un autre nom…', onInput: (e) => { st.name = e.target.value; } })),
-      h('div', { class: 'field' }, '2. L\'outil', h('div', { class: 'kvpick' }, (st.name ? toolFor(st.name) : ['kivaou', 'mariokart', 'circuit']).map((k) => h('button', { type: 'button', class: 'kvchip course',
-        onClick: () => { if (!st.name.trim()) return toast('Choisissez d\'abord l\'activité.'); dlg.close(); editPreset(st.name.trim(), k); } }, PRESET_TOOLS[k])))),
-      h('p', { class: 'muted small' }, 'Le préréglage Tournoi s\'enregistre depuis un tournoi (⋮).'));
-    paint();
-    const dlg = openDialog({ title: 'Nouveau préréglage', body, wide: true, actions: [{ label: 'Annuler' }] });
-  };
+  const all = toolPresets();
   return [
-    h('div', { class: 'row wrap', style: { marginBottom: '12px' } }, btn('Nouveau préréglage', { icon: 'plus', cls: 'primary', onClick: addDlg }),
-      h('span', { class: 'muted small' }, 'Par activité, les valeurs de départ des outils. Elles s\'appliquent quand on ouvre l\'outil dans une activité de ce nom (« Basket » vaut aussi pour « Basket 3e »). Plus tard : fichier à partager entre collègues.')),
-    keys.length ? keys.map((k) => h('div', { class: 'panel' }, h('h3', null, all[k].label || k),
-      Object.entries(PRESET_TOOLS).filter(([t]) => all[k][t]).map(([t, l]) => h('div', { class: 'listrow' },
-        h('div', { class: 'grow' }, h('b', null, l), h('div', { class: 'muted small' }, presetSummary(t, all[k][t]))),
-        t !== 'tournoi' ? btn('Modifier', { cls: 'small', onClick: () => editPreset(all[k].label || k, t) }) : null,
-        iconBtn('trash', `Retirer le préréglage ${l}`, async () => { await removePreset(k, t); render(); }, 'sm'))),
-      h('div', { class: 'row wrap', style: { marginTop: '6px' } }, Object.entries(PRESET_TOOLS).filter(([t]) => !all[k][t] && t !== 'tournoi').map(([t, l]) => btn(`+ ${l}`, { cls: 'small soft', onClick: () => editPreset(all[k].label || k, t) })))))
-      : h('div', { class: 'empty' }, h('h2', null, 'Aucun préréglage'), h('p', null, 'Exemple : « Course d\'orientation » → Kivaou avec vos parcours et votre temps maximum ; « Mario Kart » → V2, 12 minutes, vos objectifs.')),
+    h('p', { class: 'muted small', style: { margin: '0 0 10px' } }, 'Les réglages de départ de chaque outil, pour toute l\'équipe EPS et toutes les activités. Ils partent dans la sauvegarde et la synchronisation. Dans un outil : ⋮ › « Enregistrer comme préréglage ».'),
+    ...PRESET_TOOLS.map(([tool, label, ic]) => {
+      const custom = !!all[tool];
+      const cur = all[tool] || defaultOf(tool);
+      const open = P_OPEN.has(tool);
+      const inline = open ? inlineEditor(tool, cur) : null;
+      return h('section', { class: `panel pracc ${open ? 'open' : ''}` },
+        h('button', { type: 'button', class: 'prhead', 'aria-expanded': open, onClick: () => { open ? P_OPEN.delete(tool) : P_OPEN.add(tool); render(); } },
+          icon(ic, 26), h('div', { class: 'grow' }, h('b', null, label), h('div', { class: 'muted small' }, presetSummary(tool, cur))),
+          h('span', { class: `prtag ${custom ? 'on' : ''}` }, custom ? 'Personnalisé' : 'D\'origine'), icon(open ? 'up' : 'down', 20)),
+        open ? h('div', { class: 'prbody' },
+          inline || h('div', { class: 'row wrap' }, btn('Modifier les réglages…', { icon: 'edit', cls: 'primary', onClick: () => {
+            const done = async (S) => { await savePreset(null, tool, S); render(); };
+            if (tool === 'kivaou') kivaouSettingsDialog(cur, done, 'Kivaou', { presetOnly: true });
+            else mkSettingsDialog(cur, (S) => done({ version: S.version, durationMin: S.durationMin, bonus: S.bonus, objectives: S.objectives }), 'Mario Kart', { presetOnly: true });
+          } })),
+          h('div', { class: 'row', style: { justifyContent: 'flex-end', marginTop: '8px' } },
+            btn('Restaurer', { icon: 'reset', disabled: !custom, onClick: async () => { const snap = all[tool]; await resetPreset(tool); render(); toast(`${label} : réglages d'origine.`, { action: 'Annuler', ms: 8000, onAction: async () => { await savePreset(null, tool, snap); render(); } }); } }))) : null);
+    }),
   ];
 }
 
@@ -232,33 +238,34 @@ function dataTab(which = 'data') {
   const inst = window.__installPrompt;
   const P = [
     displayPanel(), demoPanel(),
-    h('div', { class: 'panel' }, h('h3', null, 'Sauvegarde'),
-      h('p', { class: 'muted', style: { margin: '0 0 10px' } }, `Contenu actuel : ${counts}. Les données sont enregistrées automatiquement dans la tablette. « Partager » ouvre le menu de la tablette : choisissez Google Drive (dossier de votre choix), Mes fichiers ou un mail.`),
-      h('p', { class: 'small', style: { margin: '0 0 10px' } }, h('b', null, backupText()),
-        changesSinceBackup() ? h('span', { class: 'muted' }, ` · ${changesSinceBackup()} élément(s) modifié(s) depuis`) : null),
+    h('div', { class: 'panel bkpanel' },
+      h('div', { class: `bkstate ${changesSinceBackup() ? 'warn' : 'ok'}` }, icon('cloud', 40),
+        h('div', { class: 'grow' }, h('b', null, backupText()),
+          h('div', null, changesSinceBackup() ? `${changesSinceBackup()} élément(s) modifié(s) depuis.` : 'Rien de nouveau depuis.'),
+          h('div', { class: 'muted small' }, `Contenu : ${counts}, réglages et préréglages des outils.`)),
+        btn('Sauvegarder maintenant', { icon: 'cloud', cls: 'primary bigbtn', onClick: async () => { await shareBackup(); render(); } })),
+      h('p', { class: 'muted small', style: { margin: '10px 0' } }, '« Sauvegarder maintenant » ouvre le menu de partage de la tablette : choisissez Google Drive (le dossier de votre choix), Mes fichiers ou un mail. Les données restent aussi enregistrées automatiquement dans la tablette.'),
       h('div', { class: 'row wrap' },
-        btn('Partager la sauvegarde (Drive…)', { icon: 'cloud', cls: 'primary', onClick: async () => { await shareBackup(); render(); } }),
-        btn('Télécharger la sauvegarde', { icon: 'download', onClick: async () => { await downloadBackup(); render(); } }),
-        btn('Importer une sauvegarde…', { icon: 'upload', onClick: () => fileInput.click() }), fileInput),
+        btn('Restaurer une sauvegarde…', { icon: 'upload', onClick: () => fileInput.click() }), fileInput,
+        btn('Télécharger le fichier', { icon: 'download', onClick: async () => { await downloadBackup(); render(); } })),
       safetyInfo() ? h('div', { class: 'row wrap', style: { marginTop: '10px' } },
         h('span', { class: 'muted small grow' }, `Copie de sécurité interne : ${new Date(safetyInfo().at).toLocaleString('fr-FR')} (${safetyInfo().reason}).`),
         btn('Restaurer cette copie', { cls: 'small', onClick: async () => {
           if (!(await confirmDialog('Les données actuelles seront remplacées par la copie de sécurité. Continuer ?', 'Restaurer'))) return;
           try { await restoreSafetyCopy(); toast('Copie de sécurité restaurée.'); updateSyncChips(); render(); } catch (e) { toast(e.message); }
-        } })) : null),
-
-    h('div', { class: 'panel' }, h('h3', null, 'Google Drive'),
-      h('p', { class: 'muted', style: { margin: '0 0 10px' } }, 'Les données sont sauvegardées dans un dossier privé de l\'application sur votre Drive (invisible dans « Mon Drive »). Fonctionne hors connexion : tout est envoyé au retour du réseau. Une sauvegarde plus ancienne n\'écrase jamais des données plus récentes.'),
-      h('label', { class: 'field', style: { maxWidth: '640px' } }, 'Identifiant client OAuth Google (voir le guide README)',
-        h('input', { type: 'text', placeholder: 'xxxxxxxx.apps.googleusercontent.com', value: settings.googleClientId || '', onChange: (e) => { setSetting('googleClientId', e.target.value.trim()); } })),
-      h('div', { class: 'row wrap', style: { marginTop: '10px' } },
-        btn(ctl?.connected ? 'Reconnecter' : 'Se connecter à Google Drive', { icon: 'cloud', cls: 'primary', onClick: () => ctl.connect() }),
-        btn('Synchroniser maintenant', { icon: 'cloud', disabled: !ctl?.connected, onClick: () => ctl.syncNow({ manual: true }) }),
-        h('label', { class: 'row' }, h('input', { type: 'checkbox', style: { width: '22px', height: '22px' }, checked: settings.autoSync !== false, onChange: (e) => { setSetting('autoSync', e.target.checked); } }), 'Synchroniser automatiquement')),
-      h('p', { class: 'small', style: { margin: '10px 0 0' } },
-        h('b', null, 'État : '), h('span', { class: 'syncchip-inline' }, ctl?.statusText() || 'Local uniquement'),
-        last ? h('span', { class: 'muted' }, ` — dernière synchronisation : ${new Date(last).toLocaleString('fr-FR')}`) : null),
-      ctl?.lastError ? h('p', { class: 'small', style: { color: 'var(--danger)', margin: '6px 0 0' } }, ctl.lastError) : null),
+        } })) : null,
+      h('details', { class: 'bkdrive', open: !!ctl?.connected || undefined },
+        h('summary', null, h('b', null, 'Synchronisation automatique avec Google Drive'), h('span', { class: 'muted small' }, ` · ${ctl?.statusText() || 'Local uniquement'}`)),
+        h('p', { class: 'muted small', style: { margin: '8px 0' } }, 'Facultatif. Les données vont dans un dossier privé de l\'application sur votre Drive (invisible dans « Mon Drive »), même hors connexion : tout part au retour du réseau. Une version plus ancienne n\'écrase jamais une donnée plus récente.'),
+        h('label', { class: 'field', style: { maxWidth: '640px' } }, 'Identifiant client OAuth Google (voir le guide README)',
+          h('input', { type: 'text', placeholder: 'xxxxxxxx.apps.googleusercontent.com', value: settings.googleClientId || '', onChange: (e) => { setSetting('googleClientId', e.target.value.trim()); } })),
+        h('div', { class: 'row wrap', style: { marginTop: '10px' } },
+          btn(ctl?.connected ? 'Reconnecter' : 'Se connecter à Google Drive', { icon: 'cloud', onClick: () => ctl.connect() }),
+          btn('Synchroniser maintenant', { icon: 'cloud', disabled: !ctl?.connected, onClick: () => ctl.syncNow({ manual: true }) }),
+          h('label', { class: 'row' }, h('input', { type: 'checkbox', style: { width: '22px', height: '22px' }, checked: settings.autoSync !== false, onChange: (e) => { setSetting('autoSync', e.target.checked); } }), 'Automatique')),
+        last ? h('p', { class: 'muted small', style: { margin: '8px 0 0' } }, `Dernière synchronisation : ${new Date(last).toLocaleString('fr-FR')}`) : null,
+        ctl?.lastError ? h('p', { class: 'small', style: { color: 'var(--danger)', margin: '6px 0 0' } }, ctl.lastError) : null)),
+    null,
 
     h('div', { class: 'panel' }, h('h3', null, 'Notation'),
       h('label', { class: 'field', style: { maxWidth: '360px', marginBottom: '12px' } }, 'Pas de saisie des notes (nouvelles évaluations)',
@@ -282,7 +289,7 @@ function dataTab(which = 'data') {
           await reg.update(); toast('Recherche effectuée. Une nouvelle version, si elle existe, vous sera proposée.');
         } })),
       h('p', { class: 'muted small', style: { margin: '10px 0 0' } },
-        `Version ${window.__APP_VERSION || '1.11.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
+        `Version ${window.__APP_VERSION || '1.12.0'} · ${navigator.onLine ? 'en ligne' : 'hors connexion'} · `,
         h('span', { id: 'persist-state' }, 'stockage…')),
     ),
   ];

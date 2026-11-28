@@ -23,10 +23,17 @@ export function h(tag, props, ...kids) {
 }
 
 const ICONS = {
-  paddle: 'M16 9a6 6 0 1 1-12 0 6 6 0 0 1 12 0z M7 14l-3.5 6.5 M20.5 18a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0z',
+  paddle: 'M17 9.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0z M7.6 15l-2.1 3.6 M20.5 18.5a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0z',
+  lvlup: 'M10.5 8a5 5 0 1 1-10 0 5 5 0 0 1 10 0z M3 12.3l-1.6 3 M17.5 3l4 4.5h-2.4V11h-3.2V7.5h-2.4z',
+  cupwreath: 'M9 4h6v4.5a3 3 0 01-6 0z M12 11.5V15 M9.5 19h5 M10.3 15h3.4v4 M5.2 5.5c-1.8 3.4-1.3 8 2.3 10.8 M4.3 9.2l-1.6-.7 M4.6 12.6l-1.6.4 M6 15.4l-1.1 1.1 M18.8 5.5c1.8 3.4 1.3 8-2.3 10.8 M19.7 9.2l1.6-.7 M19.4 12.6l1.6.4 M18 15.4l1.1 1.1',
+  glovespin: 'M4 12a8 8 0 0113.7-5.6 M20 12a8 8 0 01-13.7 5.6 M17.9 2.9v3.6h-3.6 M6.1 21.1v-3.6h3.6 M9.6 16h4.6v-1.7l1.1-1.5v-2.2a2.3 2.3 0 00-2.3-2.3h-1.8a2.6 2.6 0 00-2.6 2.6v1.8l1 1.4z',
+  track: 'M7.5 5h9a7 7 0 010 14h-9a7 7 0 010-14z M7.5 9h9a3 3 0 010 6h-9a3 3 0 010-6z M12 5v4 M12 15v4',
+  hand: 'M8 13.5V6.8a1.25 1.25 0 012.5 0V11 M10.5 11V5.3a1.25 1.25 0 012.5 0V11 M13 11V6a1.25 1.25 0 012.5 0v6 M15.5 12V8.7a1.25 1.25 0 012.5 0v5.6c0 3.9-2.5 6.7-6 6.7-2.5 0-4-1.2-5.3-3.2l-2-3.3a1.25 1.25 0 012.1-1.3L8 14.8 M2.5 7.5l1.6.9 M2.2 11h1.8 M3.6 3.9l1.2 1.4',
+  whistle: 'M3 13a5 5 0 1010 0 5 5 0 00-10 0z M8 8h13v4.5h-7.6 M8 13h.01 M16 8V5.5',
+  shuttle: 'M2.5 20h5 M3.8 20L5 13.5 6.2 20 M16.5 20h5 M17.8 20L19 13.5 20.2 20 M7.5 9h9 M14 6.5L16.5 9 14 11.5 M10 6.5L7.5 9 10 11.5',
   compass: 'M12 21a9 9 0 100-18 9 9 0 000 18z M15.5 8.5l-2 5-5 2 2-5z',
   ring: 'M3 7h18 M3 12h18 M3 17h18 M5 4v16 M19 4v16',
-  flag: 'M5 21V4 M5 4h14v9H5 M5 8.5h14 M9.7 4v9 M14.3 4v9 M7.3 4v4.5 M12 8.5V13 M16.7 4v4.5',
+  flag: 'M4.5 21V3.5 M4.5 4h15v10.5h-15',
   glove: 'M7 20.5h9V17l2.2-3.2V9.5A4.5 4.5 0 0013.7 5H10a5 5 0 00-5 5v3.5L7 16z M7 16.5h9 M11.5 5v3.5a2 2 0 01-2 2H8',
   bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
   medal: 'M12 15a6 6 0 100-12 6 6 0 000 12z M8.5 14L7 22l5-3 5 3-1.5-8',
@@ -74,6 +81,12 @@ const ICONS = {
   share: 'M12 4v11 M7 8l5-5 5 5 M5 14v6h14v-6',
 };
 
+/** Parties pleines (damier) et petits textes (« UP ») ajoutés par-dessus le trait. */
+const ICON_FILL = {
+  flag: 'M4.5 4h3.75v3.5H4.5z M12 4h3.75v3.5H12z M8.25 7.5H12V11H8.25z M15.75 7.5h3.75V11h-3.75z M4.5 11h3.75v3.5H4.5z M12 11h3.75v3.5H12z',
+};
+const ICON_TEXT = { lvlup: ['UP', 16.6, 20.6, 7.2] };
+
 export function icon(name, size = 22) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
@@ -90,6 +103,8 @@ export function icon(name, size = 22) {
     p.setAttribute('d', d.startsWith('M') ? d : 'M' + d);
     svg.append(p);
   }
+  if (ICON_FILL[name]) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', ICON_FILL[name]); p.setAttribute('fill', 'currentColor'); p.setAttribute('stroke', 'none'); svg.append(p); }
+  if (ICON_TEXT[name]) { const [txt, x, y, fs] = ICON_TEXT[name]; const t = document.createElementNS('http://www.w3.org/2000/svg', 'text'); t.setAttribute('x', x); t.setAttribute('y', y); t.setAttribute('font-size', fs); t.setAttribute('font-weight', 900); t.setAttribute('text-anchor', 'middle'); t.setAttribute('fill', 'currentColor'); t.setAttribute('stroke', 'none'); t.setAttribute('font-family', 'system-ui, sans-serif'); t.textContent = txt; svg.append(t); }
   return svg;
 }
 
@@ -110,7 +125,9 @@ const openDialogs = [];
 
 export function openDialog({ title, body, actions = [], wide = false, onClose } = {}) {
   overlayRoot ??= document.getElementById('overlay-root');
+  let closed = false;
   const close = () => {
+    if (closed) return; closed = true;
     const i = openDialogs.indexOf(api);
     if (i >= 0) openDialogs.splice(i, 1);
     back.remove();
@@ -135,6 +152,11 @@ export function openDialog({ title, body, actions = [], wide = false, onClose } 
 }
 
 export const closeTopDialog = () => openDialogs.at(-1)?.close();
+/** v1.12 : à chaque changement d'écran, plus aucune fenêtre, menu ou animation ne reste par-dessus. */
+export function closeAllOverlays() {
+  while (openDialogs.length) openDialogs.at(-1).close();
+  document.querySelectorAll('.popmenu, .mkoverlay, [data-overlay]').forEach((el) => el.remove());
+}
 export const hasDialog = () => openDialogs.length > 0;
 
 export function confirmDialog(message, okLabel = 'Confirmer', { danger = true } = {}) {
@@ -199,4 +221,21 @@ export function classBadge(color, size = 44) {
   const w = h('div', { class: 'badge', style: { background: color, width: size + 'px', height: size + 'px' } });
   w.append(icon('clip', Math.round(size * 0.55)));
   return w;
+}
+
+// ---------- Couleurs d'outil (1.12) : titre et sous-texte dans la même teinte que l'icône ----------
+function hexHsl(hex) {
+  const m = /^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex || ''); if (!m) return [230, 10, 80];
+  const [r, g, b] = m.slice(1).map((x) => parseInt(x, 16) / 255);
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  if (!d) return [0, 0, l * 100];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(hh * 60 + 360) % 360, s * 100, l * 100];
+}
+/** Variables CSS d'une couleur d'outil : --tc (pastel), --ti (titre, foncé), --ts (sous-texte, plus doux mais lisible). */
+export function tintVars(color) {
+  const [hh, ss] = hexHsl(color);
+  const sat = Math.min(70, Math.max(28, ss));
+  return { '--tc': color, '--ti': `hsl(${hh.toFixed(0)} ${sat.toFixed(0)}% 27%)`, '--ts': `hsl(${hh.toFixed(0)} ${(sat * 0.7).toFixed(0)}% 40%)` };
 }

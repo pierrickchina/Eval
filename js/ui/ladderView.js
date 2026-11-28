@@ -1,6 +1,6 @@
 // Outils Tables (tennis de table) et Rings (boxe, combat) : séances, répartition, inaptes, classement final, tableau général.
 // Pas de feuilles de poule ni de points sur la tablette : seul le classement final de chaque table est rangé.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast } from './dom.js';
 import { fmtDate, todayISO, collator, uid } from '../util.js';
 import { studentLabel } from '../data/schema.js';
@@ -8,6 +8,7 @@ import { activitiesOf, touchTool } from '../logic/activities.js';
 import * as LD from '../logic/ladder.js';
 import { helpItem } from './help.js';
 import { attachDrag } from './drag.js';
+import { whistleBadge } from './badges.js';
 
 const saveClass = (cls) => app.repo.save('classes', cls);
 const V = { rank: false, tab: 'sessions' };
@@ -24,11 +25,12 @@ function ctxFor(r, kind) {
     cls, act, L, kind, K: LD.KINDS[kind], students, byId,
     name: (sid) => (byId.get(sid) ? studentLabel(byId.get(sid)) : '?'),
     forbidden: (sid) => !!forb[sid],
+    whistle: (sid) => whistleBadge(act, sid, 14),
     toggleForbidden: (sid) => { if (forb[sid]) delete forb[sid]; else forb[sid] = Date.now(); },
     save: () => { touchTool(act, kind); return saveClass(cls); },
   };
 }
-const backTo = (r) => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'));
+const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 
 for (const kind of Object.keys(LD.KINDS)) registerView(kind, (r) => view(r, kind));
 
@@ -143,7 +145,7 @@ function sessionView(r, c, s) {
     const r2 = t ? (s.ranking[t.n] || []) : [];
     const rank = t ? r2.indexOf(u) + 1 : 0;
     const kids = [];
-    ms.forEach((sid, i) => { if (i) kids.push(h('span', { class: 'plus' }, '+')); kids.push(h('span', { class: `ldn ${s.inapte.includes(sid) ? 'out' : ''}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)); });
+    ms.forEach((sid, i) => { if (i) kids.push(h('span', { class: 'plus' }, '+')); kids.push(h('span', { class: `ldn ${s.inapte.includes(sid) ? 'out' : ''}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null, c.whistle(sid))); });
     return h('div', { class: `ldchip ${rank ? 'ranked' : ''} ${V.rank && t ? 'rankable' : ''}`, 'data-u': u, 'data-t': t ? String(t.n) : '', role: 'button', tabindex: 0 },
       rank ? h('b', { class: 'rk' }, String(rank)) : null, ...(ms.length ? kids : ['Duo vide']),
       rank && prevMove.get(u) ? h('span', { class: `mv ${prevMove.get(u)}`, title: prevMove.get(u) === 'up' ? 'Montera à la séance suivante' : 'Descendra à la séance suivante' }, prevMove.get(u) === 'up' ? '↑' : '↓') : null);
@@ -158,7 +160,7 @@ function sessionView(r, c, s) {
   const side = h('aside', { class: 'ldside' },
     pool.length || s.place === 'libre' ? h('div', { class: 'ldbox pool', 'data-zone': 'pool' }, h('b', null, `À placer (${pool.length})`), h('div', { class: 'ldunits' }, pool.map((u) => chip(u, null)))) : null,
     h('div', { class: 'ldbox inapte', 'data-zone': 'inapte' }, h('b', null, `Inapte / absent (${s.inapte.length})`),
-      h('div', { class: 'ldunits' }, s.inapte.length ? s.inapte.map((sid) => h('div', { class: 'ldchip out', role: 'button', tabindex: 0, 'data-u': `x:${sid}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null)) : h('span', { class: 'muted small' }, 'Personne'))));
+      h('div', { class: 'ldunits' }, s.inapte.length ? s.inapte.map((sid) => h('div', { class: 'ldchip out', role: 'button', tabindex: 0, 'data-u': `x:${sid}` }, c.name(sid), c.forbidden(sid) ? h('i', { class: 'nomat', title: 'Matériel interdit' }) : null, c.whistle(sid))) : h('span', { class: 'muted small' }, 'Personne'))));
   // classement complet : toutes les tables d'au moins 2 sont rangées
   const ranked = full.filter((t) => t.units.length > 1);
   const allRanked = ranked.length && ranked.every((t) => (s.ranking[t.n] || []).length === t.units.length);
@@ -182,7 +184,7 @@ function sessionView(r, c, s) {
       h('div', { class: 'ldcol right' }, tables.filter((t) => t.n < 4).sort((a, b) => a.n - b.n).map(card)))
     : h('div', { class: 'ldgrid scroll', 'data-keep': 'ldgrid' }, tables.map(card));
   const root = h('div', { class: `main ladder ${plan ? 'plan' : ''}` },
-    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => (r.direct ? backTo(r) : go(c.kind, { ...r, sid: undefined })), '', { 'data-back': '1' }),
+    h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => (r.direct ? backTo(r) : navBack(() => go(c.kind, { ...r, sid: undefined }))), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, `${c.K.label} · ${fmtDate(s.date)}`), h('div', { class: 'sub' }, `${c.act.name} · ${c.cls.name} · ${LD.FORMATS[s.format].label}`)),
       btn(V.rank ? 'Terminé' : 'Classement final', { icon: V.rank ? 'check' : 'trophy', cls: V.rank && !allRanked ? 'primary' : '', onClick: () => { V.rank = !V.rank; render(); } }),
       isLast && anyRanked ? btn('Séance suivante', { icon: 'next', cls: allRanked ? 'primary' : '', onClick: () => { V.rank = false; setupDialog({ ...r, sid: undefined }, c); } }) : null,

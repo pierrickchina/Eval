@@ -25,6 +25,18 @@ L'installation en PWA, le mode hors connexion et la connexion Google exigent une
 
 Netlify, Cloudflare Pages ou tout hébergement statique HTTPS conviennent aussi.
 
+### Nouveautés de la version 1.12
+
+- **Fiabilité** : la sauvegarde et la synchronisation Drive contiennent aussi les réglages partagés (préréglages, circuits, matériel, compteurs Mario Kart / Kabaddi / boxe, rôles, favoris, icônes). Les écritures partent immédiatement (rien ne se perd à la fermeture). Les fenêtres et menus se ferment à chaque changement d'écran.
+- **Retour unique** : un historique d'écrans ; Retour (bouton de l'appli ou d'Android) ramène toujours à l'écran précédent. Éditeurs et écrans de création ne sont jamais gardés dans l'historique.
+- **Accueil** : grandes cartes de classe colorées (icône, niveau, élèves, activités) ; icône de classe = 5 symboles tirés du logo × 5 couleurs, choisis séparément (fiche de la classe).
+- **Outils** : rubriques Favoris / Pour toutes les activités / Par activité / Autres et à venir ; titre et sous-texte dans la teinte de l'outil ; nouvelles icônes ; « + » d'une activité = grille d'icônes des outils absents ; 3 cartes d'accueil à la première ouverture d'un outil.
+- **Tournoi / Interclasses** : mode « sans table de marque » = tableau des matchs plein écran, classement en bas à droite, saisie et correction du résultat d'une rencontre ; plus de mode projection (l'écran se projette tel quel) ; Interclasses avec les classes A à E (+), onglets Classements / Titres.
+- **Boxe française · rotation** : dans le carnet des activités de boxe ; ateliers fixes (couleur, icône, consignes), seules les lettres des groupes tournent ; onglet Fiche.
+- **Montée de niveau** : tout le monde part du niveau 1 ; un niveau ne déborde plus sur l'autre. **Oublis** : nombre toujours affiché, croix plus petites quand il y en a beaucoup. **Fiches Duathlon** : seulement les images.
+- **Réglages** : préréglages par outil pour toute l'équipe (volets, modification sur place, « Restaurer ») ; sauvegarde en un seul encadré ; éditeur de grille en cartes, grand champ AFC.
+- **Nouveaux outils** : Certification d'arbitre (par activité, 4 niveaux, 4 critères, auto-évaluation / pairs / enseignant combinables, sifflet bronze-argent-or à côté du prénom) ; Test VMA Léger navette 20 m (bips, palier, VMA, allures).
+
 ### Nouveautés de la version 1.11
 
 - **Nouveaux outils** : Kabaddi (attaques de 2 min, +100 puis +10 par attaquant, Ace +1000, faute −1, tableau Attaque × Défense, projection) ; Boxe française · rotation (horloge des 6 ateliers, groupes A à F, rotation relancée par l'enseignant) ; Montée de niveau en tennis de table (3 fiches de 10 défis + vierge, glisser-déposer, niveaux vides réduits) ; Interclasses (outil libre : une classe = deux équipes, tournois Frisbee / Disque ou Filles / Garçons sur un terrain en alternance, sponsor, titres, projection « classements » ou « titres »).
@@ -191,7 +203,7 @@ Le cahier des charges demandait de ne pas trancher en silence. Voici ce qui a é
 ## 5. Tests
 
 ```bash
-node --test tests/*.test.mjs                               # 135 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
+node --test tests/*.test.mjs                               # 140 tests : calculs, synchro, import, équipes, tournois, bibliothèque, tables…
 python3 -m http.server 8765 &                              # puis, avec Playwright installé :
 node tests/e2e.mjs        # parcours complet dans Chromium, y compris rechargement HORS CONNEXION
 node tests/e2e2.mjs       # import xlsx/csv, élèves arrivés/partis, conflit Drive, restauration JSON
@@ -205,6 +217,7 @@ node tests/e2e9.mjs       # v1.8 : PEPS, réglages d'affichage, vibration
 node tests/e2e10.mjs      # v1.9 : bibliothèque, note calculée, rôles, Tables & Rings, Mario Kart, Circuit training
 node tests/e2e12.mjs      # v1.11 : Kabaddi, Boxe rotation, Montée de niveau, Interclasses, tournoi en alternance, retours
 node tests/e2e11.mjs      # v1.10 : Kivaou, exercices et circuits, Mario Kart V2, préréglages, sans note, séance suivante
+node tests/e2e13.mjs      # v1.12 : accueil, outils, Retour unique, arbitrage, test VMA, boxe, oublis, sauvegarde, accueil d'un outil
 ```
 
 ## 6. Organisation du code

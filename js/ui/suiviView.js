@@ -1,5 +1,5 @@
 // Suivi des résultats d'une activité (onglet de l'outil Équipes) et onglet « Résultats » d'une classe.
-import { app, render } from '../app.js';
+import { app, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, toast } from './dom.js';
 import { fmtDate, todayISO, collator } from '../util.js';
 import { vestOf } from '../logic/teams.js';

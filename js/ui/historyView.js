@@ -1,5 +1,5 @@
 // Historique individuel d'un élève : évaluations, niveaux, notes, évolution par activité.
-import { app } from '../app.js';
+import { app , back as navBack } from '../app.js';
 import { h, openDialog } from './dom.js';
 import { fmt, fmtDate, collator } from '../util.js';
 import { studentHistory, currentStudent } from '../logic/evaluation.js';

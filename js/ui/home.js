@@ -1,11 +1,12 @@
 // Accueil : deux onglets « Classes » (tuiles) et « Outils » (outils libres), tri/filtre des classes.
-import { app, registerView, go, render, syncChip } from '../app.js';
+import { app, registerView, go, render, syncChip , back as navBack } from '../app.js';
 import { pinnedTools, togglePin, openFreeTool, pinnedStrip, resumeChip, createDemo, lastTask } from './foundations.js';
-import { h, btn, icon, classBadge, openDialog, toast } from './dom.js';
+import { h, btn, icon, openDialog, toast, tintVars } from './dom.js';
+import { classIconSvg, classIconOf } from './classIcon.js';
 import { fmtDate, todayISO, collator } from '../util.js';
 import { duplicateEvaluation } from '../logic/evaluation.js';
 import { SCHOOL_LEVELS } from '../data/schema.js';
-import { TOOLS, toolColor, activitiesOf } from '../logic/activities.js';
+import { TOOLS, toolColor, activitiesOf, TOOL_SECTIONS, activityColor } from '../logic/activities.js';
 import { shareBackup, backupText, backupNeedsAttention, changesSinceBackup } from './backup.js';
 
 const F = { tab: 'classes', sort: 'level', level: '' }; // état conservé entre deux visites
@@ -54,33 +55,38 @@ function classesTab(list, classes, evals) {
     const nEl = c.students.filter((x) => x.active !== false).length;
     const open = () => go('classPage', { id: c.id });
     const lt = lastTask(c);
-    return h('div', { class: 'card big', role: 'button', tabindex: 0, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
-      classBadge(c.color, 56),
-      h('div', { class: 'body' }, h('div', { class: 't' }, c.name),
-        h('div', { class: 'd' }, `${nEl} élève${nEl > 1 ? 's' : ''}`),
-        lt ? h('button', { type: 'button', class: 'lasttask', onClick: (e) => { e.stopPropagation(); go(lt.route.name, lt.route); } }, icon('resume', 16), h('span', null, lt.label)) : null));
+    const acts = [...activitiesOf(c)].sort((a, b) => last(b) - last(a));
+    return h('div', { class: 'card big clscard', role: 'button', tabindex: 0, style: { '--cc': c.color }, onClick: open, onKeydown: (e) => { if (e.key === 'Enter') open(); } },
+      h('div', { class: 'clshead' }, classIconSvg(classIconOf(c), 64),
+        h('div', { class: 'body' }, h('div', { class: 't' }, c.name),
+          h('div', { class: 'd' }, [c.level, `${nEl} élève${nEl > 1 ? 's' : ''}`, acts.length ? `${acts.length} activité${acts.length > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')))),
+      acts.length ? h('div', { class: 'clsacts' }, acts.slice(0, 4).map((a) => h('span', { class: 'clsact', style: { '--ac': activityColor(a) } }, a.name)), acts.length > 4 ? h('span', { class: 'clsact more' }, `+${acts.length - 4}`) : null) : h('div', { class: 'clsacts muted small' }, 'Aucune activité pour l\'instant'),
+      lt ? h('button', { type: 'button', class: 'lasttask', onClick: (e) => { e.stopPropagation(); go(lt.route.name, lt.route); } }, icon('resume', 16), h('span', null, lt.label)) : null);
   }));
 }
+const last = (a) => Math.max(a.createdAt || 0, ...a.tools.map((t) => t.lastUsed || 0));
 
-/** Outils libres : une tuile par outil (icône pastel, étoile pour épingler en haut de l'accueil) ; les outils à venir sont grisés. */
+/** Outils : Favoris, Pour toutes les activités, Par activité, Autres et à venir. Titre et sous-texte dans la couleur de l'outil. */
 function toolsTab() {
   const pins = pinnedTools();
   const tile = ([type, t]) => {
     const pinned = pins.includes(type);
     const star = t.available && t.free ? h('button', { type: 'button', class: `pinbtn ${pinned ? 'on' : ''}`, 'aria-label': pinned ? 'Retirer des favoris' : 'Mettre en favori (en tête des outils)', 'aria-pressed': pinned,
       onClick: async (e) => { e.stopPropagation(); await togglePin(type); render(); } }, icon('star', 20)) : null;
-    return h('div', { class: `tooltile big ${t.available ? '' : 'soon'}`, role: 'button', tabindex: 0, style: { '--tc': toolColor(type) },
-      onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil se trouve dans le carnet de bord d\'une classe.' : `${t.label} : prévu pour plus tard.`)),
+    return h('div', { class: `tooltile big ${t.available ? '' : 'soon'}`, role: 'button', tabindex: 0, style: tintVars(toolColor(type)),
+      onClick: () => (t.available && t.free ? openFreeTool(type) : toast(t.available ? 'Cet outil s\'ajoute à une activité, dans le carnet d\'une classe.' : `${t.label} : prévu pour plus tard.`)),
       onKeydown: (e) => { if (e.key === 'Enter') e.currentTarget.click(); } },
-    h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'muted small' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
+    h('div', { class: 'tilehead' }, icon(t.icon, 34), star), h('b', null, t.label), h('span', { class: 'small tsub' }, t.available ? (t.free ? t.hint : 'Dans le carnet d\'une classe') : 'plus tard'));
   };
+  const fam = (t) => t.family || 'zz';
+  const { all, other } = TOOL_SECTIONS;
   return h('div', { class: 'scroll grow listpad', 'data-keep': 'tools' },
     ...[['Favoris', ([k]) => pins.includes(k), 'fav'],
-      ['Pour toutes les activités', ([k, t]) => t.available && !pins.includes(k) && ['chrono', 'equipes', 'tournoi'].includes(k)],
-      ['Par activité', ([k, t]) => t.available && !pins.includes(k) && k !== 'evaluation' && !['chrono', 'equipes', 'tournoi'].includes(k)],
-      ['Plus tard', ([, t]) => !t.available]].map(([title, f, cls]) => {
-      // outils utilisables sans classe en premier
-      const items = Object.entries(TOOLS).filter(f).sort((a, b) => (!!b[1].free - !!a[1].free));
+      ['Pour toutes les activités', ([k]) => !pins.includes(k) && all.includes(k)],
+      ['Par activité', ([k, t]) => t.available && !pins.includes(k) && k !== 'evaluation' && !all.includes(k) && !other.includes(k)],
+      ['Autres et à venir', ([k, t]) => !pins.includes(k) && (other.includes(k) || !t.available)]].map(([title, f, cls]) => {
+      // outils utilisables sans classe en premier, puis par famille d'activité (couleurs voisines côte à côte)
+      const items = Object.entries(TOOLS).filter(f).sort((a, b) => (!!b[1].free - !!a[1].free) || fam(a[1]).localeCompare(fam(b[1])));
       return items.length ? [h('h3', { class: `toolsec ${cls || ''}` }, title), h('div', { class: `tooltiles big ${cls || ''}` }, items.map(tile))] : [];
     }).flat(),
     h('p', { class: 'muted small' }, 'Les outils libres s\'utilisent sans classe. L\'évaluation, elle, se trouve dans le carnet de bord de chaque classe.'));

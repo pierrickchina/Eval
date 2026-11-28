@@ -1,6 +1,6 @@
 // Résumé d'un élève sur l'année scolaire : moyenne, évolution par activité, niveaux, remarques.
 // Pratique pour rédiger les appréciations (bouton « Copier »).
-import { app } from '../app.js';
+import { app , back as navBack } from '../app.js';
 import { h, openDialog, toast } from './dom.js';
 import { fmt, fmtDate, collator, schoolYear } from '../util.js';
 import { studentLabel, levelInfo } from '../data/schema.js';

@@ -1,6 +1,6 @@
 // Outil Kivaou (course d'orientation) : qui va où, minuteurs par groupe, retours, résultats et bilan.
 // Écran de sécurité : en un coup d'œil, qui n'est pas rentré. Aucune saisie au clavier pendant la séance.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast, confirmDialog } from './dom.js';
 import { fmtDate, todayISO, collator, uid } from '../util.js';
 import { studentLabel } from '../data/schema.js';
@@ -21,7 +21,7 @@ function ctxFor(r) {
   const cls = app.repo.get('classes', r.classId);
   const act = cls && !cls.deleted ? activitiesOf(cls).find((a) => a.id === r.actId) : null;
   if (!act) return null;
-  const K = KV.kivaouOf(act, presetFor(act.name, 'kivaou') || KV.KV_DEFAULT);
+  const K = KV.kivaouOf(act, presetFor(null, 'kivaou') || KV.KV_DEFAULT);
   const students = cls.students.filter((s) => s.active !== false).sort((a, b) => collator.compare(studentLabel(a), studentLabel(b)));
   const byId = new Map(cls.students.map((s) => [s.id, s]));
   return { cls, act, K, students, name: (sid) => (byId.get(sid) ? studentLabel(byId.get(sid)) : '?'), save: () => { touchTool(act, 'kivaou'); return saveClass(cls); } };
@@ -64,7 +64,7 @@ registerView('kivaou', (r) => {
   const back = async () => {
     if (out.length && !(await confirmDialog(`${out.length} groupe${out.length > 1 ? 's ne sont pas rentrés' : ' n\'est pas rentré'}. Tout le monde est rentré ?`, 'Quitter quand même', { danger: true }))) return;
     clearInterval(V.ticker); V.ticker = null;
-    if (r.from === 'classPage' && r.classId) go('classPage', { id: r.classId }); else go('home');
+    navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
   };
   const ready = s.groups.filter((g) => !g.start);
   const m = iconBtn('more', 'Options', () => popMenu(m, [
@@ -197,7 +197,7 @@ export function kivaouSettingsDialog(initial, onSave, activityName = null, { pre
         iconBtn('trash', 'Retirer', () => { S.courses.splice(i, 1); paint(); }, 'sm', { disabled: S.courses.length <= 1 }))),
       btn('Ajouter un parcours', { icon: 'plus', cls: 'small soft', onClick: () => { S.courses.push({ id: uid(), name: `Boucle ${String.fromCharCode(65 + S.courses.length - 1)}`, balises: 6 }); paint(); } })),
     activityName && !presetOnly ? h('label', { class: 'row presetcheck' }, h('input', { type: 'checkbox', checked: asPreset, style: { width: '22px', height: '22px' }, onChange: (e) => { asPreset = e.target.checked; } }),
-      h('span', null, `Enregistrer aussi comme préréglage de l'équipe EPS pour « ${activityName} »`)) : '');
+      h('span', null, 'Enregistrer aussi comme préréglage Kivaou de l\'équipe EPS (toutes les activités)')) : '');
   paint();
   openDialog({ title: presetOnly ? `Préréglage Kivaou · ${activityName}` : 'Réglages Kivaou', body, wide: true, actions: [{ label: 'Annuler' }, { label: 'Enregistrer', primary: true, onClick: async () => {
     if (asPreset && activityName) { const P = JSON.parse(JSON.stringify(S)); delete P.lastCourse; await savePreset(activityName, 'kivaou', P); }

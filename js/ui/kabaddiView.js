@@ -1,18 +1,20 @@
 // Outil Kabaddi : attaques de 2 minutes, un bouton par attaquant (+100 puis +10), Ace +1000, faute −1, tableau Attaque × Défense.
-import { app, registerView, go, render } from '../app.js';
+import { app, registerView, go, render , back as navBack } from '../app.js';
 import { h, btn, icon, iconBtn, openDialog, popMenu, toast } from './dom.js';
 import { clone } from '../util.js';
 import { vestOf, VEST_COLORS } from '../logic/teams.js';
 import { clockText } from './chronoView.js';
 import { buzz } from './foundations.js';
 import { helpItem } from './help.js';
-import { projectionShell, leaveFullscreen } from './projection.js';
 import * as KB from '../logic/kabaddi.js';
+import { presetFor, savePreset } from './presets.js';
 
-const V = { ticker: null, proj: false };
+const V = { ticker: null };
 const keyOf = (r) => `kab:${r.scope === 'act' ? r.actId : 'free'}`;
-const stateOf = (r) => app.repo.getMeta(keyOf(r), null) || KB.newKabaddi();
-const backTo = (r) => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home'));
+const stateOf = (r) => app.repo.getMeta(keyOf(r), null) || fresh();
+/** Nouvelle partie : préréglage de l'équipe EPS (nombre d'équipes, durée d'une attaque). */
+export function fresh() { const p = presetFor(null, 'kabaddi') || {}; const st = KB.newKabaddi(p.teams || 3); if (p.attackMin) st.attackMin = p.attackMin; return st; }
+const backTo = (r) => navBack(() => (r.from === 'classPage' && r.classId ? go('classPage', { id: r.classId }) : go('home')));
 
 function tick() {
   if (app.route.name !== 'kabaddi') { clearInterval(V.ticker); V.ticker = null; return; }
@@ -30,18 +32,17 @@ registerView('kabaddi', (r) => {
   const apply = (fn, kind = 'tap') => { fn(); buzz(kind); save(); render(); };
   const team = (id) => st.teams.find((t) => t.id === id);
   const a = st.attacks.find((x) => x.id === st.current) || null;
-  if (V.proj) return projectionShell('Kabaddi', a ? `Attaque : ${team(a.att).name} → ${team(a.def).name}` : '', projContent(st, a, team), () => { V.proj = false; leaveFullscreen(); render(); });
   const left = a ? st.attackMin * 60000 - KB.elapsedMs(a) : 0;
   const running = !!a?.clock.startedAt;
   const m = iconBtn('more', 'Options', () => popMenu(m, [
     { label: 'Équipes et joueurs…', onClick: () => teamsDialog(st, () => { save(); render(); }) },
-    { label: 'Projection', onClick: () => { V.proj = true; render(); } },
+    { label: 'Enregistrer comme préréglage de l\'équipe EPS', onClick: async () => { await savePreset(null, 'kabaddi', { teams: st.teams.length, attackMin: st.attackMin }); toast('Préréglage Kabaddi enregistré.'); } },
     '-',
     { label: 'Tout remettre à zéro', danger: true, onClick: () => { const snap = clone(st); apply(() => { st.attacks.forEach((x) => { x.events = []; x.done = false; x.clock = { base: 0, startedAt: null }; }); st.current = st.attacks[0]?.id; }, 'undo'); toast('Scores remis à zéro.', { action: 'Annuler', ms: 9000, onAction: () => { Object.assign(st, snap); save(); render(); } }); } },
     helpItem('kabaddi'),
   ]), 'boxed');
   const attackPanel = () => {
-    if (!a) return h('div', { class: 'empty' }, h('h2', null, 'Toutes les attaques sont jouées'), btn('Projection', { icon: 'eye', cls: 'primary', onClick: () => { V.proj = true; render(); } }));
+    if (!a) { const rk = KB.ranking(st); return h('div', { class: 'empty' }, h('h2', null, 'Toutes les attaques sont jouées'), h('p', { class: 'kbwin' }, rk[0] ? `1re place : ${team(rk[0].id).name} (${rk[0].total} pts)` : '')); }
     const att = team(a.att), def = team(a.def), v = vestOf(att.color);
     return h('section', { class: 'kbattack', style: { '--v': v.hex } },
       h('header', null,
@@ -54,7 +55,7 @@ registerView('kabaddi', (r) => {
         const val = KB.playerValue(a, p.n);
         const n = a.events.filter((e) => e.player === p.n).length;
         return h('button', { type: 'button', class: `kbp ${val === 10 ? 'ten' : ''}`, onClick: () => apply(() => KB.tapPlayer(a, p.n)) },
-          h('span', { class: 'kbn' }, `${p.n}${p.n === 1 ? ' (cap.)' : ''}`), h('span', { class: 'kbname' }, p.name || `Joueur ${p.n}`), h('b', null, `+${val}`), n ? h('i', null, `${n} élim.`) : null);
+          h('span', { class: 'kbhand' }, icon('hand', 20)), h('span', { class: 'kbn' }, `${p.n}${p.n === 1 ? ' (cap.)' : ''}`), h('span', { class: 'kbname' }, p.name || `Joueur ${p.n}`), h('b', null, `+${val}`), n ? h('i', null, `${n} élim.`) : null);
       })),
       h('div', { class: 'kbteam' },
         btn('Ace +1000', { icon: 'star', cls: 'kbace', disabled: KB.countOf(a, 'ace') > 0, onClick: () => apply(() => KB.addAce(a), 'change') }),
@@ -73,20 +74,9 @@ registerView('kabaddi', (r) => {
   return h('div', { class: 'main kabaddi' },
     h('div', { class: 'topbar' }, iconBtn('back', 'Retour', () => backTo(r), '', { 'data-back': '1' }),
       h('div', { class: 'grow evtitle' }, h('h1', null, 'Kabaddi'), h('div', { class: 'sub' }, `${st.teams.length} équipes · ${st.attacks.filter((x) => x.done).length}/${st.attacks.length} attaques jouées`)),
-      btn('Projection', { icon: 'eye', onClick: () => { V.proj = true; render(); } }), m),
+      m),
     h('div', { class: 'kblayout' }, attackPanel(), matrix));
 });
-
-function projContent(st, a, team) {
-  const rk = KB.ranking(st);
-  return [
-    a ? h('div', { class: 'pj-card kbpj' }, h('h2', null, 'Attaque en cours'), h('div', { class: 'kbpjrow' }, h('b', null, team(a.att).name), h('span', null, ' → '), h('b', null, team(a.def).name), h('span', { class: 'kbpjsc' }, `${KB.scoreOf(a)} pts`), h('span', { class: 'kbclock' }, h('b', null, clockText(Math.max(0, st.attackMin * 60000 - KB.elapsedMs(a)), false))))) : null,
-    h('div', { class: 'pj-card' }, h('h2', null, 'Classement'), h('table', { class: 'pj-tab' }, h('tbody', null, rk.map((x) => h('tr', { class: x.rank === 1 && x.total ? 'first' : '' }, h('td', null, String(x.rank)), h('td', null, h('i', { class: 'pj-dot', style: { background: vestOf(team(x.id).color).hex } }), team(x.id).name), h('td', { class: 'n' }, `${x.total} pts`)))))),
-    h('div', { class: 'pj-card' }, h('h2', null, 'Attaque \\ Défense'), h('table', { class: 'pj-tab' },
-      h('thead', null, h('tr', null, h('th', null, ''), st.teams.map((t) => h('th', { class: 'n' }, t.name)))),
-      h('tbody', null, st.teams.map((ta) => h('tr', null, h('td', null, ta.name), st.teams.map((td) => { const x = st.attacks.find((y) => y.att === ta.id && y.def === td.id); return h('td', { class: 'n' }, ta.id === td.id ? '—' : x && (x.done || x.events.length) ? String(KB.scoreOf(x)) : '·'); })))))),
-  ].filter(Boolean);
-}
 
 function teamsDialog(st, done) {
   const S = clone({ teams: st.teams, attackMin: st.attackMin });
